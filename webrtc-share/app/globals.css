@@ -1,0 +1,61 @@
+@import "tailwindcss";
+
+
+html {
+  scroll-behavior: smooth;
+}
+
+:root {
+  --popover: #ffffff;
+}
+
+@theme {
+  --color-purple: #9452FF
+}
+
+.shape {
+  clip-path: polygon(79% 0, 100% 100%, 100% 100%, 0 100%, 0 14%);
+}
+
+
+.dialog-content button {
+  color: white !important;
+  opacity: 100% !important;
+  border-width: 0;
+  border-color: transparent;
+  outline: none;
+}
+
+/* Disable browser autocomplete and auto-suggestions */
+input[type="email"],
+input[type="password"],
+input[type="text"] {
+  autocomplete: off !important;
+  -webkit-autocomplete: off !important;
+  -moz-autocomplete: off !important;
+  -ms-autocomplete: off !important;
+  -o-autocomplete: off !important;
+}
+
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 30px white inset !important;
+  -webkit-text-fill-color: black !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+
+
+video::-webkit-media-controls-fullscreen-button {
+  display: none;
+}
+video::-webkit-media-controls-current-time-display {
+  display: block !important;
+}
+video::-webkit-media-controls-volume-slider,
+video::-webkit-media-controls-mute-button
+ {
+  display: none !important;
+}
