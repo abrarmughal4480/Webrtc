@@ -77,10 +77,9 @@ export const FeaturesSection = () => {
       <div className='w-[10rem] h-[10rem] md:w-[12rem] md:h-[12rem] bg-purple text-white flex items-end justify-center p-2 rotate-[-40deg] absolute -top-[6rem] md:-top-[7rem] -left-[5rem] md:-left-[6rem] -z-0'>
         <h1 className='text-lg md:text-xl'>Benefits</h1>
       </div>
-      <div className="container mx-auto px-4 md:px-8">
-        <div className="min-h-[4rem] md:min-h-[6rem] flex items-center justify-center mb-8 md:mb-12">
+      <div className="container mx-auto px-4 md:px-8">        <div className="min-h-[6rem] md:min-h-[8rem] flex items-center justify-center mb-12 md:mb-16 relative z-10">
           {/* Mobile TypeAnimation */}
-          <h2 className="block md:hidden text-2xl font-extrabold text-center max-w-5xl mx-auto px-2">
+          <h2 className="block md:hidden text-xl font-extrabold text-center max-w-4xl mx-auto px-4">
             <TypeAnimation
               sequence={[
                 'Connect, engage and support customers with instant video links',
@@ -90,7 +89,7 @@ export const FeaturesSection = () => {
               ]}
               wrapper="span"
               speed={300}
-              style={{ fontSize: '22px', display: 'inline-block', whiteSpace: 'normal', lineHeight: '1.3', fontWeight: '800' }}
+              style={{ fontSize: '20px', display: 'inline-block', whiteSpace: 'normal', lineHeight: '1.4', fontWeight: '800' }}
               repeat={Infinity}
             />
           </h2>
