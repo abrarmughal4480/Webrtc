@@ -41,9 +41,13 @@ export default function Page() {
   const [itemsPerPage] = useState(10);
   const [viewMode, setViewMode] = useState('active');
   const [archivedCount, setArchivedCount] = useState(0);
-
   // Add state for VideoLinkSender
   const [showVideoLinkSender, setShowVideoLinkSender] = useState(false);
+
+  // Add state for multiple selection
+  const [selectedMeetings, setSelectedMeetings] = useState([]);
+  const [selectAll, setSelectAll] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const { setResetOpen, setMessageOpen, setLandlordDialogOpen, setTickerOpen, setInviteOpen, setFeedbackOpen, setFaqOpen, setExportOpen, setHistoryOpen } = useDialog();
 
@@ -123,7 +127,6 @@ export default function Page() {
       });
     }
   };
-
   const handleDeleteMeeting = async (id, meetingName) => {
     // Confirm deletion
     const confirmed = window.confirm(
@@ -157,6 +160,81 @@ export default function Page() {
     }
   };
 
+  // Handle multiple delete
+  const handleMultipleDelete = async () => {
+    if (selectedMeetings.length === 0) {
+      toast.error("Please select meetings to delete");
+      return;
+    }
+
+    const selectedMeetingDetails = meetings.filter(meeting => selectedMeetings.includes(meeting._id));
+    const meetingNames = selectedMeetingDetails.map(meeting => meeting.name || 'Unknown').join(', ');
+
+    const confirmed = window.confirm(
+      `Are you sure you want to delete ${selectedMeetings.length} meeting(s)?\n\nMeetings: ${meetingNames}\n\nThis will permanently delete:\n• The meeting documents\n• All recordings\n• All screenshots\n• All associated media files\n\nThis action cannot be undone.`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setIsDeleting(true);
+    let successCount = 0;
+    let failureCount = 0;
+
+    try {
+      // Delete meetings one by one
+      for (const meetingId of selectedMeetings) {
+        try {
+          await deleteMeeting(meetingId);
+          successCount++;
+        } catch (error) {
+          console.error(`Failed to delete meeting ${meetingId}:`, error);
+          failureCount++;
+        }
+      }
+
+      // Show results
+      if (successCount > 0) {
+        toast.success(`Successfully deleted ${successCount} meeting(s)`, {
+          description: failureCount > 0 ? `${failureCount} deletion(s) failed` : undefined
+        });
+      }
+
+      if (failureCount > 0 && successCount === 0) {
+        toast.error(`Failed to delete ${failureCount} meeting(s)`);
+      }
+
+      // Clear selection and refresh
+      setSelectedMeetings([]);
+      setSelectAll(false);
+      fetchMeetings();
+    } catch (error) {
+      toast.error("Error during bulk deletion");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  // Handle select all checkbox
+  const handleSelectAll = (checked) => {
+    setSelectAll(checked);
+    if (checked) {
+      setSelectedMeetings(currentMeetings.map(meeting => meeting._id));
+    } else {
+      setSelectedMeetings([]);
+    }
+  };
+
+  // Handle individual checkbox
+  const handleSelectMeeting = (meetingId, checked) => {
+    if (checked) {
+      setSelectedMeetings(prev => [...prev, meetingId]);
+    } else {
+      setSelectedMeetings(prev => prev.filter(id => id !== meetingId));
+      setSelectAll(false);
+    }
+  };
   const handleLogout = async () => {
     try {
       const res = await logoutRequest();
@@ -445,12 +523,19 @@ export default function Page() {
     
     return addressParts.length > 0 ? addressParts.join(', ') : 'No address provided';
   };
-
   // Calculate pagination
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentMeetings = meetings.slice(indexOfFirstItem, indexOfLastItem);
   const totalPages = Math.ceil(meetings.length / itemsPerPage);
+
+  // Update select all when individual selections change
+  useEffect(() => {
+    if (currentMeetings.length > 0) {
+      const allSelected = currentMeetings.every(meeting => selectedMeetings.includes(meeting._id));
+      setSelectAll(allSelected);
+    }
+  }, [selectedMeetings, currentMeetings]);
 
   // Pagination handlers
   const handleNextPage = () => {
@@ -468,10 +553,11 @@ export default function Page() {
   const handlePageClick = (pageNumber) => {
     setCurrentPage(pageNumber);
   };
-
   // Reset to first page when meetings change
   useEffect(() => {
     setCurrentPage(1);
+    setSelectedMeetings([]); // Clear selections when meetings change
+    setSelectAll(false);
   }, [meetings]);
 
   return (
@@ -523,10 +609,9 @@ export default function Page() {
               <img src="/devices.svg" alt="Videodesk" className="mt-2 w-60" />
             </div>
 
-            <div className="flex items-center gap-4">
-              {/* Archive Icon Button */}
+            <div className="flex items-center gap-4">              {/* Archive Icon Button */}
               <Button
-                className={`${viewMode === 'archived' ? 'bg-blue-500 hover:bg-blue-600' : 'bg-gray-500 hover:bg-gray-600'} text-white rounded-full px-4 py-2 flex items-center gap-2`}
+                className={`${viewMode === 'archived' ? 'bg-red-500 hover:bg-red-600' : 'bg-blue-500 hover:bg-blue-600'} text-white rounded-full px-4 py-2 flex items-center gap-2`}
                 onClick={() => {
                   console.log('🔄 Current viewMode:', viewMode);
                   if (viewMode === 'archived') {
@@ -658,9 +743,57 @@ export default function Page() {
                 )}
               </Button>
             </div>
-          </div>
+          </div>          <div className="bg-white p-5 rounded-xl shadow-md overflow-x-auto">
+            {/* Gmail-style Header with Actions */}            <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-200">
+              <div className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  checked={selectAll}
+                  onChange={(e) => handleSelectAll(e.target.checked)}
+                  className="rounded border-gray-300"
+                  disabled={loading || meetings.length === 0}
+                />
+                {selectedMeetings.length > 0 ? (
+                  <>
+                    <span className="text-sm text-gray-600">
+                      {selectedMeetings.length} selected
+                    </span>
+                    <button
+                      onClick={handleMultipleDelete}
+                      disabled={isDeleting}
+                      className="text-red-600 hover:text-red-800 text-sm flex items-center gap-1 hover:bg-red-50 px-2 py-1 rounded"
+                      title="Delete selected meetings"
+                    >
+                      {isDeleting ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span>Deleting...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Trash2 className="w-4 h-4" />
+                          <span>Delete</span>
+                        </>
+                      )}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setSelectedMeetings([]);
+                        setSelectAll(false);
+                      }}
+                      className="text-gray-500 hover:text-gray-700 text-sm hover:bg-gray-50 px-2 py-1 rounded"
+                    >
+                      Clear selection
+                    </button>
+                  </>
+                ) : (
+                  <span className="text-sm text-gray-500">
+                    {meetings.length} {meetings.length === 1 ? 'meeting' : 'meetings'}
+                  </span>
+                )}
+              </div>
+            </div>
 
-          <div className="bg-white p-5 rounded-xl shadow-md overflow-x-auto">
             <table className="min-w-full text-left text-sm">
               <thead className="sticky top-0 bg-white">
                 <tr>
@@ -674,10 +807,8 @@ export default function Page() {
                     </div>
                   </th>
                 </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  // Skeleton loading rows
+              </thead>              <tbody>
+                {loading ? (// Skeleton loading rows
                   Array.from({ length: 3 }).map((_, index) => (
                     <tr key={`skeleton-${index}`} className="border-b">
                       <td className="px-4 py-3 w-2/5">
@@ -707,8 +838,7 @@ export default function Page() {
                         </div>
                       </td>
                     </tr>
-                  ))
-                ) : meetings.length === 0 ? (
+                  ))                ) : meetings.length === 0 ? (
                   <tr>
                     <td colSpan="4" className="text-center py-8 text-gray-500">
                       {viewMode === 'archived' ? 'No archived meetings found.' : 'No meetings found. Create your first video link to get started!'}
@@ -719,12 +849,19 @@ export default function Page() {
                     const { time, date } = formatMeetingDate(meeting.createdAt);
                     const shareUrl = generateShareUrl(meeting.meeting_id);
                     const actualIndex = indexOfFirstItem + index;
-                    const isArchived = meeting.archived || false;
-
-                    return (
-                      <tr key={meeting._id} className="hover:bg-gray-50 border-b">
+                    const isArchived = meeting.archived || false;                    return (
+                      <tr key={meeting._id} className="hover:bg-gray-50 border-b group">
                         <td className="px-4 py-3 w-1/3">
                           <div className="flex items-start gap-2">
+                            <input
+                              type="checkbox"
+                              checked={selectedMeetings.includes(meeting._id)}
+                              onChange={(e) => handleSelectMeeting(meeting._id, e.target.checked)}
+                              className="rounded border-gray-300 mt-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                              style={{
+                                opacity: selectedMeetings.includes(meeting._id) ? 1 : undefined
+                              }}
+                            />
                             <span className="flex-shrink-0">{actualIndex + 1}.</span>
                             <div className="flex items-center gap-2 flex-1">
                               <span className="break-words">{meeting.name || 'Unknown Resident'}, {formatCompleteAddress(meeting)}</span>
