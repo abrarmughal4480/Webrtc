@@ -1,7 +1,7 @@
 "use client"
 import { DialogComponent } from '@/components/dialogs/DialogCompnent';
 import React, { createContext, useState, useContext, useRef, useEffect } from 'react';
-import { FileText, Archive, Trash2, Monitor, Smartphone, Save, History, ArchiveRestore, ExternalLink, FileSearch, MailIcon, Loader2, LockIcon, XIcon, Link, Copy } from "lucide-react"
+import { FileText, Archive, Trash2, Monitor, Smartphone, Save, History, ArchiveRestore, ExternalLink, FileSearch, MailIcon, Loader2, LockIcon, XIcon, Link, Copy, Eye, EyeOff } from "lucide-react"
 import { Disclosure } from "@headlessui/react";
 import { ChevronDownIcon } from "@heroicons/react/20/solid";
 import { sendFriendLinkRequest, resetPasswordFromDashboardRequest, sendFeedbackRequest, raiseSupportTicketRequest, forgotPasswordRequest, updateLandlordInfoRequest, updateMessageSettingsRequest, getMessageSettingsRequest } from '@/http/authHttp';
@@ -194,11 +194,112 @@ export const DialogProvider = ({ children }) => {
       setInviteLoading(false);
     }
   };
-
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [recoveryWord, setRecoveryWord] = useState('');
+  // Password visibility toggle states for reset password modal
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  // Auto-hide password timers
+  const [currentPasswordTimer, setCurrentPasswordTimer] = useState(null);
+  const [newPasswordTimer, setNewPasswordTimer] = useState(null);
+  const [confirmPasswordTimer, setConfirmPasswordTimer] = useState(null);
+
+  // Function to toggle password visibility with auto-hide
+  const togglePasswordVisibility = (passwordType) => {
+    if (passwordType === 'current') {
+      if (!showCurrentPassword) {
+        setShowCurrentPassword(true);
+        // Clear existing timer
+        if (currentPasswordTimer) {
+          clearTimeout(currentPasswordTimer);
+        }
+        // Set new timer to hide after 4 seconds
+        const timer = setTimeout(() => {
+          setShowCurrentPassword(false);
+        }, 4000);
+        setCurrentPasswordTimer(timer);
+      } else {
+        setShowCurrentPassword(false);
+        if (currentPasswordTimer) {
+          clearTimeout(currentPasswordTimer);
+          setCurrentPasswordTimer(null);
+        }
+      }
+    } else if (passwordType === 'new') {
+      if (!showNewPassword) {
+        setShowNewPassword(true);
+        // Clear existing timer
+        if (newPasswordTimer) {
+          clearTimeout(newPasswordTimer);
+        }
+        // Set new timer to hide after 4 seconds
+        const timer = setTimeout(() => {
+          setShowNewPassword(false);
+        }, 4000);
+        setNewPasswordTimer(timer);
+      } else {
+        setShowNewPassword(false);
+        if (newPasswordTimer) {
+          clearTimeout(newPasswordTimer);
+          setNewPasswordTimer(null);
+        }
+      }
+    } else if (passwordType === 'confirm') {
+      if (!showConfirmPassword) {
+        setShowConfirmPassword(true);
+        // Clear existing timer
+        if (confirmPasswordTimer) {
+          clearTimeout(confirmPasswordTimer);
+        }
+        // Set new timer to hide after 4 seconds
+        const timer = setTimeout(() => {
+          setShowConfirmPassword(false);
+        }, 4000);
+        setConfirmPasswordTimer(timer);
+      } else {
+        setShowConfirmPassword(false);
+        if (confirmPasswordTimer) {
+          clearTimeout(confirmPasswordTimer);
+          setConfirmPasswordTimer(null);        }
+      }
+    }
+  };
+
+  // Cleanup timers when modal is closed or component unmounts
+  useEffect(() => {
+    if (!resetOpen) {
+      // Clear all password visibility timers when reset modal is closed
+      if (currentPasswordTimer) {
+        clearTimeout(currentPasswordTimer);
+        setCurrentPasswordTimer(null);
+      }
+      if (newPasswordTimer) {
+        clearTimeout(newPasswordTimer);
+        setNewPasswordTimer(null);
+      }
+      if (confirmPasswordTimer) {
+        clearTimeout(confirmPasswordTimer);
+        setConfirmPasswordTimer(null);
+      }
+      // Reset all password visibility states
+      setShowCurrentPassword(false);
+      setShowNewPassword(false);
+      setShowConfirmPassword(false);
+    }
+  }, [resetOpen]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (currentPasswordTimer) clearTimeout(currentPasswordTimer);
+      if (newPasswordTimer) clearTimeout(newPasswordTimer);
+      if (confirmPasswordTimer) clearTimeout(confirmPasswordTimer);
+    };
+  }, []);
 
   const handleResetPassword = async (e) => {
     e.preventDefault();
@@ -2092,35 +2193,70 @@ ${senderName}`;
 
           <div className="p-5 bg-white rounded-b-2xl max-h-[calc(90vh-4rem)] overflow-y-auto">
             <form onSubmit={handleResetPassword}>
-              {/* Fields */}
-              <div className="space-y-3">
-                <input
-                  type="password"
-                  placeholder="Enter current password"
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg"
-                  value={currentPassword}
-                  onChange={(e) => setCurrentPassword(e.target.value)}
-                  required
-                />
-                <input
-                  type="password"
-                  placeholder="Enter new password"
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  required
-                />
+              {/* Fields */}              <div className="space-y-3">
+                <div className="relative">
+                  <input
+                    type={showCurrentPassword ? "text" : "password"}
+                    placeholder="Enter current password"
+                    className="w-full px-3 py-2 pr-10 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    required
+                  />                  <button
+                    type="button"
+                    onClick={() => togglePasswordVisibility('current')}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none"
+                  >
+                    {showCurrentPassword ? (
+                      <EyeOff className="w-4 h-4" />
+                    ) : (
+                      <Eye className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
+                <div className="relative">
+                  <input
+                    type={showNewPassword ? "text" : "password"}
+                    placeholder="Enter new password"
+                    className="w-full px-3 py-2 pr-10 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    required
+                  />                  <button
+                    type="button"
+                    onClick={() => togglePasswordVisibility('new')}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none"
+                  >
+                    {showNewPassword ? (
+                      <EyeOff className="w-4 h-4" />
+                    ) : (
+                      <Eye className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
                 <p className="text-xs text-red-500 -mt-1">
                   Minimum 8 characters including 1 capital, 1 lower case and 1 special character
                 </p>
-                <input
-                  type="password"
-                  placeholder="Retype new password"
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  required
-                />
+                <div className="relative">
+                  <input
+                    type={showConfirmPassword ? "text" : "password"}
+                    placeholder="Retype new password"
+                    className="w-full px-3 py-2 pr-10 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    required
+                  />                  <button
+                    type="button"
+                    onClick={() => togglePasswordVisibility('confirm')}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none"
+                  >
+                    {showConfirmPassword ? (
+                      <EyeOff className="w-4 h-4" />
+                    ) : (
+                      <Eye className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
                 <input
                   type="text"
                   placeholder="Type secret account recovery word (optional)"
