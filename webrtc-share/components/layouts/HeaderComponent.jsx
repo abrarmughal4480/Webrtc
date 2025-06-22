@@ -60,6 +60,8 @@ export const Header = () => {
   const [lastAction, setLastAction] = useState(''); // Track if last action was 'login' or 'register'
   const [showSignUpPassword, setShowSignUpPassword] = useState(false);
   const [showSignInPassword, setShowSignInPassword] = useState(false);
+  const [signUpPasswordTimer, setSignUpPasswordTimer] = useState(null);
+  const [signInPasswordTimer, setSignInPasswordTimer] = useState(null);
 
   // Reset resend states when OTP dialog opens
   useEffect(() => {
@@ -298,6 +300,52 @@ const handleLogout = async () => {
     }
   }, [password])
 
+  // Auto-hide password after 4 seconds for Sign Up
+  const toggleSignUpPassword = () => {
+    setShowSignUpPassword(!showSignUpPassword);
+    
+    // Clear existing timer
+    if (signUpPasswordTimer) {
+      clearTimeout(signUpPasswordTimer);
+    }
+    
+    // If showing password, set timer to hide after 4 seconds
+    if (!showSignUpPassword) {
+      const timer = setTimeout(() => {
+        setShowSignUpPassword(false);
+        setSignUpPasswordTimer(null);
+      }, 4000);
+      setSignUpPasswordTimer(timer);
+    }
+  };
+
+  // Auto-hide password after 4 seconds for Sign In
+  const toggleSignInPassword = () => {
+    setShowSignInPassword(!showSignInPassword);
+    
+    // Clear existing timer
+    if (signInPasswordTimer) {
+      clearTimeout(signInPasswordTimer);
+    }
+    
+    // If showing password, set timer to hide after 4 seconds
+    if (!showSignInPassword) {
+      const timer = setTimeout(() => {
+        setShowSignInPassword(false);
+        setSignInPasswordTimer(null);
+      }, 4000);
+      setSignInPasswordTimer(timer);
+    }
+  };
+
+  // Cleanup timers on component unmount
+  useEffect(() => {
+    return () => {
+      if (signUpPasswordTimer) clearTimeout(signUpPasswordTimer);
+      if (signInPasswordTimer) clearTimeout(signInPasswordTimer);
+    };
+  }, [signUpPasswordTimer, signInPasswordTimer]);
+
 
   return (
     <>
@@ -467,7 +515,7 @@ const handleLogout = async () => {
                   autoComplete="off"
                 />
                 <div
-                  onClick={() => setShowSignUpPassword(!showSignUpPassword)}
+                  onClick={toggleSignUpPassword}
                   style={{
                     position: 'absolute',
                     right: '12px',
@@ -584,7 +632,7 @@ const handleLogout = async () => {
                   autoComplete="off"
                 />
                 <div
-                  onClick={() => setShowSignInPassword(!showSignInPassword)}
+                  onClick={toggleSignInPassword}
                   style={{
                     position: 'absolute',
                     right: '12px',
