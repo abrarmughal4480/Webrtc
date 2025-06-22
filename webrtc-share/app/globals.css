@@ -46,6 +46,66 @@ input:-webkit-autofill:active {
   transition: background-color 5000s ease-in-out 0s;
 }
 
+/* Hide default browser password visibility toggles */
+input[type="password"]::-webkit-textfield-decoration-container,
+input[type="password"]::-webkit-credentials-auto-fill-button,
+input[type="password"]::-webkit-strong-password-auto-fill-button {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+/* WebKit browsers (Chrome, Safari, Edge) */
+input[type="password"]::-webkit-reveal {
+  display: none !important;
+  -webkit-appearance: none !important;
+}
+
+input[type="password"]::-webkit-password-toggle {
+  display: none !important;
+  -webkit-appearance: none !important;
+}
+
+/* Microsoft Edge specific */
+input[type="password"]::-ms-reveal {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+input[type="password"]::-ms-clear {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+/* Firefox */
+input[type="password"]::-moz-reveal {
+  display: none !important;
+}
+
+/* Additional security for all password inputs */
+input[type="password"] {
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  appearance: none !important;
+}
+
+/* Prevent any reveal buttons on mobile devices */
+input[type="password"]::-webkit-textfield-decoration-container:after {
+  display: none !important;
+}
+
+/* iOS Safari specific */
+input[type="password"]::-webkit-textfield-decoration-container {
+  display: none !important;
+}
+
+/* Ensure no reveal functionality on any device */
+input[type="password"] {
+  -webkit-text-security: disc !important;
+}
+
 
 
 video::-webkit-media-controls-fullscreen-button {
