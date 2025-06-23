@@ -235,11 +235,43 @@ export default function VideoLinkSender({ isOpen, onClose, onSuccess }) {
     }
     return null;
   };
+  // Normalize phone number to E.164 (UK default)
+  const normalizePhoneNumber = (number) => {
+    let cleaned = number.replace(/[\s\-()]/g, '');
+    if (cleaned.startsWith('+')) {
+      return cleaned;
+    }
+    if (cleaned.startsWith('0')) {
+      // 07123456789 => +447123456789
+      return '+44' + cleaned.slice(1);
+    }
+    if (cleaned.length === 10 && cleaned.startsWith('7')) {
+      // 7123456789 => +447123456789
+      return '+44' + cleaned;
+    }
+    // fallback: just return as is
+    return cleaned;
+  };
+
+  const validatePhoneNumber = (number) => {
+    // Accepts numbers starting with + and 10-15 digits, or UK local formats
+    const cleaned = number.replace(/[\s\-()]/g, '');
+    if (/^\+[1-9]\d{9,14}$/.test(cleaned)) return true;
+    if (/^0[1-9]\d{8,12}$/.test(cleaned)) return true; // UK local with 0
+    if (/^7\d{9}$/.test(cleaned)) return true; // UK local without 0
+    return false;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     
     if (!phone && !email) {
       toast.error("Please enter either phone number or email address");
+      return;
+    }
+    // Phone validation for international and UK local numbers
+    if (phone && !validatePhoneNumber(phone)) {
+      toast.error("Please enter a valid phone number (e.g. +447123456789 or 07123456789)");
       return;
     }
 
@@ -260,7 +292,7 @@ export default function VideoLinkSender({ isOpen, onClose, onSuccess }) {
       const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
       
       const profileData = {
-        number: phone,
+        number: phone ? normalizePhoneNumber(phone) : '',
         email: email
       };
       
