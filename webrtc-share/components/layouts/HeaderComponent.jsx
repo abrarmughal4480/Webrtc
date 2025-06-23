@@ -346,6 +346,36 @@ const handleLogout = async () => {
     };
   }, [signUpPasswordTimer, signInPasswordTimer]);
 
+  // Reset form fields when dialogs close
+  useEffect(() => {
+    if (!signUpOpen) {
+      setEmail('');
+      setPassword('');
+      setRole('landlord');
+      setPasswordStrength(0);
+    }
+  }, [signUpOpen]);
+
+  useEffect(() => {
+    if (!signInOpen) {
+      setEmail('');
+      setPassword('');
+      setPasswordStrength(0);
+    }
+  }, [signInOpen]);
+
+  useEffect(() => {
+    if (!isForgotOpen) {
+      setForgotEmail('');
+    }
+  }, [isForgotOpen]);
+
+  useEffect(() => {
+    if (!isOtpOpen) {
+      setOTp('');
+    }
+  }, [isOtpOpen]);
+
 
   return (
     <>
