@@ -1761,7 +1761,8 @@ export default function Page({ params }) {
   const maximizeScreenshot = useCallback((screenshot, index, isExisting = false) => {
     setMaximizedItem({
       type: 'screenshot',
-      id: isExisting ? screenshot.id : `new-${index}`,
+      // id: isExisting ? screenshot.id : `new-${index}`,
+      id: screenshot.id,
       data: screenshot,
       index: isExisting ? null : index,
       isExisting
@@ -2306,13 +2307,14 @@ useEffect(() => {
 
             {/* Maximized Screenshot */}
             {maximizedItem.type === 'screenshot' && (() => {
-              const screenshotId = maximizedItem.isExisting ? maximizedItem.data.id : `new-${maximizedItem.index}`;
+              // const screenshotId = maximizedItem.isExisting ? maximizedItem.data.id : `new-${maximizedItem.index}`;
+              const screenshotId = maximizedItem.data.id;
               const canvasId = `maximized-canvas-${screenshotId}`;
               
               // Check if we have a merged version of this screenshot
               const mergedScreenshotKey = `merged-${screenshotId}`;
               const mergedData = window.tempMergedScreenshots?.[mergedScreenshotKey];
-              const isSaved = getScreenshotStatus(screenshotId);
+              let isSaved = getScreenshotStatus(screenshotId);
               
               // Use merged data if available and this screenshot is saved, otherwise use original
               let screenshotUrl = maximizedItem.isExisting ? maximizedItem.data.url : maximizedItem.data.url;
@@ -2332,6 +2334,9 @@ useEffect(() => {
                 isSaved: isSaved,
                 hasMergedData: !!mergedData
               });
+
+              if(isSaved) maximizedItem.isExisting = true;
+              if(maximizedItem.isExisting) isSaved = true;
               
               return (
                 <div className="relative w-full h-full flex items-center justify-center p-4">
@@ -2406,7 +2411,8 @@ useEffect(() => {
                       </div>
 
                       {/* Enhanced Save Button - Only show for new screenshots - FIRST */}
-                      {!maximizedItem.isExisting && (
+                      {/* {!maximizedItem.isExisting && ( */}
+                      {(!isSaved || !maximizedItem.isExisting) && (
                         <button
                           onClick={async () => {
                             const screenshotData = maximizedItem.data.url;
@@ -2504,7 +2510,9 @@ useEffect(() => {
                     {/* Screenshot Image */}
                     <img
                       id={`maximized-img-${maximizedItem.id}`}
+                      // src={screenshotUrl.includes('base64') ? screenshotUrl : `/api/proxy?url=${encodeURIComponent(screenshotUrl)}`}
                       src={screenshotUrl}
+
                       alt="Maximized screenshot"
                       className="w-full h-full object-contain hidden opacity-0 transition-opacity duration-300"
                       style={{
@@ -3442,7 +3450,7 @@ useEffect(() => {
                         } border-2 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 ease-in-out transform hover:scale-105 flex items-center justify-center relative cursor-pointer group`}
                              onClick={() => {
                                console.log('🔍 Maximizing screenshot:', { index, cleanScreenshotUrl });
-                               maximizeScreenshot(screenshot, index, false);
+                               maximizeScreenshot({...screenshot,id: screenshotId}, index, false);
                              }}>
                           {/* Enhanced Click to view design */}
                           <div className={`text-center ${

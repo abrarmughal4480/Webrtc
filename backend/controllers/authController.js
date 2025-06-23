@@ -156,18 +156,19 @@ export const verify = catchAsyncError(async (req, res, next) => {
 	if (!user)
       return sendResponse(false, 401, 'Invalid OTP or maybe expired',res);
 
-    // Update login times
-    const currentTime = new Date();
+ 
     
     // Shift current login time to previous login time
     if (user.currentLoginTime) {
         user.previousLoginTime = user.currentLoginTime;
         console.log('📅 Previous login time updated:', user.previousLoginTime);
-    }else{
-        user.previousLoginTime = currentTime;
     }
+    // else{
+    //     user.previousLoginTime = currentTime;
+    // }
     
     // Set new current login time
+    const currentTime = new Date();
     user.currentLoginTime = currentTime;
     console.log('📅 Current login time updated:', user.currentLoginTime);
     

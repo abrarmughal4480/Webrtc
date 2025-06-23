@@ -1273,3 +1273,6 @@ export const deleteScreenshot = catchAsyncError(async (req, res, next) => {
 
     sendResponse(true, 200, message, res);
 });
+
+
+
