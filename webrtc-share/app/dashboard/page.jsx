@@ -24,10 +24,10 @@ import {
   ArrowsPointingOutIcon,
   ClockIcon,
 } from "@heroicons/react/20/solid";
-import { useDialog } from "@/provider/DilogsProvider"
-import CustomDialog from "@/components/dialogs/CustomDialog"
-import { updateUserLogoRequest } from "@/http/authHttp"
-import VideoLinkSender from "@/components/VideoLinkSender"
+import { useDialog } from "../../provider/DilogsProvider"
+import CustomDialog from "../../components/dialogs/CustomDialog"
+import { updateUserLogoRequest } from "../../http/authHttp"
+import VideoLinkSender from "../../components/VideoLinkSender"
 import moment from "moment/moment"
 
 export default function Page() {
