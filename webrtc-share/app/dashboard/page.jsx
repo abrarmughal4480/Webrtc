@@ -1,5 +1,5 @@
 "use client"
-import { Button } from "@/components/ui/button"
+import { Button } from "../../components/ui/button"
 import { FileText, Archive, Trash2, Monitor, Smartphone, Save, History, ArchiveRestore, ExternalLink, FileSearch, MailIcon, Loader2, Maximize2, Home } from "lucide-react"
 import Image from "next/image"
 import {
@@ -7,10 +7,10 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { logoutRequest } from "@/http/authHttp"
-import { getAllMeetings, deleteMeeting, archiveMeeting, unarchiveMeeting, getArchivedCount } from "@/http/meetingHttp"
-import { useUser } from "@/provider/UserProvider"
+} from "../../components/ui/dropdown-menu"
+import { logoutRequest } from "../../http/authHttp"
+import { getAllMeetings, deleteMeeting, archiveMeeting, unarchiveMeeting, getArchivedCount } from "../../http/meetingHttp"
+import { useUser } from "../../provider/UserProvider"
 import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 
