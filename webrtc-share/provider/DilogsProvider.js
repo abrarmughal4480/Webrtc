@@ -264,7 +264,8 @@ export const DialogProvider = ({ children }) => {
         setShowConfirmPassword(false);
         if (confirmPasswordTimer) {
           clearTimeout(confirmPasswordTimer);
-          setConfirmPasswordTimer(null);        }
+          setConfirmPasswordTimer(null);
+        }
       }
     }
   };
@@ -856,7 +857,7 @@ export const DialogProvider = ({ children }) => {
       // If modal just opened or meeting changed, immediately fetch data and set up interval
       if (!historyInterval || selectedMeetingForHistory._id !== initialMeetingId) {
         console.log('✅ Starting auto-fetch for meeting:', selectedMeetingForHistory._id);
-        
+
         // Clean up existing interval if any
         if (historyInterval) {
           clearInterval(historyInterval);
@@ -864,7 +865,7 @@ export const DialogProvider = ({ children }) => {
 
         // Set the initial meeting ID to track changes
         setInitialMeetingId(selectedMeetingForHistory._id);
-        
+
         // Immediately fetch data with loading when modal opens
         fetchHistoryDataWithLoading();
 
@@ -1066,7 +1067,7 @@ ${senderName}`;
       addLine('Shared by:', senderName);
       addLine('Meeting ID:', selectedMeeting.meeting_id);
       addLine('Resident Name:', selectedMeeting.name);
-      
+
       // Add individual address lines if they exist
       if (selectedMeeting.address_line_1) {
         addLine('Address Line 1:', selectedMeeting.address_line_1);
@@ -1077,7 +1078,7 @@ ${senderName}`;
       if (selectedMeeting.address_line_3) {
         addLine('Address Line 3:', selectedMeeting.address_line_3);
       }
-      
+
       // Add additional address lines if they exist
       if (selectedMeeting.additional_address_lines && selectedMeeting.additional_address_lines.length > 0) {
         selectedMeeting.additional_address_lines.forEach((line, index) => {
@@ -1086,49 +1087,49 @@ ${senderName}`;
           }
         });
       }
-      
+
       addLine('Post Code:', selectedMeeting.post_code);
-      
+
       // Add phone number if it exists
       if (selectedMeeting.phone_number) {
         addLine('Phone Number:', selectedMeeting.phone_number);
       }
-      
+
       // Add reference if it exists
       if (selectedMeeting.reference) {
         addLine('Reference:', selectedMeeting.reference);
       }
-      
+
       addLine('Repair Details:', selectedMeeting.repair_detail);
-      
+
       // Add work details if they exist
       if (selectedMeeting.work_details && selectedMeeting.work_details.length > 0) {
         yPosition += 5;
         pdf.setFont(undefined, 'bold');
         pdf.text('Work Details:', 20, yPosition);
         yPosition += 7;
-        
+
         selectedMeeting.work_details.forEach((work, index) => {
           if (yPosition > 270) {
             pdf.addPage();
             yPosition = 20;
           }
-          
+
           pdf.setFont(undefined, 'bold');
           pdf.text(`Work Item ${index + 1}:`, 25, yPosition);
           yPosition += 7;
-          
+
           pdf.setFont(undefined, 'normal');
           const workLines = pdf.splitTextToSize(work.detail || 'N/A', 115);
           pdf.text(workLines, 25, yPosition);
           yPosition += workLines.length * 7;
-          
+
           if (work.target_time) {
             pdf.setFont(undefined, 'italic');
             pdf.text(`Target Time: ${work.target_time}`, 25, yPosition);
             yPosition += 7;
           }
-          
+
           if (work.timestamp) {
             pdf.setFont(undefined, 'normal');
             pdf.setFontSize(10);
@@ -1136,24 +1137,24 @@ ${senderName}`;
             yPosition += 7;
             pdf.setFontSize(12);
           }
-          
+
           yPosition += 3; // Extra spacing between work items
         });
       }
-      
+
       // Add special notes if they exist
       if (selectedMeeting.special_notes) {
         yPosition += 5;
         pdf.setFont(undefined, 'bold');
         pdf.text('Special Notes:', 20, yPosition);
         yPosition += 7;
-        
+
         pdf.setFont(undefined, 'normal');
         const notesLines = pdf.splitTextToSize(selectedMeeting.special_notes, 150);
         pdf.text(notesLines, 20, yPosition);
         yPosition += notesLines.length * 7 + 5;
       }
-      
+
       addLine('Date Created:', new Date(selectedMeeting.createdAt).toLocaleDateString());
       addLine('Share Link:', generateShareLink(selectedMeeting.meeting_id));
 
@@ -1420,8 +1421,8 @@ ${senderName}`;
         ] : []),
 
         // Add additional address lines
-        ...(selectedMeeting.additional_address_lines && selectedMeeting.additional_address_lines.length > 0 ? 
-          selectedMeeting.additional_address_lines.filter(line => line && line.trim()).map((line, index) => 
+        ...(selectedMeeting.additional_address_lines && selectedMeeting.additional_address_lines.length > 0 ?
+          selectedMeeting.additional_address_lines.filter(line => line && line.trim()).map((line, index) =>
             new Paragraph({
               children: [
                 new TextRun({ text: `Address Line ${index + 4}: `, bold: true }),
@@ -2145,6 +2146,15 @@ ${senderName}`;
       isLoaded: messageSettingsLoaded
     })
   };
+
+  useEffect(() => {
+    if (!resetOpen) {
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setRecoveryWord('');
+    }
+  }, [resetOpen]);
 
   // Remove the duplicate function definitions that were at the bottom
   // ...existing code...
@@ -3384,24 +3394,24 @@ ${senderName}`;
                           {selectedMeetingForHistory.address_line_3 && (
                             <div>{selectedMeetingForHistory.address_line_3}</div>
                           )}
-                          {selectedMeetingForHistory.additional_address_lines && 
-                           selectedMeetingForHistory.additional_address_lines.length > 0 && 
-                           selectedMeetingForHistory.additional_address_lines
-                             .filter(line => line && line.trim())
-                             .map((line, index) => (
-                               <div key={index}>{line}</div>
-                             ))
+                          {selectedMeetingForHistory.additional_address_lines &&
+                            selectedMeetingForHistory.additional_address_lines.length > 0 &&
+                            selectedMeetingForHistory.additional_address_lines
+                              .filter(line => line && line.trim())
+                              .map((line, index) => (
+                                <div key={index}>{line}</div>
+                              ))
                           }
                           {selectedMeetingForHistory.post_code && (
                             <div className="font-medium">{selectedMeetingForHistory.post_code}</div>
                           )}
-                          {!selectedMeetingForHistory.address_line_1 && 
-                           !selectedMeetingForHistory.address_line_2 && 
-                           !selectedMeetingForHistory.address_line_3 && 
-                           (!selectedMeetingForHistory.additional_address_lines || selectedMeetingForHistory.additional_address_lines.length === 0) && 
-                           !selectedMeetingForHistory.post_code && (
-                            <div>Not provided</div>
-                          )}
+                          {!selectedMeetingForHistory.address_line_1 &&
+                            !selectedMeetingForHistory.address_line_2 &&
+                            !selectedMeetingForHistory.address_line_3 &&
+                            (!selectedMeetingForHistory.additional_address_lines || selectedMeetingForHistory.additional_address_lines.length === 0) &&
+                            !selectedMeetingForHistory.post_code && (
+                              <div>Not provided</div>
+                            )}
                         </div>
                       </div>
 
