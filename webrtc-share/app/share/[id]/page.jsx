@@ -263,12 +263,12 @@ export default function SharePage({ params }) {
 
   // Helper function to get display name
   const getDisplayName = () => {
-    // Priority order: landlordName > userName > fallback
-    if (landlordInfo.landlordName) {
-      return landlordInfo.landlordName;
-    }
+    // Priority order: userName > landlordName > fallback
     if (landlordInfo.userName) {
       return landlordInfo.userName;
+    }
+    if (landlordInfo.landlordName) {
+      return landlordInfo.landlordName;
     }
     return 'Videodesk Officer';
   };
