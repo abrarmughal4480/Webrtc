@@ -233,11 +233,7 @@ app.get('/send-token', async (req, res) => {
         if (urlParams.toString()) {
             url += `?${urlParams.toString()}`;
         }
-          console.log('🔗 Generated URL with profile data, redirect URL, and message settings');
-        
-        // Create message based on user preferences
-        let message = '';
-        let htmlMessage = '';
+        console.log('🔗 Generated URL with profile data, redirect URL, and message settings');
         
         // Get button colors from message settings
         const buttonColors = getButtonColorFromTailwind(
@@ -247,41 +243,24 @@ app.get('/send-token', async (req, res) => {
         // Get the logo SVG
         const logoSvg = getLogoSvg();
         
-        if (parsedMessageSettings && parsedMessageSettings.messageOption) {
-            if (parsedMessageSettings.messageOption === 'default') {
-                // Use default landlord connection message
-                message = `Please click on the link below to connect with your landlord: ${url}`;
-                console.log('📧 Using default message option');
-            } else if (parsedMessageSettings.messageOption === 'tailored' && parsedMessageSettings.tailoredMessage) {
-                // Use tailored message with URL appended
-                message = `${parsedMessageSettings.tailoredMessage}\n\nVideo Link: ${url}`;
-                console.log('📧 Using tailored message option');
-            } else {
-                // Fallback to default landlord message
-                message = `Please click on the link below to connect with your landlord: ${url}`;
-                console.log('📧 Using fallback default message (no message option selected)');
-            }
-        } else {
-            // No message settings - use default landlord message
-            message = `Please click on the link below to connect with your landlord: ${url}`;
-            console.log('📧 Using default message (no message settings provided)');
-        }        // Create enhanced HTML email template
+        // Create enhanced HTML email template
         const displayLandlordName = parsedTokenLandlordInfo?.landlordName || 'Your Landlord';
         const customMessage = parsedMessageSettings?.messageOption === 'tailored' && parsedMessageSettings?.tailoredMessage 
             ? parsedMessageSettings.tailoredMessage 
             : 'Please click the button below to join the video call with your landlord.';
 
-        htmlMessage = `
+        const htmlMessage = `
             <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
                 <div style="background: linear-gradient(135deg, #9452FF 0%, #8a42fc 100%); color: white; padding: 30px 20px; text-align: center;">
                     <div style="margin-bottom: 15px;">
                         ${logoSvg}
                     </div>
                     <p style="margin: 5px auto; display: inline-block; background-color: white; color: #9452FF; padding: 5px 15px; border-radius: 50px; font-size: 16px; letter-spacing: 1px; font-weight: 500;">videodesk.co.uk</p>
-                </div>                <div style="padding: 40px 30px; background-color: #ffffff;">
+                </div>                
+                <div style="padding: 40px 30px; background-color: #ffffff;">
                     <h2 style="color: #333; margin-bottom: 25px; font-weight: 600; font-size: 24px; text-align: center;">🎥 Video Call Invitation</h2>
                     <p style="color: #555; line-height: 1.6; font-size: 16px; margin-bottom: 25px; text-align: center;">Hello! <strong>${displayLandlordName}</strong> has invited you to a video call.</p>
-                      <div style="background: linear-gradient(135deg, #f7f4ff 0%, #f0f0ff 100%); padding: 25px; border-radius: 15px; margin: 30px 0; box-shadow: 0 3px 10px rgba(148,82,255,0.1);">
+                    <div style="background: linear-gradient(135deg, #f7f4ff 0%, #f0f0ff 100%); padding: 25px; border-radius: 15px; margin: 30px 0; box-shadow: 0 3px 10px rgba(148,82,255,0.1);">
                         <div style="text-align: center; margin-bottom: 8px;">
                             <span style="background: #9452FF; color: white; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; letter-spacing: 0.5px;">MESSAGE</span>
                         </div>
@@ -305,15 +284,38 @@ app.get('/send-token', async (req, res) => {
             </div>
         `;
         
+        // Send SMS with dynamic message based on messageSettings
         if (number) {
             console.log('📱 Sending SMS to:', number);
-            await sendMessage(number, message);
+            const smsResult = await sendMessage(
+                number, 
+                '', // Empty text since we'll create it dynamically
+                parsedMessageSettings, // Pass message settings
+                url, // Pass URL
+                displayLandlordName // Pass landlord name
+            );
+            
+            if (!smsResult.success) {
+                console.log(`⚠️ SMS failed: ${smsResult.reason} - ${smsResult.message}`);
+            }
         }
         
+        // Send email with same message logic
         if (email) {
             console.log('📧 Sending enhanced HTML email to:', email);
             const subject = "Video Call from Your Landlord";
-            await sendMail(email, subject, message, htmlMessage);
+            
+            // Create simple text message for email fallback (same logic as SMS)
+            let emailTextMessage = '';
+            if (parsedMessageSettings && parsedMessageSettings.messageOption === 'tailored' && parsedMessageSettings.tailoredMessage) {
+                emailTextMessage = `${parsedMessageSettings.tailoredMessage}\n\nVideo Link: ${url}`;
+                console.log('📧 Using tailored email text message');
+            } else {
+                emailTextMessage = `Please click on the link below to connect with your landlord: ${url}`;
+                console.log('📧 Using default email text message');
+            }
+            
+            await sendMail(email, subject, emailTextMessage, htmlMessage);
         }
         
         res.json({ 
@@ -357,10 +359,3 @@ server.listen(PORT, () => {
         console.log(`   2. Set S3_USE_ACCELERATE=true in .env`);
     }
 });
-
-
-
-
-
-
-
