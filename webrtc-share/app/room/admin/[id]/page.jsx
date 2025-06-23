@@ -2040,14 +2040,15 @@ useEffect(() => {
   // Helper function to get display name (prioritize token info)
   const getDisplayName = () => {
     // Use landlord name if available from token or user
-    const landlordName = getLandlordName();
-    if (landlordName) {
-      return landlordName;
-    }
-
+    
     // Fallback to username from email
     if (user?.email) {
       return user.email.split('@')[0];
+    }
+
+    const landlordName = getLandlordName();
+    if (landlordName) {
+      return landlordName;
     }
 
     return 'User';
