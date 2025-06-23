@@ -1,18 +1,18 @@
 "use client"
-import { Header } from '@/components/layouts/HeaderComponent'
-import { HeroSection } from '@/components/section/HeroSectionComponent'
-import { AboutSection } from '@/components/section/AboutSectionComponents'
-import { FeaturesSection } from '@/components/section/FeatureSectionComponent'
-import { HowItWorksSection } from '@/components/section/HowItsWorkSectionComponent'
-import { LaunchLinkSection } from '@/components/section/LunchLinkSectionComponent'
-import { Footer } from '@/components/layouts/FooterComponent'
+import { Header } from '../../components/layouts/HeaderComponent'
+import { HeroSection } from '../../components/section/HeroSectionComponent'
+import { AboutSection } from '../../components/section/AboutSectionComponents'
+import { FeaturesSection } from '../../components/section/FeatureSectionComponent'
+import { HowItWorksSection } from '../../components/section/HowItsWorkSectionComponent'
+import { LaunchLinkSection } from '../../components/section/LunchLinkSectionComponent'
+import { Footer } from '../../components/layouts/FooterComponent'
 import React, { useState, useEffect, Suspense } from 'react'
-import { DialogComponent } from '@/components/dialogs/DialogCompnent'
+import { DialogComponent } from '../../components/dialogs/DialogCompnent'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Image from 'next/image'
 import { StarIcon } from 'lucide-react'
-import PriceAndPlan from '@/components/section/PriceAndPlanSectionComponent'
-import SendFriendSectionComponent from '@/components/section/SendFriendSectionComponent'
+import PriceAndPlan from '../../components/section/PriceAndPlanSectionComponent'
+import SendFriendSectionComponent from '../../components/section/SendFriendSectionComponent'
 
 const FeedbackDialog = () => {
   const [showFeedback, setShowFeedback] = useState(false);
