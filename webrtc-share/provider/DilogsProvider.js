@@ -2493,7 +2493,7 @@ ${senderName}`;
 
           <div className="p-5 bg-white rounded-b-2xl max-h-[calc(90vh-4rem)] overflow-y-auto">
             <div className="space-y-4">
-              {/* Landlord Name Section */}
+              {/* 1. Landlord Name Section */}
               <div className="flex items-start flex-col gap-2">
                 <label className="text-black font-semibold flex items-center gap-2">
                   <input
@@ -2501,7 +2501,7 @@ ${senderName}`;
                     checked={landlordNameEnabled}
                     onChange={(e) => setLandlordNameEnabled(e.target.checked)}
                   />
-                  Landlord Name:
+                  <span>1. Landlord Name:</span>
                 </label>
                 <div className="flex items-center gap-2 w-full ml-4">
                   <input
@@ -2515,7 +2515,7 @@ ${senderName}`;
                 </div>
               </div>
 
-              {/* Landlord Logo Section */}
+              {/* 2. Landlord Logo Section */}
               <div className="flex items-start flex-col gap-2">
                 <label className="text-black font-semibold flex items-center gap-2">
                   <input
@@ -2523,7 +2523,7 @@ ${senderName}`;
                     checked={landlordLogoEnabled}
                     onChange={(e) => setLandlordLogoEnabled(e.target.checked)}
                   />
-                  Upload Landlord logo to use on dashboard:
+                  <span>2. Upload Landlord logo to use on dashboard:</span>
                 </label>
                 <div className={`flex relative items-center justify-center gap-2 w-[97%] p-4 h-[4rem] border border-gray-300 rounded-md ml-4 ${!landlordLogoEnabled ? 'bg-gray-100 opacity-60' : 'bg-white'}`}>
                   {/* Upload area - clickable only when checkbox is enabled and no image */}
@@ -2568,7 +2568,7 @@ ${senderName}`;
                   />
                 </div>
 
-                {/* Use landlord logo for profile section */}
+                {/* 3. Use landlord logo for profile section */}
                 <div className="ml-0 mt-2">
                   <label className="text-black font-semibold flex items-center gap-2">
                     <input
@@ -2584,20 +2584,19 @@ ${senderName}`;
                       disabled={!landlordLogoEnabled || !landlordLogo}
                     />
                     <span className={!landlordLogoEnabled || !landlordLogo ? 'text-gray-400' : 'text-black'}>
-                      Use landlord logo for profile photo
+                      3. Use landlord logo for profile photo
                     </span>
                   </label>
                 </div>
               </div>
 
-              {/* Officer Image Section */}
+              {/* 4. Officer Image Section */}
               <div className="flex items-start flex-col gap-2">
                 <label className="text-black font-semibold flex items-center gap-2">
                   <input
                     type="checkbox"
                     checked={profileImageOption === 'officer'}
                     onChange={(e) => {
-
                       if (e.target.checked) {
                         setProfileImageOption('officer');
                       } else {
@@ -2605,14 +2604,13 @@ ${senderName}`;
                       }
                     }}
                   />
-                  Upload Officer image to use as profile photo:
+                  <span>4. Upload Officer image to use as profile photo on dashboard screen:</span>
                 </label>
                 <div className={`flex relative items-center justify-center gap-2 w-[97%] p-4 h-[12rem] border border-gray-300 rounded-md ml-4 ${profileImageOption !== 'officer' ? 'bg-gray-100 opacity-60' : 'bg-white'}`}>
                   {/* Upload area - only clickable when officer option is selected */}
                   <div
                     className={`flex items-center justify-center w-full h-full ${profileImageOption === 'officer' ? 'cursor-pointer' : 'cursor-not-allowed'}`}
                     onClick={() => {
-
                       if (profileImageOption === 'officer') {
                         document.getElementById('officerImageInput').click();
                       }
@@ -2627,10 +2625,10 @@ ${senderName}`;
                           // If image fails to load, show initials
                           e.target.style.display = 'none';
                           e.target.parentNode.innerHTML = `
-                      <div class="w-20 h-20 bg-gray-200 rounded-full flex items-center justify-center text-gray-600 font-semibold text-xl">
-                        ${getInitials(landlordName || user?.email?.split('@')[0] || 'User')}
-                      </div>
-                    `;
+                <div class="w-20 h-20 bg-gray-200 rounded-full flex items-center justify-center text-gray-600 font-semibold text-xl">
+                  ${getInitials(landlordName || user?.email?.split('@')[0] || 'User')}
+                </div>
+              `;
                         }}
                       />
                     ) : (
@@ -2707,13 +2705,14 @@ ${senderName}`;
                 </div>
               </div>
 
+
               {/* Redirect Options Section */}
               <div className="mt-6">
                 <label className="text-black font-semibold block mb-4">
-                  When video call ends, user is directed to the following website:
+                  5. When video call ends, user is directed to the following website:
                 </label>
 
-                {/* Default Option */}
+                {/* 5a. Default Option */}
                 <div className="flex items-start flex-col gap-2">
                   <label className="text-black font-semibold flex items-center gap-2">
                     <input
@@ -2727,7 +2726,7 @@ ${senderName}`;
                         }
                       }}
                     />
-                    Default:
+                    <span>5a. Default:</span>
                   </label>
                   <div className="flex items-center gap-2 w-full ml-4">
                     <input
@@ -2739,7 +2738,7 @@ ${senderName}`;
                     />
                   </div>
                 </div>
-                {/* Tailored Option */}
+                {/* 5b. Tailored Option */}
                 <div className="flex items-start flex-col gap-2 mt-4">
                   <label className="text-black font-semibold flex items-center gap-2">
                     <input
@@ -2753,7 +2752,7 @@ ${senderName}`;
                         }
                       }}
                     />
-                    Tailored:
+                    <span>5b. Tailored:</span>
                   </label>
                   <div className="flex items-center gap-2 w-full ml-4">
                     <input
