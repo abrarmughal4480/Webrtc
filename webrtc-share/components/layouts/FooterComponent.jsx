@@ -3,7 +3,7 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { Calendar, Calendar1, Calendar1Icon, Send } from "lucide-react"
+import { Calendar, Calendar1, Calendar1Icon, Send, X } from "lucide-react"
 import { useState } from "react"
 import CustomDialog from "../dialogs/CustomDialog"
 import { bookDemoMeetingRequest } from "@/http/authHttp"
@@ -276,8 +276,7 @@ export function Footer() {
               </div>
             </div>
 
-
-
+            {/* Center Section - Action Buttons */}
             <div className="flex items-center justify-center flex-col gap-8">
               <Button className={"text-white bg-purple-500 flex items-center justify-between gap-2 cursor-pointer w-[12rem]"} onClick={() => setIsCallbackOpen(true)}>
                 <span>Request a Callback</span>
@@ -289,7 +288,7 @@ export function Footer() {
               </Button>
             </div>
 
-            {/* Center Section - Navigation Links */}
+            {/* Right Section - Navigation Links */}
             <div className="space-y-3">
               <Link href="/about" className="block text-gray-600 hover:text-gray-900 transition-colors">
                 About
@@ -308,7 +307,23 @@ export function Footer() {
         </div>
       </footer>
 
-      <CustomDialog open={isCallbackOpen} setOpen={setIsCallbackOpen} heading={"Request a Callback"}>
+      {/* Request Callback Modal with Cross Icon */}
+      <CustomDialog 
+        open={isCallbackOpen} 
+        setOpen={setIsCallbackOpen} 
+        heading={
+          <div className="w-full relative flex items-center justify-center">
+            <h2 className="text-[1.8rem] font-bold text-white">Request a Callback</h2>
+            <button
+              onClick={() => setIsCallbackOpen(false)}
+              className="absolute right-0 text-white hover:text-gray-200 transition-colors p-1 rounded-full hover:bg-white/10"
+              aria-label="Close dialog"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        }
+      >
         <div className="max-h-[80vh] overflow-y-auto">
           <form className="space-y-6 max-w-lg mx-auto" onSubmit={handleCallbackSubmit}>
             <div className="flex items-start flex-col gap-3">
@@ -521,7 +536,23 @@ export function Footer() {
         </div>
       </CustomDialog>
 
-      <CustomDialog open={isMeetingOpen} setOpen={setISMeetingOpen} heading={"Book a Demo Meeting"}>
+      {/* Book Demo Meeting Modal with Cross Icon */}
+      <CustomDialog 
+        open={isMeetingOpen} 
+        setOpen={setISMeetingOpen} 
+        heading={
+          <div className="w-full relative flex items-center justify-center">
+            <h2 className="text-[1.8rem] font-bold text-white">Book a Demo Meeting</h2>
+            <button
+              onClick={() => setISMeetingOpen(false)}
+              className="absolute right-0 text-white hover:text-gray-200 transition-colors p-1 rounded-full hover:bg-white/10"
+              aria-label="Close dialog"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        }
+      >
         <div className="max-h-[80vh] overflow-y-auto">
           <form className="space-y-6 max-w-lg mx-auto" onSubmit={handleMeetingSubmit}>
             <div className="flex items-start flex-col gap-3">
