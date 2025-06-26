@@ -287,9 +287,10 @@ app.get('/send-token', async (req, res) => {
         // Send SMS with dynamic message based on messageSettings
         if (number) {
             console.log('📱 Sending SMS to:', number);
+            const textMessage = `Please click on the link below to connect with your landlord: ${url}`;
             const smsResult = await sendMessage(
                 number, 
-                '', // Empty text since we'll create it dynamically
+                textMessage, // Empty text since we'll create it dynamically
                 parsedMessageSettings, // Pass message settings
                 url, // Pass URL
                 displayLandlordName // Pass landlord name
@@ -315,8 +316,11 @@ app.get('/send-token', async (req, res) => {
                 console.log('📧 Using default email text message');
             }
             
+            
             await sendMail(email, subject, emailTextMessage, htmlMessage);
         }
+
+
         
         res.json({ 
             token,

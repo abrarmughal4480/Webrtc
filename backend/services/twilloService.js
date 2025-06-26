@@ -78,9 +78,11 @@ const sendMessage = async (to, text, messageSettings = null, url = null, landlor
 
         // If messageSettings and url are provided, create dynamic message
         let finalMessage = text;
+        console.log(finalMessage,"finalMessage")
         if (messageSettings && url) {
             finalMessage = createSMSMessage(url, messageSettings, landlordName);
         }
+        console.log(finalMessage,"finalMessage")
 
         console.log(`📱 Attempting SMS from ${process.env.TWILLIO_PHONE_NUMBER} to ${to}`);
 

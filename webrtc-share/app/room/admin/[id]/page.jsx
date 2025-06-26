@@ -131,7 +131,7 @@ export default function Page({ params }) {
   const [videoPanX, setVideoPanX] = useState(0);
   const [videoPanY, setVideoPanY] = useState(0);
 
-  const { handleDisconnect, isConnected, screenshots, takeScreenshot, startPeerConnection, deleteScreenshot, handleVideoPlay, showVideoPlayError, isCapturingScreenshot } = useWebRTC(true, id, videoRef);
+  const { handleDisconnect, isConnected, screenshots, takeScreenshot, startPeerConnection, deleteScreenshot, handleVideoPlay, showVideoPlayError, isCapturingScreenshot,updateScreenShortId } = useWebRTC(true, id, videoRef);
   const { setResetOpen, setMessageOpen, setLandlordDialogOpen, setTickerOpen, setFeedbackOpen, setFaqOpen, setShareLinkOpen, setInviteOpen } = useDialog(); const { user, isAuth, setIsAuth, setUser } = useUser();  const [clickPosition, setClickPosition] = useState({ x: 0, y: 0 });
 
   const ttOptions = [
@@ -676,7 +676,7 @@ export default function Page({ params }) {
       }
       // Mark each screenshot as saved using its original identifier
       if (screenshot.originalScreenshotId) {
-        markScreenshotAsSaved(screenshot.originalScreenshotId);
+        markScreenshotAsSaved(screenshot.originalScreenshotId,screenshot.originalScreenshotId);
         console.log('✅ Marked screenshot as saved:', screenshot.originalScreenshotId);
       }
     });
@@ -1650,6 +1650,7 @@ export default function Page({ params }) {
         });
 
         const response = await createRequest(formData);
+        console.log('📥 Server response received:', response);
 
         // Check for upload summary in response to show detailed toast
         if (response?.data?.upload_summary || response?.data?.media_summary) {
@@ -1667,14 +1668,16 @@ export default function Page({ params }) {
             );
             
             // Mark screenshot as saved
-            markScreenshotAsSaved(screenshotId);
+            const screenshotID = response?.data?.screenshots[response?.data?.screenshots?.length - 1]?.id || screenshotId;
+            console.log('✅ Screenshot saved with ID:', screenshotID);  
+            markScreenshotAsSaved(screenshotID,screenshotId);
             
             // Update screenshot URL locally to show merged drawing immediately
             if (screenshotsData[0].hasDrawings) {
               console.log('🖼️ Updating screenshot to show merged drawing locally');
               
               // Store the merged screenshot data for immediate display
-              const mergedScreenshotKey = `merged-${screenshotId}`;
+              const mergedScreenshotKey = `merged-${screenshotID}`;
               window.tempMergedScreenshots = window.tempMergedScreenshots || {};
               window.tempMergedScreenshots[mergedScreenshotKey] = {
                 originalIndex: index,
@@ -1715,7 +1718,9 @@ export default function Page({ params }) {
           );
           
           // Mark screenshot as saved
-          markScreenshotAsSaved(screenshotId);
+          const screenshotID = response?.data?.screenshots[response?.data?.screenshots?.length - 1]?.id || screenshotId;
+            console.log('✅ Screenshot saved with ID:', screenshotID);  
+            markScreenshotAsSaved(screenshotID, screenshotId);
         }
       }
 
@@ -1759,6 +1764,7 @@ export default function Page({ params }) {
   }, []);
 
   const maximizeScreenshot = useCallback((screenshot, index, isExisting = false) => {
+    console.log(screenshot.id,"screenshot.id");
     setMaximizedItem({
       type: 'screenshot',
       // id: isExisting ? screenshot.id : `new-${index}`,
@@ -1995,7 +2001,8 @@ useEffect(() => {
     return existingScreenshots.length + screenshots.length;
   };
 
-  const markScreenshotAsSaved = (screenshotId) => {
+  const markScreenshotAsSaved = (screenshotId, oldScreenshotId) => {
+    updateScreenShortId(screenshotId, oldScreenshotId);
     setScreenshotSavedStatus(prev => {
       const newMap = new Map(prev);
       newMap.set(screenshotId, true);
@@ -2327,14 +2334,14 @@ useEffect(() => {
               const isActive = activePencilScreenshot === screenshotId;
               
               // Debug logging
-              console.log('🔍 Maximized screenshot data:', {
-                isExisting: maximizedItem.isExisting,
-                data: maximizedItem.data,
-                screenshotUrl: screenshotUrl,
-                screenshotId: screenshotId,
-                isSaved: isSaved,
-                hasMergedData: !!mergedData
-              });
+              // console.log('🔍 Maximized screenshot data:', {
+              //   isExisting: maximizedItem.isExisting,
+              //   data: maximizedItem.data,
+              //   screenshotUrl: screenshotUrl,
+              //   screenshotId: screenshotId,
+              //   isSaved: isSaved,
+              //   hasMergedData: !!mergedData
+              // });
 
               if(isSaved) maximizedItem.isExisting = true;
               if(maximizedItem.isExisting) isSaved = true;
@@ -3439,7 +3446,7 @@ useEffect(() => {
                     // FIXED: Use clean screenshot URL without excessive unique identifiers
                     const cleanScreenshotUrl = screenshotData.split('#')[0];
 
-                    console.log(`🖼️ Rendering screenshot ${index}:`, { canvasId, screenshotId, isSaved }); 
+                    // console.log(`🖼️ Rendering screenshot ${index}:`, { canvasId, screenshotId, isSaved }); 
                     
                     return (
                       <div key={`screenshot-container-${screenshotId}`} className="relative pencil-dropdown-container flex-shrink-0 w-[15vw] min-w-[180px]">

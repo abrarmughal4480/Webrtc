@@ -31,14 +31,14 @@ const peerConfig = {
         { urls: "stun:stun4.l.google.com:19302" },
         { urls: "stun:stun4.l.google.com:5349" },
         {
-          urls: "turn:relay1.expressturn.com:3480",
-          username: "174776437859052610",
-          credential: "ZKziYTYdi6V/oRdHNuUn/INQkq4=",
+            urls: "turn:relay1.expressturn.com:3480",
+            username: "174776437859052610",
+            credential: "ZKziYTYdi6V/oRdHNuUn/INQkq4=",
         },
         {
-          urls: "turn:relay1.expressturn.com:3480?transport=tcp",
-          username: "174776437859052610",
-          credential: "ZKziYTYdi6V/oRdHNuUn/INQkq4=",
+            urls: "turn:relay1.expressturn.com:3480?transport=tcp",
+            username: "174776437859052610",
+            credential: "ZKziYTYdi6V/oRdHNuUn/INQkq4=",
         }
     ]
 }
@@ -60,18 +60,18 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
     const [showVideoPlayError, setShowVideoPlayError] = useState(false);
     const router = useRouter();
     const isMobile = useIsMobile();
-    
+
     // 2. Enhanced state management for duplicate prevention
     const [screenshotHashes, setScreenshotHashes] = useState(new Set());
     const [captureInProgress, setCaptureInProgress] = useState(false);
     const lastCaptureTime = useRef(0);
     const processedItemsRef = useRef(new Set());
     const [savingScreenshotIds, setSavingScreenshotIds] = useState(new Set());
-    
+
     useEffect(() => {
         const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4000';
         const socketUrl = backendUrl.replace('/api/v1', '');
-        
+
         socketConnection.current = io(socketUrl, {
             reconnectionAttempts: 5,
             timeout: 10000,
@@ -79,11 +79,11 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
         });
 
         socketConnection.current.on('connect', () => {
-           socketConnection.current.emit('join-room', roomId);
+            socketConnection.current.emit('join-room', roomId);
 
-           if(isAdmin) {
-            startPeerConnection();
-           }
+            if (isAdmin) {
+                startPeerConnection();
+            }
         });
 
         // Cleanup on unmount
@@ -98,7 +98,7 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
     const getUserMedia = async () => {
         try {
             console.log('🎥 Starting camera access (video only mode)...');
-            
+
             // Step 1: Check if getUserMedia is supported
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
                 throw new Error('Camera API is not supported in this browser. Please use a modern browser like Chrome, Firefox, or Safari.');
@@ -108,7 +108,7 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
             try {
                 const permissionStatus = await navigator.permissions.query({ name: 'camera' });
                 console.log('📷 Camera permission status:', permissionStatus.state);
-                
+
                 if (permissionStatus.state === 'denied') {
                     throw new Error('Camera permission denied. Please enable camera access in browser settings and refresh the page.');
                 }
@@ -122,11 +122,11 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
                 const devices = await navigator.mediaDevices.enumerateDevices();
                 availableDevices = devices.filter(device => device.kind === 'videoinput');
                 console.log('📹 Available video devices:', availableDevices.length);
-                
+
                 if (availableDevices.length === 0) {
                     throw new Error('No camera devices found. Please connect a camera and refresh the page.');
                 }
-                
+
                 // Log device info (without sensitive details)
                 availableDevices.forEach((device, index) => {
                     console.log(`Camera ${index + 1}:`, {
@@ -134,7 +134,7 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
                         deviceId: device.deviceId ? 'present' : 'missing'
                     });
                 });
-                
+
             } catch (enumError) {
                 console.log('⚠️ Could not enumerate devices, proceeding with basic constraints');
             }
@@ -150,7 +150,7 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
                             width: { min: 1920, ideal: 3840, max: 7680 },
                             height: { min: 1080, ideal: 2160, max: 4320 },
                             frameRate: { min: 24, ideal: 60, max: 120 },
-                            aspectRatio: { ideal: 16/9 }
+                            aspectRatio: { ideal: 16 / 9 }
                         },
                         audio: false  // Audio disabled
                     }
@@ -164,7 +164,7 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
                             width: { min: 1280, ideal: 2560, max: 3840 },
                             height: { min: 720, ideal: 1440, max: 2160 },
                             frameRate: { min: 24, ideal: 60, max: 120 },
-                            aspectRatio: { ideal: 16/9 }
+                            aspectRatio: { ideal: 16 / 9 }
                         },
                         audio: false  // Audio disabled
                     }
@@ -178,7 +178,7 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
                             width: { min: 1280, ideal: 1920, max: 2560 },
                             height: { min: 720, ideal: 1080, max: 1440 },
                             frameRate: { min: 30, ideal: 60, max: 120 },
-                            aspectRatio: { ideal: 16/9 }
+                            aspectRatio: { ideal: 16 / 9 }
                         },
                         audio: false  // Audio disabled
                     }
@@ -201,7 +201,7 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
                             width: { min: 1920, ideal: 3840, max: 7680 },
                             height: { min: 1080, ideal: 2160, max: 4320 },
                             frameRate: { min: 24, ideal: 60, max: 120 },
-                            aspectRatio: { ideal: 16/9 }
+                            aspectRatio: { ideal: 16 / 9 }
                         },
                         audio: false  // Audio disabled
                     }
@@ -214,7 +214,7 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
                             width: { min: 1280, ideal: 1920, max: 3840 },
                             height: { min: 720, ideal: 1080, max: 2160 },
                             frameRate: { min: 30, ideal: 60, max: 120 },
-                            aspectRatio: { ideal: 16/9 }
+                            aspectRatio: { ideal: 16 / 9 }
                         },
                         audio: false  // Audio disabled
                     }
@@ -258,7 +258,7 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
                             width: { min: 1080, ideal: 2160, max: 4320 },
                             height: { min: 1920, ideal: 3840, max: 7680 },
                             frameRate: { min: 24, ideal: 60, max: 120 },
-                            aspectRatio: { ideal: 9/16 }
+                            aspectRatio: { ideal: 9 / 16 }
                         },
                         audio: false  // Audio disabled
                     }
@@ -272,7 +272,7 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
                             width: { min: 720, ideal: 1440, max: 2160 },
                             height: { min: 1280, ideal: 2560, max: 3840 },
                             frameRate: { min: 24, ideal: 60, max: 120 },
-                            aspectRatio: { ideal: 9/16 }
+                            aspectRatio: { ideal: 9 / 16 }
                         },
                         audio: false  // Audio disabled
                     }
@@ -286,7 +286,7 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
                             width: { min: 720, ideal: 1080, max: 1440 },
                             height: { min: 1280, ideal: 1920, max: 2560 },
                             frameRate: { min: 30, ideal: 60, max: 120 },
-                            aspectRatio: { ideal: 9/16 }
+                            aspectRatio: { ideal: 9 / 16 }
                         },
                         audio: false  // Audio disabled
                     }
@@ -309,7 +309,7 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
                             width: { min: 1080, ideal: 2160, max: 4320 },
                             height: { min: 1920, ideal: 3840, max: 7680 },
                             frameRate: { min: 24, ideal: 60, max: 120 },
-                            aspectRatio: { ideal: 9/16 }
+                            aspectRatio: { ideal: 9 / 16 }
                         },
                         audio: false  // Audio disabled
                     }
@@ -322,7 +322,7 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
                             width: { min: 1280, ideal: 1920, max: 3840 },
                             height: { min: 720, ideal: 1080, max: 2160 },
                             frameRate: { min: 30, ideal: 60, max: 120 },
-                            aspectRatio: { ideal: 9/16 }
+                            aspectRatio: { ideal: 9 / 16 }
                         },
                         audio: false  // Audio disabled
                     }
@@ -373,24 +373,24 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
                 } catch (strategyError) {
                     lastError = strategyError;
                     console.log(`❌ Strategy "${strategy.name}" failed:`, strategyError.message);
-                    
+
                     // If it's a specific constraint error, try without problematic constraints
-                    if (strategyError.name === 'OverconstrainedError' || 
+                    if (strategyError.name === 'OverconstrainedError' ||
                         strategyError.message.includes('Requested device not found') ||
                         strategyError.message.includes('facingMode') ||
                         strategyError.message.includes('constraint')) {
-                        
+
                         try {
                             // Remove problematic constraints and try again
                             const fallbackConstraints = { ...strategy.constraints };
-                            
+
                             if (fallbackConstraints.video && typeof fallbackConstraints.video === 'object') {
                                 // Remove specific constraints that might be causing issues
                                 delete fallbackConstraints.video.facingMode;
                                 delete fallbackConstraints.video.width;
                                 delete fallbackConstraints.video.height;
                                 delete fallbackConstraints.video.frameRate;
-                                
+
                                 console.log(`🔄 Retrying "${strategy.name}" with relaxed constraints`);
                                 stream = await navigator.mediaDevices.getUserMedia(fallbackConstraints);
                                 usedStrategy = strategy.name + " (relaxed constraints)";
@@ -401,7 +401,7 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
                             console.log(`❌ Fallback also failed for "${strategy.name}":`, fallbackError.message);
                         }
                     }
-                    
+
                     // Continue to next strategy
                     continue;
                 }
@@ -410,10 +410,10 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
             // If no strategy worked
             if (!stream) {
                 console.error('❌ All camera access strategies failed');
-                
+
                 // Provide detailed error message based on the last error
                 let userMessage = 'Unable to access camera (video only mode). ';
-                
+
                 if (lastError) {
                     if (lastError.name === 'NotFoundError' || lastError.message.includes('Requested device not found')) {
                         userMessage += 'No camera found. Please ensure a camera is connected and not being used by another application.';
@@ -429,7 +429,7 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
                 } else {
                     userMessage += 'Please check camera permissions and device availability.';
                 }
-                
+
                 const error = new Error(userMessage);
                 error.originalError = lastError;
                 throw error;
@@ -438,10 +438,10 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
             // Step 5: Log actual stream capabilities and success info
             const videoTrack = stream.getVideoTracks()[0];
             const audioTrack = stream.getAudioTracks()[0];
-            
+
             if (videoTrack) {
                 const settings = videoTrack.getSettings();
-                
+
                 console.log('📹 Video track settings:', {
                     width: settings.width,
                     height: settings.height,
@@ -449,7 +449,7 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
                     facingMode: settings.facingMode,
                     deviceId: settings.deviceId ? 'present' : 'missing'
                 });
-                
+
                 // Try to get capabilities if supported
                 try {
                     const capabilities = videoTrack.getCapabilities();
@@ -463,7 +463,7 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
                     console.log('⚠️ Could not get video capabilities');
                 }
             }
-            
+
             if (audioTrack) {
                 const settings = audioTrack.getSettings();
                 console.log('🎵 Audio track active:', settings);
@@ -472,7 +472,7 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
             // Step 6: Set up the stream
             setLocalStream(stream);
             localStreamRef.current = stream;
-            
+
             if (videoRef.current) {
                 videoRef.current.srcObject = stream;
                 videoRef.current.play().catch(playError => {
@@ -486,12 +486,12 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
                 audioTracks: stream.getAudioTracks().length,
                 active: stream.active
             });
-            
+
             return stream;
-            
+
         } catch (error) {
             console.error('❌ Failed to get user media:', error);
-            
+
             // Re-throw the error for handling in the calling code
             throw error;
         }
@@ -549,8 +549,8 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
                     setIsConnected(true);
                     setShowVideoPlayError(true);
                 });
-            },3000)
-            
+            }, 3000)
+
         }
 
         peerConnection.onnegotiationneeded = async () => {
@@ -662,13 +662,13 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
             if (remoteStream) {
                 remoteStream.getTracks().forEach(track => track.stop());
             }
-            
+
             // Only redirect if shouldRedirect is true
             if (shouldRedirect) {
                 if (!isAdmin) {
                     router.push('/?show-feedback=true');
                 }
-                else{
+                else {
                     router.push(`../../../dashboard/`);
                 }
             } else {
@@ -683,8 +683,8 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
         console.log('👤 User disconnected');
         setIsConnected(false);
         setShowVideoPlayError(false);
-        
-        if(!isAdmin) {
+
+        if (!isAdmin) {
             router.push('/?show-feedback=true');
         }
     }
@@ -822,7 +822,7 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
 
                     // Generate ultra high quality PNG
                     const screenshot = canvas.toDataURL('image/png', 1.0);
-                    
+
                     // Check for duplicate content using hash
                     const imageHash = await generateImageHash(screenshot);
                     if (screenshotHashes.has(imageHash)) {
@@ -916,20 +916,20 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
             }, remainingTime);
         }
     };
-      
+
     // ENHANCED recording function with ULTRA HIGH quality
     const takeRecording = () => {
         if (!remoteStream && !localStream) {
             console.error('❌ No stream available for recording');
             return;
         }
-        
+
         const stream = isAdmin ? remoteStream : localStream;
         if (!stream) {
             console.error('❌ Stream not available');
             return;
         }
-        
+
         if (!recordingActive) {
             // ENHANCED: Ultra-high quality recording options - ULTRA HIGH BITRATE VIDEO ONLY
             const qualityOptions = [
@@ -963,9 +963,9 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
                     videoBitsPerSecond: 20000000   // MP4 fallback
                 }
             ];
-            
+
             let selectedOptions = null;
-            
+
             // Find the best supported option
             for (const option of qualityOptions) {
                 if (MediaRecorder.isTypeSupported(option.mimeType)) {
@@ -974,36 +974,36 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
                     break;
                 }
             }
-            
+
             if (!selectedOptions) {
                 console.error('❌ No supported recording format found');
                 return;
             }
-            
+
             console.log('🎥 Starting ULTRA HIGH QUALITY video recording with:', selectedOptions);
-            
+
             try {
                 setRecordingActive(true);
                 mediaRecordingChunks.current = [];
-                
+
                 const mediaRecorder = new MediaRecorder(stream, selectedOptions);
-                
+
                 mediaRecorder.ondataavailable = (event) => {
                     if (event.data && event.data.size > 0) {
                         mediaRecordingChunks.current.push(event.data);
                         console.log(`📊 ULTRA HIGH QUALITY Recording chunk: ${(event.data.size / 1024 / 1024).toFixed(2)} MB`);
                     }
                 };
-                
+
                 mediaRecorder.onstop = () => {
                     if (mediaRecordingChunks.current.length > 0) {
-                        const recordingBlob = new Blob(mediaRecordingChunks.current, { 
+                        const recordingBlob = new Blob(mediaRecordingChunks.current, {
                             type: selectedOptions.mimeType
                         });
-                        
+
                         const recordingUrl = URL.createObjectURL(recordingBlob);
                         setRecordings(prev => [recordingUrl, ...prev]);
-                        
+
                         console.log('✅ ULTRA HIGH QUALITY video recording saved:', {
                             format: selectedOptions.mimeType,
                             bitrate: `${selectedOptions.videoBitsPerSecond / 1000000}Mbps`,
@@ -1011,23 +1011,23 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
                             chunks: mediaRecordingChunks.current.length,
                             type: 'Ultra High Quality Video Only'
                         });
-                        
+
                         mediaRecordingChunks.current = [];
                     }
                     setRecordingActive(false);
                 };
-                
+
                 mediaRecorder.onerror = (event) => {
                     console.error('❌ Recording error:', event.error);
                     setRecordingActive(false);
                 };
-                
+
                 // ENHANCED: Start recording with optimal chunk size for high quality
                 mediaRecorder.start(100); // 100ms chunks for ultra smooth recording
                 mediaRecorderRef.current = mediaRecorder;
-                
+
                 console.log('✅ ULTRA HIGH QUALITY video recording started (audio disabled, ultra high bitrate)');
-                
+
             } catch (error) {
                 console.error('❌ Error starting recording:', error);
                 setRecordingActive(false);
@@ -1080,10 +1080,10 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
             // Here you would implement your actual save logic
             // This is a placeholder that should be replaced with actual save functionality
             console.log('💾 Saving screenshot:', screenshotId);
-            
+
             // Simulate save operation
             await new Promise(resolve => setTimeout(resolve, 1000));
-            
+
             console.log('✅ Screenshot saved successfully:', screenshotId);
             toast.success('Screenshot saved successfully');
 
@@ -1121,9 +1121,20 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
             }
             if (socketConnection.current) {
                 socketConnection.current.disconnect();
-            }            console.log('🧹 Cleanup completed (video only)');
+            } console.log('🧹 Cleanup completed (video only)');
         };
     }, []);
+
+    const updateScreenShortId = (old, newId) => {
+        setScreenshots(prev =>
+            prev.map(screenshot =>
+                screenshot.id === old
+                    ? { ...screenshot, id: newId }
+                    : screenshot
+            )
+        );
+    };
+
 
     return {
         localStream,
@@ -1147,7 +1158,8 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
         clearScreenshotHashes,
         screenshotHashes: screenshotHashes.size, // For debugging
         captureInProgress,
-        savingScreenshotIds
+        savingScreenshotIds,
+        updateScreenShortId
     }
 }
 
