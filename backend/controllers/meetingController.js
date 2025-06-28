@@ -181,8 +181,8 @@ const uploadToS3 = async (data, options, retries = 2, progressCallback = null) =
             const speedMBps = (buffer.length / 1024 / 1024) / (duration / 1000);
             
             console.log(`✅ S3 Upload successful in ${duration}ms`);
-            console.log(`� Upload speed: ${speedMBps.toFixed(2)} MB/s`);
-            console.log(`�🔗 File URL: ${result.Location}`);
+            console.log(`🚀 Upload speed: ${speedMBps.toFixed(2)} MB/s`);
+            console.log(`🔗 File URL: ${result.Location}`);
             console.log(`☁️ Stored in S3 bucket: ${S3_CONFIG.bucket}`);
             
             if (progressCallback) {
@@ -1231,6 +1231,16 @@ export const deleteScreenshot = catchAsyncError(async (req, res, next) => {
     const { meetingId, screenshotId } = req.params;
     const user_id = req.user._id;
 
+    // Validate parameters
+    if (!meetingId || !screenshotId) {
+        return next(new ErrorHandler("Meeting ID and Screenshot ID are required", 400));
+    }
+
+    // Validate screenshotId format (should be a valid MongoDB ObjectId)
+    if (!screenshotId.match(/^[0-9a-fA-F]{24}$/)) {
+        return next(new ErrorHandler("Invalid screenshot ID format", 400));
+    }
+
     const meeting = await MeetingModel.findOne({
         meeting_id: meetingId,
         $or: [
@@ -1244,34 +1254,21 @@ export const deleteScreenshot = catchAsyncError(async (req, res, next) => {
         return next(new ErrorHandler("Meeting not found", 404));
     }
 
-    const screenshotIndex = meeting.screenshots.findIndex(screenshot => screenshot._id.toString() === screenshotId);
+    const screenshot = meeting.screenshots.find(s => s._id.toString() === screenshotId);
 
-    if (screenshotIndex === -1) {
+    if (!screenshot) {
         return next(new ErrorHandler("Screenshot not found", 404));
     }
 
-    const screenshot = meeting.screenshots[screenshotIndex];
-    let s3DeleteResult = { deleted: true }; // Default for cases with no S3 file
-
-    if (screenshot.cloudinary_id || screenshot.s3_key) {
-        const fileKey = screenshot.s3_key || screenshot.cloudinary_id;
-        s3DeleteResult = await deleteFromS3WithRetry(fileKey);
-    }
-
-    meeting.screenshots.splice(screenshotIndex, 1);
-    meeting.total_screenshots = meeting.screenshots.length;
-    meeting.last_updated_by = user_id;
-
+    // Remove the screenshot from the meeting
+    meeting.screenshots = meeting.screenshots.filter(s => s._id.toString() !== screenshotId);
     await meeting.save();
 
-    let message = "Screenshot deleted successfully";
-    if (!s3DeleteResult.deleted && s3DeleteResult.reason === 'AccessDenied') {
-        message = "Screenshot deleted from database (S3 file remains due to permissions)";
-    }
-
-    console.log(`✅ Screenshot deleted. Total: ${meeting.total_screenshots}`);
-
-    sendResponse(true, 200, message, res);
+    res.status(200).json({
+        success: true,
+        message: "Screenshot deleted successfully",
+        timeout: false
+    });
 });
 
 

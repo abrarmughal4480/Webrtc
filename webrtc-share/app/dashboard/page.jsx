@@ -817,8 +817,10 @@ export default function Page() {
                     </div>
                   </th>
                 </tr>
-              </thead>              <tbody>
-                {loading ? (// Skeleton loading rows
+              </thead>
+              <tbody>
+                {loading ? (
+                  // Skeleton loading rows
                   Array.from({ length: 3 }).map((_, index) => (
                     <tr key={`skeleton-${index}`} className="border-b">
                       <td className="px-4 py-3 w-2/5">
@@ -848,7 +850,8 @@ export default function Page() {
                         </div>
                       </td>
                     </tr>
-                  ))                ) : meetings.length === 0 ? (
+                  ))
+                ) : meetings.length === 0 ? (
                   <tr>
                     <td colSpan="4" className="text-center py-8 text-gray-500">
                       {viewMode === 'archived' ? 'No archived meetings found.' : 'No meetings found. Create your first video link to get started!'}
@@ -859,7 +862,8 @@ export default function Page() {
                     const { time, date } = formatMeetingDate(meeting.createdAt);
                     const shareUrl = generateShareUrl(meeting.meeting_id);
                     const actualIndex = indexOfFirstItem + index;
-                    const isArchived = meeting.archived || false;                    return (
+                    const isArchived = meeting.archived || false;
+                    return (
                       <tr key={meeting._id} className="hover:bg-gray-50 border-b group">
                         <td className="px-4 py-3 w-1/3">
                           <div className="flex items-start gap-2">

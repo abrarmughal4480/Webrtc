@@ -1143,6 +1143,17 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
         );
     };
 
+    // Add function to update screenshot properties (backendId, isSaved, etc.)
+    const updateScreenshotProperties = (screenshotId, properties) => {
+        setScreenshots(prev =>
+            prev.map(screenshot =>
+                screenshot.id === screenshotId
+                    ? { ...screenshot, ...properties }
+                    : screenshot
+            )
+        );
+    };
+
     // Add this function to handle end call with tailored/default redirect
     const endCallWithRedirect = (isDefaultRedirectUrl, redirectUrl) => {
         try {
@@ -1214,7 +1225,8 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
         savingScreenshotIds,
         updateScreenShortId,
         // Add the new function to exports
-        endCallWithRedirect
+        endCallWithRedirect,
+        updateScreenshotProperties
     }
 }
 

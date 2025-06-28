@@ -102,7 +102,7 @@ export default function Page({ params }) {
   const saveTimeoutRef = useRef(null);
   const processedItemsRef = useRef(new Set());
 
-  const { handleDisconnect, isConnected, screenshots, takeScreenshot, startPeerConnection, deleteScreenshot, handleVideoPlay, showVideoPlayError, isCapturingScreenshot } = useWebRTC(true, id, videoRef);
+  const { handleDisconnect, isConnected, screenshots, takeScreenshot, startPeerConnection, deleteScreenshot, handleVideoPlay, showVideoPlayError, isCapturingScreenshot, updateScreenshotProperties } = useWebRTC(true, id, videoRef);
   const { setResetOpen, setMessageOpen, setLandlordDialogOpen, setTickerOpen, setFeedbackOpen, setFaqOpen, setShareLinkOpen, setInviteOpen } = useDialog();
   const { user, isAuth, setIsAuth, setUser } = useUser();
 
@@ -146,7 +146,12 @@ export default function Page({ params }) {
     try {
       updateApp({ isEndingVideo: true });
       if (saveAction) await saveAction();
-      handleDisconnect(true);
+      handleDisconnect(false); // Don't redirect here, we'll do it manually
+      
+      // Explicitly redirect to dashboard after save
+      setTimeout(() => {
+        router.push("../../../dashboard");
+      }, 500);
     } catch (error) {
       console.error('Error in save and redirect:', error);
       updateApp({ isEndingVideo: false });
@@ -545,7 +550,99 @@ export default function Page({ params }) {
           toast.error("Save failed", { description });
         }
       }
-      
+
+      // Get backend IDs from response and update local screenshots
+      if (response?.data?.meeting?.screenshots && screenshotsData.length > 0) {
+        const backendScreenshots = response.data.meeting.screenshots;
+        const recentScreenshots = backendScreenshots.filter(s => {
+          const screenshotTime = new Date(s.timestamp);
+          const now = new Date();
+          const timeDiff = now - screenshotTime;
+          return timeDiff < 60000; // Within last minute
+        });
+        
+        console.log('All backend screenshots:', backendScreenshots.length);
+        console.log('Recent backend screenshots found:', recentScreenshots.length);
+        recentScreenshots.forEach((s, i) => {
+          console.log(`Recent backend screenshot ${i + 1}:`, {
+            id: s._id,
+            timestamp: s.timestamp,
+            url: s.url?.substring(0, 50) + '...'
+          });
+        });
+        
+        // Update local screenshots with backend IDs
+        const updatedScreenshots = screenshots.map((screenshot, index) => {
+          const screenshotData = typeof screenshot === 'object' ? screenshot.data : screenshot;
+          const screenshotId = typeof screenshot === 'object' ?
+            (screenshot.id || `screenshot-${screenshot.timestamp || Date.now()}-${Math.random()}`) :
+            `screenshot-${index}-${Date.now()}-${Math.random()}`;
+          
+          // Find matching backend screenshot
+          const matchingBackendScreenshot = recentScreenshots.find(bs => {
+            // Try to match by timestamp or other criteria
+            const bsTime = new Date(bs.timestamp);
+            const now = new Date();
+            const timeDiff = Math.abs(now - bsTime);
+            return timeDiff < 60000; // Within last minute
+          });
+          
+          if (matchingBackendScreenshot) {
+            const updatedScreenshot = {
+              ...screenshot,
+              backendId: matchingBackendScreenshot._id,
+              isSaved: true,
+              savedAt: new Date().toISOString()
+            };
+            console.log('Updated screenshot with backend ID:', updatedScreenshot.backendId, 'Local ID:', screenshotId);
+            return updatedScreenshot;
+          }
+          
+          return screenshot;
+        });
+        
+        console.log('Updated local screenshots with backend IDs');
+        
+        // Use updateScreenshotProperties to update each screenshot
+        screenshots.forEach((screenshot, index) => {
+          const screenshotId = typeof screenshot === 'object' ? screenshot.id : null;
+          if (screenshotId) {
+            const matchingBackendScreenshot = recentScreenshots.find(bs => {
+              const bsTime = new Date(bs.timestamp);
+              const now = new Date();
+              const timeDiff = Math.abs(now - bsTime);
+              return timeDiff < 60000; // Within last minute
+            });
+            
+            if (matchingBackendScreenshot) {
+              updateScreenshotProperties(screenshotId, {
+                backendId: matchingBackendScreenshot._id,
+                isSaved: true,
+                savedAt: new Date().toISOString()
+              });
+              console.log('Updated screenshot with backend ID using updateScreenshotProperties');
+              
+              // Verify the update worked
+              setTimeout(() => {
+                const updatedScreenshot = screenshots.find(s => s.id === screenshotId);
+                console.log('Verification - Updated screenshot:', {
+                  id: updatedScreenshot?.id,
+                  backendId: updatedScreenshot?.backendId,
+                  isSaved: updatedScreenshot?.isSaved,
+                  savedAt: updatedScreenshot?.savedAt
+                });
+              }, 100);
+            } else {
+              updateScreenshotProperties(screenshotId, {
+                isSaved: true,
+                savedAt: new Date().toISOString()
+              });
+              console.log('Screenshot marked as saved using updateScreenshotProperties');
+            }
+          }
+        });
+      }
+
     } catch (error) {
       console.error('Save failed:', error);
       
@@ -580,37 +677,6 @@ export default function Page({ params }) {
     });
 
     updateMedia({ recordings: media.recordings.map(rec => ({ ...rec, isExisting: true })) });
-
-    if (screenshotsData.length > 0) {
-      const newSavedScreenshots = screenshotsData.map((screenshot, index) => ({
-        id: `saved-${Date.now()}-${index}-${Math.random()}`,
-        url: screenshot.data,
-        timestamp: new Date(screenshot.timestamp).toLocaleString(),
-        isExisting: true,
-        hasDrawings: screenshot.hasDrawings,
-        quality: 'high'
-      }));
-
-      setMedia(prev => ({
-        ...prev,
-        existingScreenshots: (() => {
-          const existingUrls = new Set(prev.existingScreenshots.map(s => s.url));
-          const uniqueNewScreenshots = newSavedScreenshots.filter(s => !existingUrls.has(s.url));
-
-          if (uniqueNewScreenshots.length !== newSavedScreenshots.length) {
-            console.log('Filtered out duplicate screenshots');
-          }
-
-          return [...prev.existingScreenshots, ...uniqueNewScreenshots];
-        })()
-      }));
-
-      const screenshotCount = screenshots.length;
-      for (let i = screenshotCount - 1; i >= 0; i--) {
-        deleteScreenshot(i);
-      }
-      console.log(`Cleared ${screenshotCount} screenshots from new screenshots array`);
-    }
 
     if (!app.existingMeetingData) {
       updateApp({
@@ -722,7 +788,7 @@ export default function Page({ params }) {
 
       console.log('Video ended and content saved');
       updateApp({ isLoadingMeetingData: false, saveInProgress: false, isEndingSave: false });
-      router.push("/dashboard");
+      router.push("../../../dashboard");
 
     } catch (error) {
       console.error('End Video and Save failed:', error);
@@ -1208,16 +1274,48 @@ export default function Page({ params }) {
 
   const deleteExistingScreenshot = async (screenshot) => {
     try {
-      console.log(`Deleting existing screenshot ${screenshot.id} from meeting ${id}`);
-      const response = await deleteScreenshotRequest(id, screenshot.id);
+      // Handle different input formats
+      let backendId;
+      if (typeof screenshot === 'object' && screenshot !== null) {
+        // Case 1: Full screenshot object (from maximized view)
+        if (screenshot.backendId) {
+          backendId = screenshot.backendId;
+        } else if (screenshot.id && screenshot.id.match(/^[0-9a-fA-F]{24}$/)) {
+          // Case 2: Object with MongoDB ObjectId as id
+          backendId = screenshot.id;
+        } else {
+          // Case 3: Object with local screenshot id (not a backend ID)
+          console.error('❌ Invalid screenshot object for deletion:', screenshot);
+          toast.error("Cannot delete screenshot - invalid ID format");
+          return;
+        }
+      } else {
+        console.error('❌ Invalid screenshot parameter:', screenshot);
+        toast.error("Cannot delete screenshot - invalid parameter");
+        return;
+      }
+
+      const response = await deleteScreenshotRequest(id, backendId);
 
       toast.success(response.data.timeout ? "Screenshot deletion requested (processing in background)" : "Screenshot deleted successfully!");
-      setMedia(prev => ({
-        ...prev,
-        existingScreenshots: prev.existingScreenshots.filter(s => s.id !== screenshot.id)
-      }));
+      
+      // Remove from existing screenshots if it's there
+      setMedia(prev => {
+        const filteredScreenshots = prev.existingScreenshots.filter(s => s.id !== backendId);
+        return {
+          ...prev,
+          existingScreenshots: filteredScreenshots
+        };
+      });
+      
+      // Also remove from local screenshots array if it has the same backend ID
+      const localScreenshotIndex = screenshots.findIndex(s => s.backendId === backendId);
+      if (localScreenshotIndex !== -1) {
+        deleteScreenshot(localScreenshotIndex);
+      }
+      
     } catch (error) {
-      console.error('Delete screenshot failed:', error);
+      console.error('❌ Delete screenshot failed:', error);
       toast.error("Failed to delete screenshot", {
         description: error?.response?.data?.message || error.message
       });
@@ -1246,7 +1344,19 @@ export default function Page({ params }) {
     updateApp({ screenshotSavedStatus: new Map(app.screenshotSavedStatus).set(screenshotId, true) });
   };
 
-  const getScreenshotStatus = (screenshotId) => app.screenshotSavedStatus.get(screenshotId) || false;
+  const getScreenshotStatus = (screenshotId) => {
+    // Check the saved status map first
+    const savedStatus = app.screenshotSavedStatus.get(screenshotId);
+    if (savedStatus) return true;
+    
+    // Also check if the screenshot object itself has isSaved property
+    const screenshot = screenshots.find(s => {
+      const id = typeof s === 'object' ? s.id : null;
+      return id === screenshotId;
+    });
+    
+    return screenshot?.isSaved || false;
+  };
 
   const saveIndividualScreenshot = useCallback(async (screenshotData, index, screenshotId) => {
     const itemKey = `screenshot-${screenshotId || index}`;
@@ -1264,7 +1374,7 @@ export default function Page({ params }) {
         savingScreenshotIds: new Set(app.savingScreenshotIds).add(screenshotId) 
       });
 
-      console.log('Saving individual screenshot...', index, 'ID:', screenshotId);
+      console.log('Saving individual screenshot...', index, 'Local ID:', screenshotId);
       toast.loading("Saving screenshot...", { id: `save-screenshot-${screenshotId}` });
 
       let finalScreenshotData = screenshotData.split('#')[0];
@@ -1356,42 +1466,81 @@ export default function Page({ params }) {
           );
           
           markScreenshotAsSaved(screenshotId);
-          console.log('Removing screenshot from local array after successful save');
-          deleteScreenshot(index);
           
-          try {
-            console.log('Fetching updated meeting data from backend...');
-            const updatedResponse = await getMeetingByMeetingId(id);
+          // Get the backend ID from the response
+          let backendId = null;
+          if (response?.data?.meeting?.screenshots) {
+            // Find the newly added screenshot by matching the data or timestamp
+            const newScreenshots = response.data.meeting.screenshots.filter(s => {
+              // Check if this screenshot was just added (has recent timestamp)
+              const screenshotTime = new Date(s.timestamp);
+              const now = new Date();
+              const timeDiff = now - screenshotTime;
+              return timeDiff < 60000; // Within last minute
+            });
             
-            if (updatedResponse?.data?.success && updatedResponse?.data?.meeting?.screenshots) {
-              const updatedScreenshots = updatedResponse.data.meeting.screenshots.map(screenshot => ({
-                id: screenshot._id || Date.now() + Math.random(),
-                url: screenshot.url,
-                timestamp: new Date(screenshot.timestamp).toLocaleString(),
-                isExisting: true,
-                hasDrawings: screenshotsData[0].hasDrawings
-              }));
-              
-              updateMedia({ existingScreenshots: updatedScreenshots });
-              console.log('Updated screenshots from backend:', updatedScreenshots.length);
-              console.log('Screenshot position maintained in backend data');
+            console.log('All screenshots in response:', response.data.meeting.screenshots.length);
+            console.log('Recent screenshots found:', newScreenshots.length);
+            newScreenshots.forEach((s, i) => {
+              console.log(`Recent screenshot ${i + 1}:`, {
+                id: s._id,
+                timestamp: s.timestamp,
+                url: s.url?.substring(0, 50) + '...'
+              });
+            });
+            
+            if (newScreenshots.length > 0) {
+              // Get the most recent one
+              const latestScreenshot = newScreenshots[newScreenshots.length - 1];
+              backendId = latestScreenshot._id;
+              console.log('Backend ID received for screenshot:', backendId, 'Local ID:', screenshotId);
             }
-          } catch (fetchError) {
-            console.error('Error fetching updated screenshots:', fetchError);
+          }
+          
+          // Update the screenshot in the local array to include backend ID and mark as saved
+          const updatedScreenshots = screenshots.map((screenshot, i) => {
+            if (i === index) {
+              const updatedScreenshot = {
+                ...screenshot,
+                backendId: backendId,
+                isSaved: true,
+                savedAt: new Date().toISOString()
+              };
+              console.log('Updated screenshot with backend ID:', updatedScreenshot.backendId, 'Local ID:', screenshotId);
+              return updatedScreenshot;
+            }
+            return screenshot;
+          });
+          
+          // Update the screenshots array without removing it
+          // Note: This assumes screenshots is managed by useWebRTC hook
+          // We need to update the local state to reflect the saved status
+          
+          // Use the updateScreenshotProperties function to update the screenshot
+          if (backendId) {
+            updateScreenshotProperties(screenshotId, {
+              backendId: backendId,
+              isSaved: true,
+              savedAt: new Date().toISOString()
+            });
+            console.log('Screenshot updated with backend ID using updateScreenshotProperties');
             
-            console.log('Using fallback: manually adding to existing screenshots');
-            const newSavedScreenshot = {
-              id: `saved-${Date.now()}-${Math.random()}`,
-              url: finalScreenshotData,
-              timestamp: new Date().toLocaleString(),
-              isExisting: true,
-              hasDrawings: screenshotsData[0].hasDrawings
-            };
-            
-            setMedia(prev => ({
-              ...prev,
-              existingScreenshots: [...prev.existingScreenshots, newSavedScreenshot]
-            }));
+            // Verify the update worked
+            setTimeout(() => {
+              const updatedScreenshot = screenshots.find(s => s.id === screenshotId);
+              console.log('Verification - Updated screenshot:', {
+                id: updatedScreenshot?.id,
+                backendId: updatedScreenshot?.backendId,
+                isSaved: updatedScreenshot?.isSaved,
+                savedAt: updatedScreenshot?.savedAt
+              });
+            }, 100);
+          } else {
+            updateScreenshotProperties(screenshotId, {
+              isSaved: true,
+              savedAt: new Date().toISOString()
+            });
+            console.log('Screenshot marked as saved using updateScreenshotProperties');
           }
           
           updateUI({ activePencilScreenshot: null, showPencilDropdown: null });
@@ -1414,7 +1563,7 @@ export default function Page({ params }) {
             });
           }
           
-          console.log(`Screenshot ${index} successfully saved and repositioned`);
+          console.log(`Screenshot ${index} successfully saved with backend ID: ${backendId}`);
         } else {
           toast.error("Screenshot too large", {
             id: `save-screenshot-${screenshotId}`,
@@ -1425,16 +1574,27 @@ export default function Page({ params }) {
         toast.success("Screenshot saved successfully!", { id: `save-screenshot-${screenshotId}` });
         
         markScreenshotAsSaved(screenshotId);
-        deleteScreenshot(index);
         
-        const newSavedScreenshot = {
-          id: `saved-${Date.now()}-${Math.random()}`,
-          url: finalScreenshotData,
-          timestamp: new Date().toLocaleString(),
-          isExisting: true,
-          hasDrawings: screenshotsData[0].hasDrawings
-        };
-        updateMedia({ existingScreenshots: [...media.existingScreenshots, newSavedScreenshot] });
+        // Update the screenshot in the local array to mark as saved
+        const updatedScreenshots = screenshots.map((screenshot, i) => {
+          if (i === index) {
+            return {
+              ...screenshot,
+              isSaved: true,
+              savedAt: new Date().toISOString()
+            };
+          }
+          return screenshot;
+        });
+        
+        console.log('Screenshot marked as saved locally');
+        
+        // Use updateScreenshotProperties for the fallback case too
+        updateScreenshotProperties(screenshotId, {
+          isSaved: true,
+          savedAt: new Date().toISOString()
+        });
+        console.log('Screenshot marked as saved using updateScreenshotProperties (fallback)');
       }
 
     } catch (error) {
@@ -1464,8 +1624,8 @@ export default function Page({ params }) {
       processedItemsRef.current.delete(itemKey);
     }
   }, [
-    id, form, app.existingMeetingData, drawingData, mergeWithBackground, deleteScreenshot, 
-    app.savingScreenshotIds, markScreenshotAsSaved, media.existingScreenshots
+    id, form, app.existingMeetingData, drawingData, mergeWithBackground, 
+    app.savingScreenshotIds, markScreenshotAsSaved, screenshots, updateScreenshotProperties
   ]);
 
   const maximizeVideo = useCallback((recording) => {
@@ -1629,7 +1789,7 @@ export default function Page({ params }) {
       const screenshotId = typeof screenshot === 'object' ? 
         (screenshot.id || `screenshot-${index}-${Date.now()}`) : 
         `screenshot-${index}-${Date.now()}`;
-      if (app.screenshotSavedStatus.get(screenshotId)) {
+      if (getScreenshotStatus(screenshotId) || screenshot.isSaved) {
         savedCount++;
       }
     });
@@ -1642,7 +1802,7 @@ export default function Page({ params }) {
       const screenshotId = typeof screenshot === 'object' ? 
         (screenshot.id || `screenshot-${index}-${Date.now()}`) : 
         `screenshot-${index}-${Date.now()}`;
-      if (!app.screenshotSavedStatus.get(screenshotId)) {
+      if (!getScreenshotStatus(screenshotId) && !screenshot.isSaved) {
         unsavedCount++;
       }
     });
@@ -2493,12 +2653,22 @@ export default function Page({ params }) {
                       (screenshot.id || `screenshot-${screenshot.timestamp || Date.now()}-${Math.random()}`) :
                       `screenshot-${index}-${Date.now()}-${Math.random()}`;
 
-                    const isSaved = getScreenshotStatus(screenshotId);
+                    const isSaved = getScreenshotStatus(screenshotId) || screenshot.isSaved;
+                    const backendId = screenshot.backendId;
                     const canvasId = screenshotId;
                     const isActive = ui.activePencilScreenshot === canvasId;
                     const cleanScreenshotUrl = screenshotData.split('#')[0];
 
-                    console.log(`Rendering screenshot ${index}:`, { canvasId, screenshotId, isSaved }); 
+                    console.log(`Rendering screenshot ${index}:`, { 
+                      canvasId, 
+                      screenshotId, 
+                      isSaved, 
+                      backendId,
+                      hasBackendId: !!backendId,
+                      isSavedProperty: screenshot.isSaved,
+                      savedStatus: getScreenshotStatus(screenshotId),
+                      fullScreenshot: screenshot
+                    });
                     
                     return (
                       <div key={`screenshot-container-${screenshotId}`} className="relative pencil-dropdown-container flex-shrink-0 w-[15vw] min-w-[180px]">
@@ -2509,7 +2679,7 @@ export default function Page({ params }) {
                             : 'from-blue-50 to-blue-100 border-blue-200'
                         } border-2 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 ease-in-out transform hover:scale-105 flex items-center justify-center relative cursor-pointer group`}
                              onClick={() => {
-                               console.log('Maximizing screenshot:', { index, cleanScreenshotUrl });
+                               console.log('Maximizing screenshot:', { index, cleanScreenshotUrl, backendId });
                                maximizeScreenshot({...screenshot, id: screenshotId}, index, false);
                              }}>
                           <div className={`text-center ${
@@ -2571,10 +2741,18 @@ export default function Page({ params }) {
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                deleteNewScreenshot(index, screenshotId);
+                                if (backendId) {
+                                  // If it has a backend ID, delete from backend
+                                  console.log(`🗑️ Deleting screenshot with backend ID: ${backendId}`);
+                                  deleteExistingScreenshot({ id: backendId });
+                                } else {
+                                  // If no backend ID, delete locally
+                                  console.log(`🗑️ Deleting local screenshot: ${screenshotId}`);
+                                  deleteNewScreenshot(index, screenshotId);
+                                }
                               }}
                               className="p-1 hover:bg-black/20 rounded text-white"
-                              title="Delete"
+                              title={backendId ? "Delete from server" : "Delete locally"}
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
