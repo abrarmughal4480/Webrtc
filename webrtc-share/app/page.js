@@ -7,7 +7,7 @@ import { HowItWorksSection } from '@/components/section/HowItsWorkSectionCompone
 import { LaunchLinkSection } from '@/components/section/LunchLinkSectionComponent'
 import { Footer } from '@/components/layouts/FooterComponent'
 import React, { useState, useEffect, Suspense, useCallback } from 'react'
-import { DialogComponent } from '@/components/dialogs/DialogCompnent'
+import { FeedbackDialogComponent } from '@/components/dialogs/FeedbackDialogComponent'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Image from 'next/image'
 import { StarIcon } from 'lucide-react'
@@ -24,7 +24,7 @@ const FeedbackDialog = () => {
   const searchParams = useSearchParams();
 
   const handleClose = useCallback(() => {
-    setShowFeedback(false);
+    // Don't close the modal, only redirect
     
     // Get redirectUrl directly from searchParams to avoid timing issues
     const currentRedirectUrl = searchParams.get("redirectUrl");
@@ -50,7 +50,7 @@ const FeedbackDialog = () => {
       console.log('🔗 Added https:// to URL:', finalRedirectUrl);
     }
     
-    // Immediate redirect when dialog closes
+    // Only redirect, don't close modal
     if (finalRedirectUrl) {
       // Redirect to tailored URL immediately
       console.log('🔗 Redirecting to tailored URL:', finalRedirectUrl);
@@ -95,7 +95,7 @@ const FeedbackDialog = () => {
         setCountdown((prev) => {
           if (prev <= 1) {
             clearInterval(interval);
-            handleClose();
+            handleClose(); // This will only redirect, not close modal
             return 0;
           }
           return prev - 1;
@@ -118,10 +118,10 @@ const FeedbackDialog = () => {
     // You can add API call here to submit feedback
     console.log(`User rated: ${starValue} stars`);
     
-    // Auto submit after 1 second (reduced from 1.5 seconds)
+    // Auto redirect after 1 second (reduced from 1.5 seconds)
     setTimeout(() => {
-      console.log('⭐ Star rating submitted, closing dialog and redirecting...');
-      handleClose();
+      console.log('⭐ Star rating submitted, redirecting...');
+      handleClose(); // This will only redirect, not close modal
     }, 1000);
   };
 
@@ -158,10 +158,15 @@ const FeedbackDialog = () => {
   };
 
   return (
-    <DialogComponent open={showFeedback} setOpen={handleClose} isCloseable={true}>
-      <div className="h-[35rem] p-4 flex flex-col items-center justify-center overflow-hidden">
+    <FeedbackDialogComponent 
+      open={showFeedback} 
+      setOpen={handleClose} 
+      isCloseable={true}
+      overlayColor={redirectUrl ? "bg-orange-500" : "bg-black/50"}
+    >
+      <div className="h-[38rem] p-4 flex flex-col items-center justify-start overflow-hidden pt-8">
         {/* Top section - fixed height */}
-        <div className="flex flex-col items-center justify-center flex-shrink-0">
+        <div className="flex flex-col items-center flex-shrink-0">
           <Image src="/paper-plane.svg" alt="video-link-dialog-bg" className='object-contain' width={150} height={150} />
           <h2 className="text-xl font-bold mt-10 text-center">
             Thank you for joining the video session. 
@@ -228,7 +233,7 @@ const FeedbackDialog = () => {
           </div>
         </div>
       </div>
-    </DialogComponent>
+    </FeedbackDialogComponent>
   );
 };
 

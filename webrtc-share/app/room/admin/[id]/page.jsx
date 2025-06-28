@@ -1827,18 +1827,28 @@ export default function Page({ params }) {
                 
                 return (
                   <div className="relative w-full h-full flex items-center justify-center p-4">
-                    <button
-                      id="maximize-close-button-screenshot"
-                      onClick={closeMaximized}
-                      style={{ position: 'absolute', top: '20px', right: '20px', zIndex: 100, padding: '8px', backgroundColor: 'rgba(0, 0, 0, 0.8)', color: 'white', borderRadius: '50%', border: '2px solid rgba(255, 255, 255, 0.4)', cursor: 'pointer', transition: 'all 0.3s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px', backdropFilter: 'blur(10px)', opacity: '1', visibility: 'visible' }}
-                    >
-                      <X style={{ width: '18px', height: '18px', strokeWidth: '3' }} />
-                    </button>
-                    
                     <div className="relative flex items-center justify-center w-full h-full" style={{ maxWidth: 'calc(100vw - 2rem)', maxHeight: 'calc(100vh - 2rem)', minWidth: '300px', minHeight: '300px' }}>
                       <div 
                         id={`tools-panel-${screenshotId}`}
                         style={{ position: 'absolute', top: '20px', right: '27%', zIndex: 30, display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'flex-start', backgroundColor: 'rgba(255, 255, 255, 0.95)', padding: '16px', borderRadius: '16px', border: '2px solid rgba(59, 130, 246, 0.3)', backdropFilter: 'blur(20px)', boxShadow: '0 10px 25px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(255, 255, 255, 0.05)', transition: 'all 0.3s ease' }}>
+                        
+                        {/* Close button positioned at top-right corner of tools panel */}
+                        <button
+                          id="maximize-close-button-screenshot"
+                          onClick={closeMaximized}
+                          style={{ position: 'absolute', top: '-15px', right: '-15px', zIndex: 100, padding: '6px', backgroundColor: 'rgba(220, 38, 38, 0.9)', color: 'white', borderRadius: '50%', border: '2px solid rgba(255, 255, 255, 0.8)', cursor: 'pointer', transition: 'all 0.3s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '28px', height: '28px', backdropFilter: 'blur(10px)', opacity: '1', visibility: 'visible', boxShadow: '0 2px 8px rgba(0,0,0,0.3)' }}
+                          onMouseEnter={(e) => {
+                            e.target.style.backgroundColor = 'rgba(220, 38, 38, 1)';
+                            e.target.style.transform = 'scale(1.1)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.target.style.backgroundColor = 'rgba(220, 38, 38, 0.9)';
+                            e.target.style.transform = 'scale(1)';
+                          }}
+                        >
+                          <X style={{ width: '14px', height: '14px', strokeWidth: '3' }} />
+                        </button>
+                        
                         <div style={{ color: '#1f2937', fontSize: '12px', fontWeight: '700', marginBottom: '4px', textAlign: 'center', width: '100%', letterSpacing: '0.5px', textTransform: 'uppercase' }}>Tools</div>
 
                         {(!isSaved || !ui.maximizedItem.isExisting) && (
@@ -1954,26 +1964,6 @@ export default function Page({ params }) {
                           img.style.objectFit = 'contain';
                           img.style.display = 'block';
                           
-                          const positionCloseButton = () => {
-                            const closeButton = document.getElementById('maximize-close-button');
-                            if (closeButton && img) {
-                              const imgRect = img.getBoundingClientRect();
-                              const containerRect = img.parentElement.getBoundingClientRect();
-                              
-                              const imageRight = imgRect.right - containerRect.left;
-                              const imageTop = imgRect.top - containerRect.top;
-                              
-                              closeButton.style.left = `${imageRight - 18}px`;
-                              closeButton.style.top = `${imageTop}px`;
-                              closeButton.style.right = 'auto';
-                              closeButton.style.opacity = '1';
-                              closeButton.style.visibility = 'visible';
-                              
-                              console.log(`Close button positioned at image top-right: left=${imageRight - 18}px, top=${imageTop}px`);
-                              console.log(`Image bounds: right=${imageRight}px, top=${imageTop}px`);
-                            }
-                          };
-                          
                           const updateDropdownPosition = () => {
                             const dropdown = document.querySelector(`[data-pencil-dropdown-id="${screenshotId}"]`);
                             const toolsPanel = document.getElementById(`tools-panel-${screenshotId}`);
@@ -2030,16 +2020,11 @@ export default function Page({ params }) {
                             }
                           };
                           
-                          setTimeout(positionCloseButton, 50);
-                          setTimeout(positionCloseButton, 150);
-                          setTimeout(positionCloseButton, 300);
-                          
                           setTimeout(positionToolsPanel, 50);
                           setTimeout(positionToolsPanel, 150);
                           setTimeout(positionToolsPanel, 300);
                           
                           const handleResize = () => {
-                            positionCloseButton();
                             positionToolsPanel();
                             setTimeout(updateDropdownPosition, 50);
                           };
@@ -2112,7 +2097,15 @@ export default function Page({ params }) {
                         data-canvas-id={canvasId}
                         data-screenshot-id={screenshotId}
                         className={`transition-all ${isActive ? 'cursor-crosshair pointer-events-auto' : 'pointer-events-none'}`}
-                        style={{ position: 'absolute', pointerEvents: isActive ? 'auto' : 'none', touchAction: isActive ? 'none' : 'auto', zIndex: isActive ? 999 : 10, border: isActive ? '2px solid #3b82f6' : 'none', opacity: isActive ? 1 : 0.8 }}
+                        style={{
+                          position: 'absolute',
+                          pointerEvents: isActive ? 'auto' : 'none',
+                          touchAction: isActive ? 'none' : 'auto',
+                          zIndex: ui.maximizedItem.isExisting ? 1 : (isActive ? 999 : 10),
+                          border: isActive ? '2px solid #3b82f6' : 'none',
+                          opacity: isActive ? 1 : 0.8,
+                          display: ui.maximizedItem.isExisting ? 'none' : 'block'
+                        }}
                         onMouseDown={(e) => {
                           if (isActive) {
                             e.preventDefault();
