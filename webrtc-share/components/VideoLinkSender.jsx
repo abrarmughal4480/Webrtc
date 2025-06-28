@@ -347,6 +347,7 @@ export default function VideoLinkSender({ isOpen, onClose, onSuccess }) {
       };
 
       console.log('📝 Using message settings for video link:', messageSettings);
+      console.log('🎨 Button color being sent:', messageSettings.selectedButtonColor);
       
       const queryParams = new URLSearchParams();
       

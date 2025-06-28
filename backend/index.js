@@ -148,7 +148,15 @@ const getButtonColorFromTailwind = (tailwindClass) => {
         'bg-orange-800': { bg: '#ea580c', hover: '#c2410c' }
     };
     
-    return colorMap[tailwindClass] || colorMap['bg-green-800']; // Default to green
+    console.log(`🎨 Button color requested: "${tailwindClass}"`);
+    
+    if (colorMap[tailwindClass]) {
+        console.log(`✅ Button color found: ${tailwindClass} -> ${colorMap[tailwindClass].bg}`);
+        return colorMap[tailwindClass];
+    } else {
+        console.log(`⚠️ Button color not found: "${tailwindClass}", falling back to bg-green-800`);
+        return colorMap['bg-green-800']; // Default to green
+    }
 };
 
 // Helper function to get logo for video link emails
@@ -239,6 +247,12 @@ app.get('/send-token', async (req, res) => {
         const buttonColors = getButtonColorFromTailwind(
             parsedMessageSettings?.selectedButtonColor || 'bg-green-800'
         );
+        
+        console.log(`🎨 Final button colors for email:`, {
+            requestedColor: parsedMessageSettings?.selectedButtonColor || 'bg-green-800',
+            finalColors: buttonColors,
+            messageSettings: parsedMessageSettings
+        });
         
         // Get the logo SVG
         const logoSvg = getLogoSvg();

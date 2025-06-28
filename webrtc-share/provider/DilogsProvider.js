@@ -2011,6 +2011,7 @@ ${senderName}`;
 
         setMessageSettingsLoaded(true);
         console.log('✅ Message settings loaded:', settings);
+        console.log('🎨 Button color loaded:', settings.selectedButtonColor || 'bg-green-800');
       }
     } catch (error) {
       console.error('❌ Error loading message settings:', error);
@@ -2142,14 +2143,18 @@ ${senderName}`;
     messageSettingsLoaded,
     loadMessageSettings,
     // User message preferences for video links
-    getUserMessageSettings: () => ({
-      messageOption,
-      tailoredMessage: tailoredMessageText,
-      defaultTextSize,
-      tailoredTextSize,
-      selectedButtonColor,
-      isLoaded: messageSettingsLoaded
-    })
+    getUserMessageSettings: () => {
+      const settings = {
+        messageOption,
+        tailoredMessage: tailoredMessageText,
+        defaultTextSize,
+        tailoredTextSize,
+        selectedButtonColor,
+        isLoaded: messageSettingsLoaded
+      };
+      console.log('🎨 getUserMessageSettings returning:', settings);
+      return settings;
+    }
   };
 
   useEffect(() => {
@@ -2160,6 +2165,11 @@ ${senderName}`;
       setRecoveryWord('');
     }
   }, [resetOpen]);
+
+  // Track button color changes
+  useEffect(() => {
+    console.log('🎨 selectedButtonColor changed to:', selectedButtonColor);
+  }, [selectedButtonColor]);
 
   // Remove the duplicate function definitions that were at the bottom
   // ...existing code...
@@ -2419,7 +2429,10 @@ ${senderName}`;
               <div className="flex items-center gap-2 mb-3">
                 <span className="text-xs font-medium text-black">Default:</span>
                 <button
-                  onClick={() => setSelectedButtonColor('bg-green-800')}
+                  onClick={() => {
+                    console.log('🎨 Default green button clicked');
+                    setSelectedButtonColor('bg-green-800');
+                  }}
                   className={`rounded-full border transition-all ${selectedButtonColor === 'bg-green-800'
                     ? 'border-black border-2 scale-110'
                     : 'border-gray-300'
@@ -2439,7 +2452,10 @@ ${senderName}`;
                   {buttonColors.map((colorOption, index) => (
                     <button
                       key={index}
-                      onClick={() => setSelectedButtonColor(colorOption.bgClass)}
+                      onClick={() => {
+                        console.log('🎨 Custom button color clicked:', colorOption.bgClass, colorOption.name);
+                        setSelectedButtonColor(colorOption.bgClass);
+                      }}
                       className={`rounded-full border transition-all ${selectedButtonColor === colorOption.bgClass
                         ? 'border-black border-2 scale-110'
                         : 'border-gray-300'

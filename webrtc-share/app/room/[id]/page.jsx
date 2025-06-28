@@ -34,6 +34,7 @@ const page = ({params}) => {
       'bg-purple-800': 'hover:bg-purple-900',
       'bg-orange-800': 'hover:bg-orange-900'
     };
+    console.log('🎨 Getting hover color for:', bgColor, '->', colorMap[bgColor] || 'hover:bg-green-700');
     return colorMap[bgColor] || 'hover:bg-green-700';
   };
   
@@ -73,6 +74,9 @@ const page = ({params}) => {
           if (parsedMessageSettings.selectedButtonColor) {
             setButtonColor(parsedMessageSettings.selectedButtonColor);
             console.log('🎨 Setting button color:', parsedMessageSettings.selectedButtonColor);
+          } else {
+            console.log('⚠️ No button color in message settings, using default bg-green-800');
+            setButtonColor('bg-green-800');
           }
         } catch (e) {
           console.warn('Failed to parse messageSettings:', e);
@@ -150,6 +154,11 @@ const page = ({params}) => {
       setPageLoading(false);
     }
   }, [searchParams, id]);
+  
+  // Track button color changes
+  useEffect(() => {
+    console.log('🎨 buttonColor state changed to:', buttonColor);
+  }, [buttonColor]);
   
   // Notify admin when user opens the link
   useEffect(() => {
