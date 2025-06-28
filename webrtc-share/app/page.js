@@ -188,7 +188,7 @@ const FeedbackDialog = () => {
           {[1, 2, 3, 4, 5].map((star) => (
             <StarIcon 
               key={star}
-              className={`w-9 h-9 sm:w-8 sm:h-8 md:w-9 md:h-9 lg:w-10 lg:h-10 cursor-pointer transition-colors duration-200 ${
+              className={`w-12 h-12 sm:w-8 sm:h-8 md:w-9 md:h-9 lg:w-10 lg:h-10 cursor-pointer transition-colors duration-200 ${
                 getStarColor(star, hoverRating || rating)
               }`}
               onClick={() => handleStarClick(star)}
