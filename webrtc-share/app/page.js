@@ -164,25 +164,31 @@ const FeedbackDialog = () => {
       isCloseable={true}
       overlayColor={redirectUrl ? "bg-orange-500" : "bg-black/50"}
     >
-      <div className="h-[38rem] p-4 flex flex-col items-center justify-start overflow-hidden pt-8">
+      <div className="w-auto h-auto min-h-[26rem] sm:min-h-[28rem] md:min-h-[30rem] lg:min-h-[32rem] xl:min-h-[34rem] max-h-[85vh] flex flex-col items-center justify-start overflow-hidden pt-4 sm:pt-6 md:pt-8 px-3 sm:px-4 pb-4 sm:pb-6 md:pb-8">
         {/* Top section - fixed height */}
         <div className="flex flex-col items-center flex-shrink-0">
-          <Image src="/paper-plane.svg" alt="video-link-dialog-bg" className='object-contain' width={150} height={150} />
-          <h2 className="text-xl font-bold mt-10 text-center">
+          <Image 
+            src="/paper-plane.svg" 
+            alt="video-link-dialog-bg" 
+            width={100} 
+            height={100} 
+            className="object-contain w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 lg:w-[150px] lg:h-[150px]"
+          />
+          <h2 className="text-base sm:text-lg md:text-xl font-bold mt-4 sm:mt-6 md:mt-8 lg:mt-10 text-center px-2">
             Thank you for joining the video session. 
             The link has now ended.
           </h2>
-          <h2 className="text-xl font-bold text-center mt-5">
+          <h2 className="text-base sm:text-lg md:text-xl font-bold text-center mt-2 sm:mt-3 md:mt-4 lg:mt-5">
             How was it?
           </h2>
         </div>
         
         {/* Stars section - fixed height */}
-        <div className='flex items-center justify-center mt-8 gap-2 flex-shrink-0'>
+        <div className='flex items-center justify-center mt-4 sm:mt-6 md:mt-7 lg:mt-8 gap-1 sm:gap-2 flex-shrink-0'>
           {[1, 2, 3, 4, 5].map((star) => (
             <StarIcon 
               key={star}
-              className={`w-10 h-10 cursor-pointer transition-colors duration-200 ${
+              className={`w-7 h-7 sm:w-8 sm:h-8 md:w-9 md:h-9 lg:w-10 lg:h-10 cursor-pointer transition-colors duration-200 ${
                 getStarColor(star, hoverRating || rating)
               }`}
               onClick={() => handleStarClick(star)}
@@ -193,25 +199,31 @@ const FeedbackDialog = () => {
           ))}
         </div>
 
-        {/* Feedback text section - fixed height to prevent layout shift */}
-        <div className="mt-4 h-8 flex items-center justify-center min-h-[2rem] flex-shrink-0">
-          {(rating > 0 || hoverRating > 0) && (
-            <div className={`text-lg font-semibold ${getTextColor(hoverRating || rating)}`}>
-              {getFeedbackText(hoverRating || rating)}
-            </div>
-          )}
+        {/* Feedback text section - FIXED height to prevent layout shift */}
+        <div className="mt-2 sm:mt-3 md:mt-4 h-8 sm:h-9 md:h-10 lg:h-12 flex items-center justify-center flex-shrink-0">
+          <div className={`text-sm sm:text-base md:text-lg font-semibold ${getTextColor(hoverRating || rating)} transition-opacity duration-200 ${
+            (rating > 0 || hoverRating > 0) ? 'opacity-100' : 'opacity-0'
+          }`}>
+            {getFeedbackText(hoverRating || rating)}
+          </div>
         </div>
 
         {/* Bottom section - fixed height */}
-        <div className="flex flex-col items-center justify-center mt-6 flex-shrink-0">
-          <Image src="/devices.svg" alt="Videodesk" width={200} height={50} />
+        <div className="flex flex-col items-center justify-center mt-3 sm:mt-4 md:mt-5 lg:mt-6 flex-shrink-0">
+          <Image 
+            src="/devices.svg" 
+            alt="Videodesk" 
+            width={200} 
+            height={50} 
+            className="w-24 sm:w-28 md:w-32 lg:w-36 xl:w-[200px] h-auto"
+          />
           
           {/* Fixed height container for bottom messages */}
-          <div className="mt-4 text-center min-h-[3rem] flex flex-col justify-center flex-shrink-0">
+          <div className="mt-2 sm:mt-3 md:mt-4 text-center h-12 sm:h-14 md:h-16 lg:h-18 flex flex-col justify-center flex-shrink-0 px-2">
             {/* Countdown message for redirect */}
             {redirectUrl && (
               <div>
-                <p className="text-sm text-gray-600">
+                <p className="text-xs sm:text-sm text-gray-600">
                   You will be redirected in {countdown} second{countdown !== 1 ? 's' : ''}
                 </p>
                 {countdown <= 3 && (
@@ -225,7 +237,7 @@ const FeedbackDialog = () => {
             {/* Show different message if no redirect URL */}
             {!redirectUrl && (
               <div>
-                <p className="text-sm text-gray-600">
+                <p className="text-xs sm:text-sm text-gray-600">
                   Thank you for your feedback!
                 </p>
               </div>

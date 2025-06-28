@@ -16,8 +16,11 @@ export function FeedbackDialogComponent({ open, setOpen, isCloseable = false, ch
         <DialogOverlay className={overlayColor} />
         <DialogPrimitive.Content
           className={cn(
-            "bg-white data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border-none outline-none shadow-lg duration-200 sm:max-w-lg p-6 pt-8",
-            "w-auto p-0 border-none rounded-2xl shadow-md [&>button]:hidden"
+            "bg-white data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-50 grid w-auto translate-x-[-50%] translate-y-[-50%] gap-4 border-none outline-none shadow-lg duration-200 rounded-2xl",
+            "w-[80vw] sm:w-auto sm:min-w-[300px] md:min-w-[350px] lg:min-w-[400px] xl:min-w-[450px]",
+            "max-w-[calc(100%-1rem)] sm:max-w-[70vw] md:max-w-[60vw] lg:max-w-[50vw] xl:max-w-[40vw]",
+            "p-3 sm:p-4 md:p-6 pt-4 sm:pt-6 md:pt-8",
+            "[&>button]:hidden"
           )}
         >
           {/* Add hidden title for accessibility */}
