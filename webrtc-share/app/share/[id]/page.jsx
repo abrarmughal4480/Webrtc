@@ -747,16 +747,21 @@ export default function SharePage({ params }) {
       {modalImage && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="relative max-w-5xl max-h-[90vh] w-full h-full flex items-center justify-center">
-            {/* Close button */}
-            <button
-              onClick={() => setModalImage(null)}
-              className="absolute top-4 right-4 z-10 p-3 bg-white/10 backdrop-blur-sm hover:bg-white/20 rounded-full text-white transition-all duration-200 hover:scale-110"
-            >
-              <X className="w-6 h-6" />
-            </button>
-            
             {/* Image container */}
             <div className="relative w-full h-full flex items-center justify-center">
+              {/* Close button - Positioned at top 5% and right 27% */}
+              <button
+                onClick={() => setModalImage(null)}
+                className="absolute z-10 p-3 bg-red-600 hover:bg-red-700 text-white rounded-full border-2 border-white/80 transition-all duration-300 hover:scale-110 flex items-center justify-center w-10 h-10 backdrop-blur-sm shadow-lg"
+                style={{ 
+                  top: '5%', 
+                  right: '27%', 
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.3)' 
+                }}
+              >
+                <X className="w-5 h-5" strokeWidth="3" />
+              </button>
+              
               <img
                 src={modalImage.url}
                 alt="Expanded screenshot"

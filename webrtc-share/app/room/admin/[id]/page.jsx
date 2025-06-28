@@ -1358,6 +1358,8 @@ export default function Page({ params }) {
     return screenshot?.isSaved || false;
   };
 
+
+  console.log(screenshots,"AAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
   const saveIndividualScreenshot = useCallback(async (screenshotData, index, screenshotId) => {
     const itemKey = `screenshot-${screenshotId || index}`;
 
@@ -1452,8 +1454,9 @@ export default function Page({ params }) {
       console.log('Sending screenshot data to server');
 
       const response = await createRequest(formData);
-
+      
       if (response?.data?.upload_summary || response?.data?.media_summary) {
+   
         const summary = response.data.upload_summary || response.data.media_summary;
         const screenshotsUploaded = summary.screenshots_uploaded || summary.new_screenshots_added || 0;
         
@@ -1466,6 +1469,8 @@ export default function Page({ params }) {
           );
           
           markScreenshotAsSaved(screenshotId);
+         
+         
           
           // Get the backend ID from the response
           let backendId = null;
@@ -1497,6 +1502,9 @@ export default function Page({ params }) {
             }
           }
           
+          
+          
+
           // Update the screenshot in the local array to include backend ID and mark as saved
           const updatedScreenshots = screenshots.map((screenshot, i) => {
             if (i === index) {
@@ -1521,10 +1529,12 @@ export default function Page({ params }) {
             updateScreenshotProperties(screenshotId, {
               backendId: backendId,
               isSaved: true,
-              savedAt: new Date().toISOString()
+              savedAt: new Date().toISOString(),
+              data: finalScreenshotData,
+              url: finalScreenshotData
             });
             console.log('Screenshot updated with backend ID using updateScreenshotProperties');
-            
+           
             // Verify the update worked
             setTimeout(() => {
               const updatedScreenshot = screenshots.find(s => s.id === screenshotId);
@@ -1542,6 +1552,8 @@ export default function Page({ params }) {
             });
             console.log('Screenshot marked as saved using updateScreenshotProperties');
           }
+
+          
           
           updateUI({ activePencilScreenshot: null, showPencilDropdown: null });
           
@@ -1574,7 +1586,6 @@ export default function Page({ params }) {
         toast.success("Screenshot saved successfully!", { id: `save-screenshot-${screenshotId}` });
         
         markScreenshotAsSaved(screenshotId);
-        
         // Update the screenshot in the local array to mark as saved
         const updatedScreenshots = screenshots.map((screenshot, i) => {
           if (i === index) {

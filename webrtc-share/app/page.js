@@ -175,11 +175,11 @@ const FeedbackDialog = () => {
             className="object-contain w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 lg:w-[150px] lg:h-[150px]"
           />
           <h2 className="text-base sm:text-lg md:text-xl font-bold mt-4 sm:mt-6 md:mt-8 lg:mt-10 text-center px-2">
-            Thank you for joining the video session. 
+            Thank you for joining. <br/>
             The link has now ended.
           </h2>
           <h2 className="text-base sm:text-lg md:text-xl font-bold text-center mt-2 sm:mt-3 md:mt-4 lg:mt-5">
-            How was it?
+            How was the video quality?
           </h2>
         </div>
         
@@ -188,7 +188,7 @@ const FeedbackDialog = () => {
           {[1, 2, 3, 4, 5].map((star) => (
             <StarIcon 
               key={star}
-              className={`w-7 h-7 sm:w-8 sm:h-8 md:w-9 md:h-9 lg:w-10 lg:h-10 cursor-pointer transition-colors duration-200 ${
+              className={`w-9 h-9 sm:w-8 sm:h-8 md:w-9 md:h-9 lg:w-10 lg:h-10 cursor-pointer transition-colors duration-200 ${
                 getStarColor(star, hoverRating || rating)
               }`}
               onClick={() => handleStarClick(star)}
