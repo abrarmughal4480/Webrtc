@@ -49,7 +49,7 @@ export default function Page() {
   const [selectAll, setSelectAll] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const { setResetOpen, setMessageOpen, setLandlordDialogOpen, setTickerOpen, setInviteOpen, setFeedbackOpen, setFaqOpen, setExportOpen, setHistoryOpen } = useDialog();
+  const { setResetOpen, setMessageOpen, setLandlordDialogOpen, setTickerOpen, setFeedbackOpen, setFaqOpen, setExportOpen, setHistoryOpen } = useDialog();
 
   useEffect(() => {
     fetchMeetings();
@@ -332,6 +332,16 @@ export default function Page() {
       return 'rounded-full';
     }
     return 'rounded-full'; // default
+  };
+
+  // Helper function to get image object fit class based on shape
+  const getImageObjectFitClass = () => {
+    const shape = user?.landlordInfo?.profileShape;
+    if (shape === 'square') {
+      return 'object-contain'; // For square, use contain to show full image
+    } else {
+      return 'object-cover'; // For circle, use cover to fill the circle
+    }
   };
 
   // Helper function to format time with proper alignment
@@ -668,7 +678,7 @@ export default function Page() {
                 ) : (
                   <>
                     <div
-                      className={`w-12 h-12 overflow-hidden cursor-pointer ${getProfileShapeClass()} flex items-center justify-center border border-gray-300`}
+                      className={`w-12 h-12 overflow-hidden cursor-pointer ${getProfileShapeClass()} flex items-center justify-center border border-gray-300 bg-gray-50`}
                       onClick={() => setLandlordDialogOpen(true)}
                       title="Click to update profile image"
                     >
@@ -678,7 +688,7 @@ export default function Page() {
                           alt="Profile Image"
                           width={48}
                           height={48}
-                          className="w-full h-full object-cover"
+                          className={`w-full h-full ${getImageObjectFitClass()}`}
                           onError={(e) => {
                             // Hide the image if it fails to load
                             e.target.style.display = 'none';

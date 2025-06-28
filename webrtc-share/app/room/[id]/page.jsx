@@ -22,7 +22,7 @@ const page = ({params}) => {
   const [buttonColor, setButtonColor] = useState('bg-green-800');
   const [pageLoading, setPageLoading] = useState(true);
   const videoRef = useRef(null);
-  const notificationSocketRef = useRef(null);  const {localStream, remoteStream, socket, socketConnection, handleDisconnect, startPeerConnection} = useWebRTC(false, id, videoRef);
+  const notificationSocketRef = useRef(null);  const {localStream, remoteStream, socket, socketConnection, handleDisconnect, startPeerConnection, endCallWithRedirect} = useWebRTC(false, id, videoRef);
   
   // Helper function to get hover color based on button color
   const getHoverColor = (bgColor) => {
@@ -51,7 +51,11 @@ const page = ({params}) => {
       let parsedTokenInfo = null;
       if (tokenLandlordInfo) {
         try {
-          parsedTokenInfo = JSON.parse(tokenLandlordInfo);
+          // Decode the URL-encoded tokenLandlordInfo first
+          const decodedTokenInfo = decodeURIComponent(tokenLandlordInfo);
+          console.log('🔍 Decoded tokenLandlordInfo:', decodedTokenInfo);
+          parsedTokenInfo = JSON.parse(decodedTokenInfo);
+          console.log('📋 Parsed tokenLandlordInfo:', parsedTokenInfo);
         } catch (e) {
           console.warn('Failed to parse tokenLandlordInfo:', e);
         }
@@ -79,12 +83,21 @@ const page = ({params}) => {
       let finalRedirectUrl = redirectUrlParam;
       let isDefault = true;
       
+      console.log('🔍 Initial redirect URL extraction:', {
+        redirectUrlParam,
+        parsedTokenInfo,
+        finalRedirectUrl,
+        isDefault
+      });
+      
       if (parsedTokenInfo) {
         if (parsedTokenInfo.redirectUrl) {
           finalRedirectUrl = parsedTokenInfo.redirectUrl;
+          console.log('✅ Using redirectUrl from tokenLandlordInfo:', finalRedirectUrl);
         }
         if (parsedTokenInfo.hasOwnProperty('isDefaultRedirectUrl')) {
-          isDefault = parsedTokenInfo.isDefaultRedirectUrl;
+          isDefault = Boolean(parsedTokenInfo.isDefaultRedirectUrl);
+          console.log('✅ Using isDefaultRedirectUrl from tokenLandlordInfo:', isDefault, 'original:', parsedTokenInfo.isDefaultRedirectUrl);
         }
       }
       
@@ -94,7 +107,8 @@ const page = ({params}) => {
         hasProfileImage: !!profileImage,
         hasLandlordLogo: !!landlordLogo,
         redirectUrl: finalRedirectUrl,
-        isDefaultRedirectUrl: isDefault
+        isDefaultRedirectUrl: isDefault,
+        shouldShowDefaultLayout: landlordName === "Videodesk"
       });
       
       setProfileData({
@@ -112,9 +126,13 @@ const page = ({params}) => {
           formattedUrl = `https://${formattedUrl}`;
         }
         setRedirectUrl(formattedUrl);
+        // Store in localStorage as backup
+        localStorage.setItem("redirectUrl", formattedUrl);
         console.log('🔗 Using tailored redirect URL (will redirect):', formattedUrl);
       } else {        // Default URL - no redirect
         setRedirectUrl('');
+        // Clear any existing redirect URL from localStorage
+        localStorage.removeItem("redirectUrl");
         console.log('🔗 Default URL - no redirect needed');
       }
 
@@ -173,30 +191,49 @@ const page = ({params}) => {
   }
 
   const handleVideoCallEnd = () => {
-    try {
-      console.log('🔚 Video call ending...');
-      handleDisconnect();
-      
-      if (!isDefaultRedirectUrl && redirectUrl) {
-        // Tailored URL - redirect to feedback page with redirect URL
-        console.log('🔗 Will redirect to feedback page with tailored URL after 22 seconds:', redirectUrl);
-        setTimeout(() => {
-          window.location.href = `/?show-feedback=true&redirectUrl=${encodeURIComponent(redirectUrl)}`;
-        }, 22000);
-      } else {
-        // Default URL - redirect to feedback page after 22 seconds
-        console.log('🔗 Default URL - redirecting to feedback page after 22 seconds');
-        setTimeout(() => {
-          window.location.href = '/?show-feedback=true';
-        }, 22000);
+    // Always use the latest values from the source, not from state
+    let urlToSend = '';
+    let isDefault = true;
+
+    // Get from tokenLandlordInfo or searchParams again
+    const redirectUrlParam = searchParams.get('redirectUrl');
+    const tokenLandlordInfo = searchParams.get('tokenLandlordInfo');
+    let parsedTokenInfo = null;
+    
+    if (tokenLandlordInfo) {
+      try {
+        // Decode the URL-encoded tokenLandlordInfo first
+        const decodedTokenInfo = decodeURIComponent(tokenLandlordInfo);
+        console.log('🔍 Decoded tokenLandlordInfo:', decodedTokenInfo);
+        parsedTokenInfo = JSON.parse(decodedTokenInfo);
+      } catch (e) {
+        console.error('Failed to parse tokenLandlordInfo:', e);
       }
-    } catch (error) {
-      console.error('Error ending video call:', error);
-      // Fallback - go to home page after 22 seconds
-      setTimeout(() => {
-        window.location.href = '/';
-      }, 22000);
     }
+    
+    console.log('🔍 Video call end - extracted data:', {
+      redirectUrlParam,
+      parsedTokenInfo,
+      isDefaultRedirectUrl: parsedTokenInfo?.isDefaultRedirectUrl
+    });
+    
+    if (parsedTokenInfo && parsedTokenInfo.redirectUrl) {
+      urlToSend = parsedTokenInfo.redirectUrl;
+      isDefault = Boolean(parsedTokenInfo.isDefaultRedirectUrl);
+      console.log('✅ Using tokenLandlordInfo data:', { urlToSend, isDefault, originalIsDefault: parsedTokenInfo.isDefaultRedirectUrl });
+    } else if (redirectUrlParam) {
+      urlToSend = redirectUrlParam;
+      isDefault = true;
+      console.log('✅ Using redirectUrlParam:', { urlToSend, isDefault });
+    }
+
+    if (urlToSend && !urlToSend.startsWith('http://') && !urlToSend.startsWith('https://')) {
+      urlToSend = `https://${urlToSend}`;
+      console.log('🔗 Added https:// to URL:', urlToSend);
+    }
+
+    console.log('🚀 Calling endCallWithRedirect with:', { isDefault, urlToSend });
+    endCallWithRedirect(isDefault, urlToSend);
   }
   return (
     <>
@@ -250,7 +287,7 @@ const page = ({params}) => {
           {/* Landlord Name or Videodesk Default */}
           <div className="flex justify-center">
             <h2 className="text-xl font-bold mt-2 text-center pb-3">
-              {profileData.landlordName ? (
+              {profileData.landlordName && profileData.landlordName !== "Videodesk" ? (
                 <span className="text-xl font-bold">{profileData.landlordName}</span>
               ) : (
                 <div className="flex items-center justify-center gap-2">
@@ -283,12 +320,12 @@ const page = ({params}) => {
             <img src="/devices.svg" alt="Videodesk" className="w-30" />
           </div>
 
-          {/* Videodesk Heading - show only if landlord name or logo exists */}
-          {(profileData.landlordName || profileData.landlordLogo) && (
+          {/* Videodesk Heading - show only if landlord name or logo exists and name is not "Videodesk" */}
+          {(profileData.landlordName && profileData.landlordName !== "Videodesk") || profileData.landlordLogo ? (
             <div className="flex justify-center">
               <h3 className="text-2xl font-bold text-black pt-6 pb-6">Videodesk</h3>
             </div>
-          )}
+          ) : null}
         </div>
       </DialogComponent>
     </>

@@ -685,7 +685,15 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
         setShowVideoPlayError(false);
 
         if (!isAdmin) {
-            router.push('/?show-feedback=true');
+            // Get redirect URL from localStorage as fallback
+            const redirectUrl = localStorage.getItem("redirectUrl");
+            if (redirectUrl) {
+                console.log('🔗 Admin ended call, redirecting with tailored URL:', redirectUrl);
+                window.location.href = `/?show-feedback=true&redirectUrl=${encodeURIComponent(redirectUrl)}`;
+            } else {
+                console.log('🔗 Admin ended call, redirecting without tailored URL');
+                router.push('/?show-feedback=true');
+            }
         }
     }
 
@@ -1135,6 +1143,51 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
         );
     };
 
+    // Add this function to handle end call with tailored/default redirect
+    const endCallWithRedirect = (isDefaultRedirectUrl, redirectUrl) => {
+        try {
+            console.log('🎬 endCallWithRedirect called with:', {
+                isDefaultRedirectUrl,
+                redirectUrl,
+                hasRedirectUrl: !!redirectUrl,
+                redirectUrlType: typeof redirectUrl,
+                redirectUrlLength: redirectUrl ? redirectUrl.length : 0
+            });
+            
+            handleDisconnect(false); // Only disconnect, don't redirect yet
+            
+            console.log('🔍 Checking redirect conditions:', {
+                isDefaultRedirectUrl: isDefaultRedirectUrl,
+                hasRedirectUrl: !!redirectUrl,
+                condition1: !isDefaultRedirectUrl,
+                condition2: !!redirectUrl,
+                finalCondition: !isDefaultRedirectUrl && !!redirectUrl
+            });
+            
+            if (!isDefaultRedirectUrl && redirectUrl) {
+                // Tailored URL - redirect to feedback page with redirect URL
+                const feedbackUrl = `/?show-feedback=true&redirectUrl=${encodeURIComponent(redirectUrl)}`;
+                console.log('🔗 Will redirect to feedback page with tailored URL after 3 seconds:', feedbackUrl);
+                setTimeout(() => {
+                    console.log('🚀 Executing redirect to feedback page with tailored URL');
+                    window.location.href = feedbackUrl;
+                }, 3000); // Reduced to 3 seconds for faster feedback
+            } else {
+                // Default URL - redirect to feedback page after 3 seconds
+                console.log('🔗 Default URL - redirecting to feedback page after 3 seconds');
+                setTimeout(() => {
+                    console.log('🚀 Executing redirect to feedback page (default)');
+                    window.location.href = '/?show-feedback=true';
+                }, 3000); // Reduced to 3 seconds for faster feedback
+            }
+        } catch (error) {
+            console.error('Error ending video call:', error);
+            // Fallback - go to home page after 5 seconds
+            setTimeout(() => {
+                window.location.href = '/';
+            }, 5000); // Reduced from 22 seconds to 5 seconds
+        }
+    }
 
     return {
         localStream,
@@ -1159,7 +1212,9 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
         screenshotHashes: screenshotHashes.size, // For debugging
         captureInProgress,
         savingScreenshotIds,
-        updateScreenShortId
+        updateScreenShortId,
+        // Add the new function to exports
+        endCallWithRedirect
     }
 }
 

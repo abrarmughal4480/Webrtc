@@ -335,39 +335,60 @@ const tools = [
     console.log('🎨 Canvas initialization completed for:', canvasId);
   }, []);
 
-  // FIX: Add fallback background creation function
+  // FIXED: Fallback background creation function - no longer tries to set read-only properties
   const createFallbackBackground = (ctx, width, height, canvasId) => {
     console.log('🎨 Creating fallback background for canvas:', canvasId);
     
-    // Create a gradient background
-    const gradient = ctx.createLinearGradient(0, 0, width, height);
-    gradient.addColorStop(0, '#f8f9fa');
-    gradient.addColorStop(1, '#e9ecef');
-    
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, width, height);
-    
-    // Add some text to indicate it's a fallback
-    ctx.fillStyle = '#6c757d';
-    ctx.font = '14px Arial';
-    ctx.textAlign = 'center';
-    ctx.fillText('Drawing canvas', width/2, height/2);
-    
-    // Create a dummy image object for the background
-    const dummyImage = new Image();
-    dummyImage.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
-    dummyImage.naturalWidth = width;
-    dummyImage.naturalHeight = height;
-    
-    // Store the dummy image
-    backgroundImages.current[canvasId] = dummyImage;
-    
-    // Mark as fully initialized
-    if (drawingData.current[canvasId]) {
-      drawingData.current[canvasId].fullyInitialized = true;
-      drawingData.current[canvasId].originalWidth = width;
-      drawingData.current[canvasId].originalHeight = height;
-      drawingData.current[canvasId].useFallback = true;
+    try {
+      // Create a gradient background
+      const gradient = ctx.createLinearGradient(0, 0, width, height);
+      gradient.addColorStop(0, '#f8f9fa');
+      gradient.addColorStop(1, '#e9ecef');
+      
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, width, height);
+      
+      // Add some text to indicate it's a fallback
+      ctx.fillStyle = '#6c757d';
+      ctx.font = '14px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText('Drawing canvas', width/2, height/2);
+      
+      // FIXED: Create a proper fallback image using canvas instead of trying to modify Image properties
+      const fallbackCanvas = document.createElement('canvas');
+      fallbackCanvas.width = width;
+      fallbackCanvas.height = height;
+      const fallbackCtx = fallbackCanvas.getContext('2d');
+      
+      // Draw the same background on the fallback canvas
+      const fallbackGradient = fallbackCtx.createLinearGradient(0, 0, width, height);
+      fallbackGradient.addColorStop(0, '#f8f9fa');
+      fallbackGradient.addColorStop(1, '#e9ecef');
+      
+      fallbackCtx.fillStyle = fallbackGradient;
+      fallbackCtx.fillRect(0, 0, width, height);
+      
+      // Create an Image object from the canvas data
+      const fallbackImage = new Image();
+      fallbackImage.src = fallbackCanvas.toDataURL();
+      
+      // Store the fallback image - this will have proper naturalWidth/naturalHeight once loaded
+      fallbackImage.onload = () => {
+        backgroundImages.current[canvasId] = fallbackImage;
+        console.log('✅ Fallback image created with dimensions:', fallbackImage.naturalWidth, 'x', fallbackImage.naturalHeight);
+      };
+      
+      // Mark as fully initialized
+      if (drawingData.current[canvasId]) {
+        drawingData.current[canvasId].fullyInitialized = true;
+        drawingData.current[canvasId].originalWidth = width;
+        drawingData.current[canvasId].originalHeight = height;
+        drawingData.current[canvasId].useFallback = true;
+      }
+      
+      console.log('✅ Fallback background created successfully');
+    } catch (error) {
+      console.error('❌ Error creating fallback background:', error);
     }
   };
 

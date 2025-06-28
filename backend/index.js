@@ -244,7 +244,19 @@ app.get('/send-token', async (req, res) => {
         const logoSvg = getLogoSvg();
         
         // Create enhanced HTML email template
-        const displayLandlordName = parsedTokenLandlordInfo?.landlordName || 'Your Landlord';
+        const displayLandlordName = parsedTokenLandlordInfo?.landlordName || landlordName || 'Your Landlord';
+        
+        // Check if landlord name matches "Videodesk" (case insensitive)
+        const isVideodeskLandlord = displayLandlordName.toLowerCase().includes('videodesk');
+        
+        // Create different messages based on landlord name
+        let landlordInvitationMessage;
+        if (isVideodeskLandlord) {
+            landlordInvitationMessage = 'Hello! Your <strong>Landlord</strong> has invited you to a video call.';
+        } else {
+            landlordInvitationMessage = `Hello! <strong>${displayLandlordName}</strong> has invited you to a video call.`;
+        }
+        
         const customMessage = parsedMessageSettings?.messageOption === 'tailored' && parsedMessageSettings?.tailoredMessage 
             ? parsedMessageSettings.tailoredMessage 
             : 'Please click the button below to join the video call with your landlord.';
@@ -259,7 +271,7 @@ app.get('/send-token', async (req, res) => {
                 </div>                
                 <div style="padding: 40px 30px; background-color: #ffffff;">
                     <h2 style="color: #333; margin-bottom: 25px; font-weight: 600; font-size: 24px; text-align: center;">🎥 Video Call Invitation</h2>
-                    <p style="color: #555; line-height: 1.6; font-size: 16px; margin-bottom: 25px; text-align: center;">Hello! <strong>${displayLandlordName}</strong> has invited you to a video call.</p>
+                    <p style="color: #555; line-height: 1.6; font-size: 16px; margin-bottom: 25px; text-align: center;">${landlordInvitationMessage}</p>
                     <div style="background: linear-gradient(135deg, #f7f4ff 0%, #f0f0ff 100%); padding: 25px; border-radius: 15px; margin: 30px 0; box-shadow: 0 3px 10px rgba(148,82,255,0.1);">
                         <div style="text-align: center; margin-bottom: 8px;">
                             <span style="background: #9452FF; color: white; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; letter-spacing: 0.5px;">MESSAGE</span>
@@ -268,7 +280,7 @@ app.get('/send-token', async (req, res) => {
                     </div>
                     
                     <div style="text-align: center; margin: 35px 0;">
-                        <a href="${url}" style="background: ${buttonColors.bg}; color: white; padding: 18px 40px; text-decoration: none; border-radius: 50px; display: inline-block; font-weight: bold; font-size: 18px; box-shadow: 0 6px 20px rgba(0,0,0,0.25); transition: all 0.3s; border: none; letter-spacing: 0.5px;" onmouseover="this.style.backgroundColor='${buttonColors.hover}'; this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 25px rgba(0,0,0,0.3)';" onmouseout="this.style.backgroundColor='${buttonColors.bg}'; this.style.transform='translateY(0px)'; this.style.boxShadow='0 6px 20px rgba(0,0,0,0.25)';">🎥 Join Video Session</a>
+                        <a href="${url}" style="background: ${buttonColors.bg}; color: white; padding: 18px 40px; text-decoration: none; border-radius: 50px; display: inline-block; font-weight: bold; font-size: 18px; box-shadow: 0 6px 20px rgba(0,0,0,0.25); transition: all 0.3s; border: none; letter-spacing: 0.5px;" onmouseover="this.style.backgroundColor='${buttonColors.hover}'; this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 25px rgba(0,0,0,0.3)';" onmouseout="this.style.backgroundColor='${buttonColors.bg}'; this.style.transform='translateY(0px)'; this.style.boxShadow='0 6px 20px rgba(0,0,0,0.25)';">Join Video Session</a>
                     </div>
                     
                     <div style="text-align: center; margin-top: 30px; padding: 20px; background-color: #f8f9fa; border-radius: 10px;">

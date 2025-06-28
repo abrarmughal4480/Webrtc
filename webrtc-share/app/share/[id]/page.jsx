@@ -261,6 +261,15 @@ export default function SharePage({ params }) {
     return 'rounded-full';
   };
 
+  // Helper function to get image object fit class based on shape
+  const getImageObjectFitClass = () => {
+    if (landlordInfo.profileShape === 'square') {
+      return 'object-contain'; // For square, use contain to show full image
+    } else {
+      return 'object-cover'; // For circle, use cover to fill the circle
+    }
+  };
+
   // Helper function to get display name
   const getDisplayName = () => {
     // Priority order: userName > landlordName > fallback
@@ -372,12 +381,12 @@ export default function SharePage({ params }) {
                   </div>
                 ) : (
                   <>
-                    <div className={`w-12 h-12 overflow-hidden mr-3 ${getProfileShapeClass()} flex items-center justify-center border border-gray-300`}>
+                    <div className={`w-12 h-12 overflow-hidden mr-3 ${getProfileShapeClass()} flex items-center justify-center border border-gray-300 bg-gray-50`}>
                       {getProfileImage() ? (
                         <img
                           src={getProfileImage()}
                           alt="Profile Image"
-                          className="w-full h-full object-cover"
+                          className={`w-full h-full ${getImageObjectFitClass()}`}
                           onError={(e) => {
                             e.target.style.display = 'none';
                             // Show fallback initials
@@ -401,7 +410,7 @@ export default function SharePage({ params }) {
               {isLoadingProfile ? (
                 <div className="h-4 bg-gray-200 rounded animate-pulse w-16"></div>
               ) : landlordInfo.landlordName ? (
-                "Landlord"
+                "Profile"
               ) : (
                 "Profile"
               )}

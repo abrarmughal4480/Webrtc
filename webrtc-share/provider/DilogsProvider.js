@@ -83,7 +83,7 @@ export const DialogProvider = ({ children }) => {
   const [profileImageOption, setProfileImageOption] = useState(''); // 'landlord' or 'officer'
   const [redirectOption, setRedirectOption] = useState(''); // 'default' or 'tailored'
   const [exportOpen, setExportOpen] = useState(false);
-  const [landlordNameEnabled, setLandlordNameEnabled] = useState(false);
+  const [landlordNameEnabled, setLandlordNameEnabled] = useState(false); // Will update to string below
   const [landlordLogoEnabled, setLandlordLogoEnabled] = useState(false);
   const [landlordLogoUploading, setLandlordLogoUploading] = useState(false);
   const [officerImageUploading, setOfficerImageUploading] = useState(false);
@@ -377,7 +377,7 @@ export const DialogProvider = ({ children }) => {
 
   // Support categories array
   const supportCategories = [
-    "Accessibility (eg. font size, button size, colour or contrast issues)",
+    "Accessibility (eg. font size, button size, colour or contrast issues)",
     "'Actions' button issue",
     "Amending Message issue",
     "Dashboard issue",
@@ -679,7 +679,7 @@ export const DialogProvider = ({ children }) => {
       // Save all landlord information
       const landlordData = {
         type: 'saveLandlordInfo',
-        landlordName: landlordNameEnabled ? landlordName : null,
+        landlordName: landlordNameEnabled === 'custom' ? landlordName : landlordNameEnabled === 'default' ? 'Videodesk' : null,
         landlordLogo: landlordLogoEnabled ? landlordLogoUrl : null,
         officerImage: profileImageOption === 'officer' ? officerImageUrl : null,
         useLandlordLogoAsProfile: profileImageOption === 'landlord',
@@ -723,8 +723,13 @@ export const DialogProvider = ({ children }) => {
 
       // Load landlord name
       if (user.landlordInfo.landlordName) {
-        setLandlordName(user.landlordInfo.landlordName);
-        setLandlordNameEnabled(true);
+        if (user.landlordInfo.landlordName === 'Videodesk') {
+          setLandlordNameEnabled('default');
+          setLandlordName('Videodesk');
+        } else {
+          setLandlordNameEnabled('custom');
+          setLandlordName(user.landlordInfo.landlordName);
+        }
       }
 
       // Load landlord logo
@@ -767,6 +772,7 @@ export const DialogProvider = ({ children }) => {
   // Reset form when modal closes
   const resetLandlordForm = () => {
     setLandlordName("");
+    setLandlordNameEnabled(false);
     setLandlordLogo(null);
     setOfficerImage(null);
     setLandlordLogoFile(null);
@@ -774,7 +780,6 @@ export const DialogProvider = ({ children }) => {
     setRedirectUrlDefault("www.videodesk.co.uk");
     setRedirectUrlTailored("www.");
     setProfileShape("");
-    setLandlordNameEnabled(false);
     setLandlordLogoEnabled(false);
     setProfileImageOption('');
     setRedirectOption('');
@@ -2495,22 +2500,58 @@ ${senderName}`;
             <div className="space-y-4">
               {/* 1. Landlord Name Section */}
               <div className="flex items-start flex-col gap-2">
+              <label className="text-black font-semibold flex items-center gap-2 mb-2">1. Landlord/Company Name</label>
                 <label className="text-black font-semibold flex items-center gap-2">
+                  {/* 1a. Default Checkbox */}
                   <input
                     type="checkbox"
-                    checked={landlordNameEnabled}
-                    onChange={(e) => setLandlordNameEnabled(e.target.checked)}
+                    checked={landlordNameEnabled === 'default'}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setLandlordNameEnabled('default');
+                        setLandlordName('Videodesk');
+                      } else {
+                        setLandlordNameEnabled(false);
+                        setLandlordName('');
+                      }
+                    }}
                   />
-                  <span>1. Landlord Name:</span>
+                  <span>1a. Default Name/Message</span>
+                </label>
+                <div className="flex items-center gap-2 w-full ml-4">
+                  <input
+                    type="text"
+                    value={landlordNameEnabled === 'default' ? 'Videodesk' : ''}
+                    placeholder={landlordNameEnabled !== 'default' ? 'Videodesk' : ''}
+                    disabled={landlordNameEnabled !== 'default'}
+                    className={`flex-1 px-4 py-2 border border-gray-300 rounded-md focus:outline-none bg-gray-100 cursor-not-allowed`}
+                  />
+                </div>
+                <label className="text-black font-semibold flex items-center gap-2 mt-2">
+                  {/* 1b. Landlord Name Checkbox */}
+                  <input
+                    type="checkbox"
+                    checked={landlordNameEnabled === 'custom'}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setLandlordNameEnabled('custom');
+                        if (landlordName === '' || landlordName === 'Videodesk') setLandlordName('');
+                      } else {
+                        setLandlordNameEnabled(false);
+                        setLandlordName('');
+                      }
+                    }}
+                  />
+                  <span>1b. Tailored Name/Message</span>
                 </label>
                 <div className="flex items-center gap-2 w-full ml-4">
                   <input
                     type="text"
                     placeholder="Type here"
-                    value={landlordName}
+                    value={landlordNameEnabled === 'custom' ? landlordName : ''}
                     onChange={(e) => setLandlordName(e.target.value)}
-                    disabled={!landlordNameEnabled}
-                    className={`flex-1 px-4 py-2 border border-gray-300 rounded-md focus:outline-none ${!landlordNameEnabled ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'}`}
+                    disabled={landlordNameEnabled !== 'custom'}
+                    className={`flex-1 px-4 py-2 border border-gray-300 rounded-md focus:outline-none ${landlordNameEnabled !== 'custom' ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'}`}
                   />
                 </div>
               </div>
@@ -2523,7 +2564,7 @@ ${senderName}`;
                     checked={landlordLogoEnabled}
                     onChange={(e) => setLandlordLogoEnabled(e.target.checked)}
                   />
-                  <span>2. Upload Landlord logo to use on dashboard:</span>
+                  <span>2. Upload Landlord logo to use on dashboard and video page:</span>
                 </label>
                 <div className={`flex relative items-center justify-center gap-2 w-[97%] p-4 h-[4rem] border border-gray-300 rounded-md ml-4 ${!landlordLogoEnabled ? 'bg-gray-100 opacity-60' : 'bg-white'}`}>
                   {/* Upload area - clickable only when checkbox is enabled and no image */}
@@ -3523,7 +3564,7 @@ ${senderName}`;
                   <div className="grid grid-cols-2 gap-4">
                     <div className="bg-green-50 p-3 rounded">
                       <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium">Video Recordings</span>
+                        <span className="text-sm font-medium">Video Recordings</span>
                         <span className="text-lg font-bold text-green-600">
                           {selectedMeetingForHistory.recordings?.length || 0}
                         </span>

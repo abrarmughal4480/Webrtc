@@ -6,7 +6,7 @@ import { FeaturesSection } from '@/components/section/FeatureSectionComponent'
 import { HowItWorksSection } from '@/components/section/HowItsWorkSectionComponent'
 import { LaunchLinkSection } from '@/components/section/LunchLinkSectionComponent'
 import { Footer } from '@/components/layouts/FooterComponent'
-import React, { useState, useEffect, Suspense } from 'react'
+import React, { useState, useEffect, Suspense, useCallback } from 'react'
 import { DialogComponent } from '@/components/dialogs/DialogCompnent'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Image from 'next/image'
@@ -19,50 +19,110 @@ const FeedbackDialog = () => {
   const [rating, setRating] = useState(0);
   const [hoverRating, setHoverRating] = useState(0);
   const [redirectUrl, setRedirectUrl] = useState('');
+  const [countdown, setCountdown] = useState(10);
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     setShowFeedback(false);
+    
+    // Get redirectUrl directly from searchParams to avoid timing issues
+    const currentRedirectUrl = searchParams.get("redirectUrl");
+    
+    // Also check localStorage as fallback
+    const localStorageRedirectUrl = localStorage.getItem("redirectUrl");
+    
+    console.log('🔗 handleClose called with redirectUrl from state:', redirectUrl);
+    console.log('🔗 handleClose called with redirectUrl from searchParams:', currentRedirectUrl);
+    console.log('🔗 handleClose called with redirectUrl from localStorage:', localStorageRedirectUrl);
+    
+    // Use searchParams value as fallback if state is not set, localStorage as final fallback
+    let finalRedirectUrl = redirectUrl || currentRedirectUrl || localStorageRedirectUrl;
+    
+    // Clear localStorage after use
+    if (localStorageRedirectUrl) {
+      localStorage.removeItem("redirectUrl");
+    }
+    
+    // Ensure URL has proper protocol
+    if (finalRedirectUrl && !finalRedirectUrl.startsWith('http://') && !finalRedirectUrl.startsWith('https://')) {
+      finalRedirectUrl = `https://${finalRedirectUrl}`;
+      console.log('🔗 Added https:// to URL:', finalRedirectUrl);
+    }
+    
     // Immediate redirect when dialog closes
-    if (redirectUrl) {
+    if (finalRedirectUrl) {
       // Redirect to tailored URL immediately
-      setTimeout(() => {
-        window.location.href = redirectUrl;
-      }, 100);
+      console.log('🔗 Redirecting to tailored URL:', finalRedirectUrl);
+      // Use immediate redirect without setTimeout
+      window.location.href = finalRedirectUrl;
     } else {
       // Default behavior - stay on home page
-      setTimeout(() => {
-        router.push("/");
-      }, 100);
+      console.log('🔗 No redirect URL, staying on home page');
+      router.push("/");
     }
-  };
+  }, [redirectUrl, router, searchParams]);
 
   useEffect(() => {
     const feedbackParam = searchParams.get("show-feedback");
     const redirectUrlParam = searchParams.get("redirectUrl");
-    setShowFeedback(!!feedbackParam);
-    setRedirectUrl(redirectUrlParam || '');
     
-    // Auto close after 20 seconds
-    if (feedbackParam) {
-      const timer = setTimeout(() => {
-        handleClose();
-      }, 20000);
+    console.log('📝 Feedback dialog params:', {
+      showFeedback: !!feedbackParam,
+      redirectUrl: redirectUrlParam,
+      hasRedirectUrl: !!redirectUrlParam
+    });
+    
+    setShowFeedback(!!feedbackParam);
+    
+    // Use URL parameter first, then localStorage as fallback
+    const finalRedirectUrl = redirectUrlParam || localStorage.getItem("redirectUrl") || '';
+    setRedirectUrl(finalRedirectUrl);
+    
+    // Debug: Check localStorage as well
+    const localStorageRedirectUrl = localStorage.getItem("redirectUrl");
+    console.log('📝 localStorage redirectUrl:', localStorageRedirectUrl);
+    console.log('📝 Final redirectUrl set to:', finalRedirectUrl);
+  }, [searchParams, handleClose]);
+
+  // Countdown effect for redirect
+  useEffect(() => {
+    if (showFeedback && redirectUrl) {
+      // Reset countdown to 10 when dialog opens
+      setCountdown(10);
       
-      return () => clearTimeout(timer);
+      const interval = setInterval(() => {
+        setCountdown((prev) => {
+          if (prev <= 1) {
+            clearInterval(interval);
+            handleClose();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
+      return () => clearInterval(interval);
     }
-  }, [searchParams, router]);
+  }, [showFeedback, redirectUrl, handleClose]);
+
+  // Additional effect to handle redirect URL changes
+  useEffect(() => {
+    if (redirectUrl) {
+      console.log('🔄 Redirect URL state updated:', redirectUrl);
+    }
+  }, [redirectUrl]);
 
   const handleStarClick = (starValue) => {
     setRating(starValue);
     // You can add API call here to submit feedback
     console.log(`User rated: ${starValue} stars`);
     
-    // Auto submit after 1.5 seconds
+    // Auto submit after 1 second (reduced from 1.5 seconds)
     setTimeout(() => {
+      console.log('⭐ Star rating submitted, closing dialog and redirecting...');
       handleClose();
-    }, 1500);
+    }, 1000);
   };
 
   const handleStarHover = (starValue) => {
@@ -99,17 +159,21 @@ const FeedbackDialog = () => {
 
   return (
     <DialogComponent open={showFeedback} setOpen={handleClose} isCloseable={true}>
-      <div className="h-[33rem] p-4 flex flex-col items-center justify-center">
-        <Image src="/paper-plane.svg" alt="video-link-dialog-bg" className='object-contain' width={150} height={150} />
-        <h2 className="text-xl font-bold mt-10 text-center">
-          Thank you for joining the video session. 
-          The link has now ended.
-        </h2>
-        <h2 className="text-xl font-bold text-center mt-5">
-          How was it?
-        </h2>
+      <div className="h-[35rem] p-4 flex flex-col items-center justify-center overflow-hidden">
+        {/* Top section - fixed height */}
+        <div className="flex flex-col items-center justify-center flex-shrink-0">
+          <Image src="/paper-plane.svg" alt="video-link-dialog-bg" className='object-contain' width={150} height={150} />
+          <h2 className="text-xl font-bold mt-10 text-center">
+            Thank you for joining the video session. 
+            The link has now ended.
+          </h2>
+          <h2 className="text-xl font-bold text-center mt-5">
+            How was it?
+          </h2>
+        </div>
         
-        <div className='flex items-center justify-center mt-8 gap-2'>
+        {/* Stars section - fixed height */}
+        <div className='flex items-center justify-center mt-8 gap-2 flex-shrink-0'>
           {[1, 2, 3, 4, 5].map((star) => (
             <StarIcon 
               key={star}
@@ -124,7 +188,8 @@ const FeedbackDialog = () => {
           ))}
         </div>
 
-        <div className="mt-4 h-8 flex items-center justify-center">
+        {/* Feedback text section - fixed height to prevent layout shift */}
+        <div className="mt-4 h-8 flex items-center justify-center min-h-[2rem] flex-shrink-0">
           {(rating > 0 || hoverRating > 0) && (
             <div className={`text-lg font-semibold ${getTextColor(hoverRating || rating)}`}>
               {getFeedbackText(hoverRating || rating)}
@@ -132,7 +197,36 @@ const FeedbackDialog = () => {
           )}
         </div>
 
-        <Image src="/devices.svg" alt="Videodesk" className="mt-6" width={200} height={50} />
+        {/* Bottom section - fixed height */}
+        <div className="flex flex-col items-center justify-center mt-6 flex-shrink-0">
+          <Image src="/devices.svg" alt="Videodesk" width={200} height={50} />
+          
+          {/* Fixed height container for bottom messages */}
+          <div className="mt-4 text-center min-h-[3rem] flex flex-col justify-center flex-shrink-0">
+            {/* Countdown message for redirect */}
+            {redirectUrl && (
+              <div>
+                <p className="text-sm text-gray-600">
+                  You will be redirected in {countdown} second{countdown !== 1 ? 's' : ''}
+                </p>
+                {countdown <= 3 && (
+                  <p className="text-xs text-blue-600 mt-1 font-medium">
+                    Redirecting...
+                  </p>
+                )}
+              </div>
+            )}
+            
+            {/* Show different message if no redirect URL */}
+            {!redirectUrl && (
+              <div>
+                <p className="text-sm text-gray-600">
+                  Thank you for your feedback!
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </DialogComponent>
   );
