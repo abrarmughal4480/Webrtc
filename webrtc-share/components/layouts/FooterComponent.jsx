@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Calendar, Calendar1, Calendar1Icon, Send, X } from "lucide-react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import CustomDialog from "../dialogs/CustomDialog"
 import { bookDemoMeetingRequest } from "@/http/authHttp"
 import { useUser } from "@/provider/UserProvider"
@@ -35,6 +35,37 @@ export function Footer() {
     minute: '00',
     message: ''
   });
+
+  // Reset form fields when callback modal closes
+  useEffect(() => {
+    if (!isCallbackOpen) {
+      setCallbackFormData({
+        name: '',
+        email: '',
+        phone: '',
+        day: '',
+        customDate: '',
+        timeSlot: '',
+        customHour: '09',
+        customMinute: '00',
+        message: ''
+      });
+    }
+  }, [isCallbackOpen]);
+
+  // Reset form fields when demo meeting modal closes
+  useEffect(() => {
+    if (!isMeetingOpen) {
+      setMeetingFormData({
+        name: '',
+        email: '',
+        date: '',
+        hour: '08',
+        minute: '00',
+        message: ''
+      });
+    }
+  }, [isMeetingOpen]);
 
   const handleCallbackInputChange = (e) => {
     const { name, value } = e.target;

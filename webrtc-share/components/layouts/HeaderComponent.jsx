@@ -353,6 +353,11 @@ const handleLogout = async () => {
       setPassword('');
       setRole('landlord');
       setPasswordStrength(0);
+      setShowSignUpPassword(false);
+      if (signUpPasswordTimer) {
+        clearTimeout(signUpPasswordTimer);
+        setSignUpPasswordTimer(null);
+      }
     }
   }, [signUpOpen]);
 
@@ -361,6 +366,11 @@ const handleLogout = async () => {
       setEmail('');
       setPassword('');
       setPasswordStrength(0);
+      setShowSignInPassword(false);
+      if (signInPasswordTimer) {
+        clearTimeout(signInPasswordTimer);
+        setSignInPasswordTimer(null);
+      }
     }
   }, [signInOpen]);
 
@@ -373,6 +383,9 @@ const handleLogout = async () => {
   useEffect(() => {
     if (!isOtpOpen) {
       setOTp('');
+      setResendTimer(0);
+      setResendCount(0);
+      setIsResending(false);
     }
   }, [isOtpOpen]);
 

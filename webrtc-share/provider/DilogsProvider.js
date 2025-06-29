@@ -2174,6 +2174,119 @@ ${senderName}`;
   // Remove the duplicate function definitions that were at the bottom
   // ...existing code...
 
+  // Reset form fields when reset password modal closes
+  useEffect(() => {
+    if (!resetOpen) {
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setRecoveryWord('');
+      setShowCurrentPassword(false);
+      setShowNewPassword(false);
+      setShowConfirmPassword(false);
+    }
+  }, [resetOpen]);
+
+  // Reset form fields when message modal closes
+  useEffect(() => {
+    if (!messageOpen) {
+      setMessageOption('');
+      setDefaultTextSize('14px');
+      setTailoredTextSize('14px');
+      setSelectedButtonColor('bg-green-800');
+      setTailoredMessageText('');
+      setMessageSettingsLoaded(false);
+    }
+  }, [messageOpen]);
+
+  // Reset form fields when landlord dialog closes
+  useEffect(() => {
+    if (!landlordDialogOpen) {
+      setTimeout(() => {
+        resetLandlordForm();
+      }, 300);
+    }
+  }, [landlordDialogOpen]);
+
+  // Reset form fields when support ticket modal closes
+  useEffect(() => {
+    if (!ticketOpen) {
+      setSupportCategory('');
+      setSupportQuery('');
+    }
+  }, [ticketOpen]);
+
+  // Reset form fields when invite modal closes
+  useEffect(() => {
+    if (!inviteOpen) {
+      setInviteEmails(['']);
+      setInviteMessage(`Hey, I'm using Videodesk , check it out here www.videodesk.co.uk`);
+    }
+  }, [inviteOpen]);
+
+  // Reset form fields when feedback modal closes
+  useEffect(() => {
+    if (!feedbackOpen) {
+      setFeedbackText('');
+    }
+  }, [feedbackOpen]);
+
+  // Reset form fields when forgot password modal closes
+  useEffect(() => {
+    if (!forgotPasswordOpen) {
+      setForgotEmail('');
+    }
+  }, [forgotPasswordOpen]);
+
+  // Reset form fields when export modal closes
+  useEffect(() => {
+    if (!exportOpen) {
+      setSelectedMeeting(null);
+      setExportLoading({
+        word: false,
+        pdf: false,
+        copy: false,
+        share: false
+      });
+    }
+  }, [exportOpen]);
+
+  // Reset form fields when visitor access modal closes
+  useEffect(() => {
+    if (!visitorAccessOpen) {
+      setVisitorName('');
+      setVisitorEmail('');
+      setVisitorAccessCallback(null);
+    }
+  }, [visitorAccessOpen]);
+
+  // Reset form fields when history modal closes
+  useEffect(() => {
+    if (!historyOpen) {
+      setSelectedMeetingForHistory(null);
+      setHistoryLoading(false);
+      if (historyInterval) {
+        clearInterval(historyInterval);
+        setHistoryInterval(null);
+      }
+      setInitialMeetingId(null);
+    }
+  }, [historyOpen]);
+
+  // Reset form fields when share link modal closes
+  useEffect(() => {
+    if (!shareLinkOpen) {
+      setSelectedMeetingForShare(null);
+    }
+  }, [shareLinkOpen]);
+
+  // Reset form fields when FAQ modal closes
+  useEffect(() => {
+    if (!faqOpen) {
+      // FAQ modal doesn't have form fields to reset
+    }
+  }, [faqOpen]);
+
   return (
     <DialogContext.Provider value={value}>
       {children}
