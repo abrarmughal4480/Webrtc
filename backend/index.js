@@ -194,11 +194,32 @@ app.get('/send-token', async (req, res) => {
         // Build minimal URL: /room/{token}?sid={encryptedSenderId}
         let url = `${process.env.FRONTEND_URL}/room/${token}?sid=${encodeURIComponent(encryptedSenderId)}`;
 
+        // --- UK Phone Normalization Helper ---
+        function normalizeUKPhoneNumber(number) {
+            if (!number) return number;
+            let cleaned = number.replace(/[\s\-()]/g, '');
+            if (cleaned.startsWith('+')) {
+                return cleaned;
+            }
+            if (cleaned.startsWith('0')) {
+                // 07123456789 => +447123456789
+                return '+44' + cleaned.slice(1);
+            }
+            if (cleaned.length === 10 && cleaned.startsWith('7')) {
+                // 7123456789 => +447123456789
+                return '+44' + cleaned;
+            }
+            // fallback: just return as is
+            return cleaned;
+        }
+        // --- END UK Phone Normalization Helper ---
+
         // Send SMS
         if (number) {
-            console.log('📱 Sending SMS to:', number);
+            const normalizedNumber = normalizeUKPhoneNumber(number);
+            console.log('📱 Sending SMS to:', normalizedNumber);
             const textMessage = `Please click on the link below to connect: ${url}`;
-            await sendMessage(number, textMessage);
+            await sendMessage(normalizedNumber, textMessage);
         }
         // Send Email with previous HTML template and branding
         if (email) {
@@ -229,9 +250,8 @@ app.get('/send-token', async (req, res) => {
                     useTailored = true;
                 }
             }
-            if (useTailored) {
-                invitationMsg = tailoredMsg;
-            } else if (landlordDisplay === 'Landlord') {
+            // Always set invitationMsg to greeting only, never tailoredMsg
+            if (landlordDisplay === 'Landlord') {
                 invitationMsg = 'Hello! Your <strong>Landlord</strong> has invited you to a video call.';
             } else {
                 invitationMsg = `Hello! <strong>${landlordDisplay}</strong> has invited you to a video call.`;
@@ -252,7 +272,7 @@ app.get('/send-token', async (req, res) => {
                             <div style="text-align: center; margin-bottom: 8px;">
                                 <span style="background:rgb(177, 150, 221); color: white; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; letter-spacing: 0.5px;">MESSAGE</span>
                             </div>
-                            <p style="margin: 0; color: #333; font-size: 17px; line-height: 1.6; text-align: center; font-weight: 500;">${useTailored ? tailoredMsg : `Please click the button below to join the video call${landlordDisplay !== 'Landlord' ? ` with <strong>${landlordDisplay}</strong>` : ' with <strong>your landlord</strong>'}.`}</p>
+                            <p style="margin: 0; color: #333; font-size: 17px; line-height: 1.6; text-align: center; font-weight: 500;">${useTailored ? tailoredMsg : 'Please click the button below to join the video call.'}</p>
                         </div>
                         <div style="text-align: center; margin: 35px 0;">
                             <a href="${url}" style="background: #16a34a; color: white; padding: 18px 40px; text-decoration: none; border-radius: 50px; display: inline-block; font-weight: bold; font-size: 18px; box-shadow: 0 6px 20px rgba(0,0,0,0.25); transition: all 0.3s; border: none; letter-spacing: 0.5px;">Join Video Session</a>
