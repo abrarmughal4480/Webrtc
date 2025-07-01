@@ -1911,6 +1911,10 @@ export default function Page({ params }) {
     };
   }, []);
 
+  // Add state for per-item labels
+  const [recordingLabels, setRecordingLabels] = useState({});
+  const [screenshotLabels, setScreenshotLabels] = useState({});
+
   if (!ui.isClient) {
     return (
       <div style={{ width: '100vw', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f9fafb' }}>
@@ -2550,7 +2554,44 @@ export default function Page({ params }) {
 
                   {media.recordings.map((recording) => (
                     <div key={recording.id} className="relative group flex-shrink-0 w-[15vw] min-w-[180px]">
-                      <img src="/icons/ci_label.svg" className="mb-2" />
+                      {/* SVG shape with editable label inside */}
+                      <div className="mb-2 flex items-center justify-center" style={{ position: 'relative', marginBottom: '40px' }}>
+                        <svg width="32" height="24" viewBox="0 0 16 12" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ position: 'absolute', left: 0, top: 0, zIndex: 1 }}>
+                          <g clipPath="url(#clip0_3_1454)">
+                            <path d="M14.0775 4.2925L12.1333 1.95917C11.8392 1.60667 11.6917 1.43 11.5117 1.30333C11.3519 1.19117 11.1736 1.10796 10.985 1.0575C10.7725 1 10.5433 1 10.085 1H4.00001C3.06668 1 2.60001 1 2.24334 1.18167C1.92975 1.34145 1.6748 1.59641 1.51501 1.91C1.33334 2.26667 1.33334 2.73333 1.33334 3.66667V8.33333C1.33334 9.26667 1.33334 9.73333 1.51501 10.09C1.6748 10.4036 1.92975 10.6585 2.24334 10.8183C2.59918 11 3.06584 11 3.99751 11H10.0833C10.5425 11 10.7717 11 10.9842 10.9425C11.1725 10.8925 11.3508 10.8092 11.5108 10.6958C11.6908 10.5692 11.8383 10.3933 12.1325 10.0408L14.0767 7.7075C14.5833 7.1 14.835 6.79667 14.9325 6.4575C15.0175 6.15833 15.0175 5.84083 14.9325 5.5425C14.8358 5.20333 14.5833 4.90083 14.0775 4.2925Z" stroke="black" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round"/>
+                          </g>
+                          <defs>
+                            <clipPath id="clip0_3_1454">
+                              <rect width="16" height="12" fill="white"/>
+                            </clipPath>
+                          </defs>
+                        </svg>
+                        <input
+                          type="text"
+                          value={recordingLabels[recording.id] || ''}
+                          onChange={e => setRecordingLabels(labels => ({ ...labels, [recording.id]: e.target.value.slice(0, 10) }))}
+                          maxLength={10}
+                          style={{
+                            position: 'absolute',
+                            left: 0,
+                            top: 0,
+                            width: '32px',
+                            height: '24px',
+                            background: 'transparent',
+                            border: 'none',
+                            textAlign: 'center',
+                            fontSize: '8px',
+                            color: '#222',
+                            fontWeight: 'bold',
+                            zIndex: 2,
+                            outline: 'none',
+                            padding: 0,
+                          }}
+                          autoComplete="off"
+                          spellCheck={false}
+                        />
+                      </div>
+                      
                       <div
                         data-recording-id={recording.id}
                         className="aspect-[9/16] bg-gray-200 rounded-md overflow-hidden relative cursor-pointer"
@@ -2638,7 +2679,44 @@ export default function Page({ params }) {
                     .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
                     .map((screenshot, index) => (
                       <div key={`existing-${screenshot.id}`} className="flex-shrink-0 w-[15vw] min-w-[180px]">
-                        <img src="/icons/ci_label.svg" className="mb-2" />
+                        {/* SVG shape with editable label inside */}
+                        <div className="mb-2 flex items-center justify-center" style={{ position: 'relative', marginBottom: '40px' }}>
+                          <svg width="32" height="24" viewBox="0 0 16 12" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ position: 'absolute', left: 0, top: 0, zIndex: 1 }}>
+                            <g clipPath="url(#clip0_3_1454)">
+                              <path d="M14.0775 4.2925L12.1333 1.95917C11.8392 1.60667 11.6917 1.43 11.5117 1.30333C11.3519 1.19117 11.1736 1.10796 10.985 1.0575C10.7725 1 10.5433 1 10.085 1H4.00001C3.06668 1 2.60001 1 2.24334 1.18167C1.92975 1.34145 1.6748 1.59641 1.51501 1.91C1.33334 2.26667 1.33334 2.73333 1.33334 3.66667V8.33333C1.33334 9.26667 1.33334 9.73333 1.51501 10.09C1.6748 10.4036 1.92975 10.6585 2.24334 10.8183C2.59918 11 3.06584 11 3.99751 11H10.0833C10.5425 11 10.7717 11 10.9842 10.9425C11.1725 10.8925 11.3508 10.8092 11.5108 10.6958C11.6908 10.5692 11.8383 10.3933 12.1325 10.0408L14.0767 7.7075C14.5833 7.1 14.835 6.79667 14.9325 6.4575C15.0175 6.15833 15.0175 5.84083 14.9325 5.5425C14.8358 5.20333 14.5833 4.90083 14.0775 4.2925Z" stroke="black" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round"/>
+                            </g>
+                            <defs>
+                              <clipPath id="clip0_3_1454">
+                                <rect width="16" height="12" fill="white"/>
+                              </clipPath>
+                            </defs>
+                          </svg>
+                          <input
+                            type="text"
+                            value={screenshotLabels[screenshot.id] || ''}
+                            onChange={e => setScreenshotLabels(labels => ({ ...labels, [screenshot.id]: e.target.value.slice(0, 10) }))}
+                            maxLength={10}
+                            style={{
+                              position: 'absolute',
+                              left: 0,
+                              top: 0,
+                              width: '32px',
+                              height: '24px',
+                              background: 'transparent',
+                              border: 'none',
+                              textAlign: 'center',
+                              fontSize: '8px',
+                              color: '#222',
+                              fontWeight: 'bold',
+                              zIndex: 2,
+                              outline: 'none',
+                              padding: 0,
+                            }}
+                            autoComplete="off"
+                            spellCheck={false}
+                          />
+                        </div>
+                        
                         <div className="aspect-square bg-gradient-to-br from-green-50 to-green-100 border-2 border-green-200 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 ease-in-out transform hover:scale-105 flex items-center justify-center relative cursor-pointer group"
                              onClick={() => maximizeScreenshot(screenshot, index, true)}>
                           <div className="text-center text-green-700 p-6 transition-all duration-300 group-hover:text-green-800">
@@ -2683,7 +2761,44 @@ export default function Page({ params }) {
                     
                     return (
                       <div key={`screenshot-container-${screenshotId}`} className="relative pencil-dropdown-container flex-shrink-0 w-[15vw] min-w-[180px]">
-                        <img src="/icons/ci_label.svg" className="mb-2" />
+                        {/* SVG shape with editable label inside */}
+                        <div className="mb-2 flex items-center justify-center" style={{ position: 'relative', marginBottom: '40px' }}>
+                          <svg width="32" height="24" viewBox="0 0 16 12" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ position: 'absolute', left: 0, top: 0, zIndex: 1 }}>
+                            <g clipPath="url(#clip0_3_1454)">
+                              <path d="M14.0775 4.2925L12.1333 1.95917C11.8392 1.60667 11.6917 1.43 11.5117 1.30333C11.3519 1.19117 11.1736 1.10796 10.985 1.0575C10.7725 1 10.5433 1 10.085 1H4.00001C3.06668 1 2.60001 1 2.24334 1.18167C1.92975 1.34145 1.6748 1.59641 1.51501 1.91C1.33334 2.26667 1.33334 2.73333 1.33334 3.66667V8.33333C1.33334 9.26667 1.33334 9.73333 1.51501 10.09C1.6748 10.4036 1.92975 10.6585 2.24334 10.8183C2.59918 11 3.06584 11 3.99751 11H10.0833C10.5425 11 10.7717 11 10.9842 10.9425C11.1725 10.8925 11.3508 10.8092 11.5108 10.6958C11.6908 10.5692 11.8383 10.3933 12.1325 10.0408L14.0767 7.7075C14.5833 7.1 14.835 6.79667 14.9325 6.4575C15.0175 6.15833 15.0175 5.84083 14.9325 5.5425C14.8358 5.20333 14.5833 4.90083 14.0775 4.2925Z" stroke="black" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round"/>
+                            </g>
+                            <defs>
+                              <clipPath id="clip0_3_1454">
+                                <rect width="16" height="12" fill="white"/>
+                              </clipPath>
+                            </defs>
+                          </svg>
+                          <input
+                            type="text"
+                            value={screenshotLabels[screenshotId] || ''}
+                            onChange={e => setScreenshotLabels(labels => ({ ...labels, [screenshotId]: e.target.value.slice(0, 10) }))}
+                            maxLength={10}
+                            style={{
+                              position: 'absolute',
+                              left: 0,
+                              top: 0,
+                              width: '32px',
+                              height: '24px',
+                              background: 'transparent',
+                              border: 'none',
+                              textAlign: 'center',
+                              fontSize: '8px',
+                              color: '#222',
+                              fontWeight: 'bold',
+                              zIndex: 2,
+                              outline: 'none',
+                              padding: 0,
+                            }}
+                            autoComplete="off"
+                            spellCheck={false}
+                          />
+                        </div>
+                        
                         <div className={`aspect-square bg-gradient-to-br ${
                           isSaved 
                             ? 'from-green-50 to-green-100 border-green-200' 

@@ -1,98 +1,97 @@
 "use client"
 import { useState, useRef, use, useEffect, useCallback } from "react"
-import { Trash2, Plus, Maximize2, VideoIcon, PlayIcon, Save, Edit, Minimize2, Expand, ZoomIn, ZoomOut, Pencil, X, Play } from "lucide-react"
+import { Trash2, Plus, Maximize2, VideoIcon, PlayIcon, Save, Edit, Minimize2, Expand, ZoomIn, ZoomOut, Pencil, X, Play, ChevronDown, Eraser, Palette, RotateCcw, Loader2 } from "lucide-react"
 import useWebRTC from "@/hooks/useWebRTC"
 import useDrawingTools from "@/hooks/useDrawingTools"
 import { createRequest, getMeetingByMeetingId, deleteRecordingRequest, deleteScreenshotRequest } from "@/http/meetingHttp"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,  
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { useDialog } from "@/provider/DilogsProvider"
 import { Button } from "@/components/ui/button"
 import { logoutRequest } from "@/http/authHttp"
 import { useUser } from "@/provider/UserProvider"
 
 export default function Page({ params }) {
-  const { id } = use(params);
+  if (!params) {
+    console.error('Missing params in Page component');
+    return <div style={{width: '100vw', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f9fafb'}}><p>Loading...</p></div>;
+  }
+
+  const resolvedParams = use(params);
+  const id = resolvedParams?.id;
+  
+  if (!id) {
+    console.error('Missing meeting ID');
+    return <div style={{width: '100vw', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f9fafb'}}><p>Invalid meeting ID</p></div>;
+  }
+
   const router = useRouter();
+  const [ui, setUI] = useState({
+    isClient: false,
+    showDropdown: false,
+    showTTDropdown: null,
+    showSpecialNotes: false,
+    maximizedItem: null,
+    showPencilDropdown: null,
+    activePencilScreenshot: null,
+    clickPosition: { x: 0, y: 0 }
+  });
 
-  // Add hydration state at the top
-  const [isClient, setIsClient] = useState(false);
+  const [form, setForm] = useState({
+    targetTime: "Emergency 24 Hours",
+    selectedTTValues: {},
+    residentName: "",
+    residentAddress: "",
+    addressLine1: "",
+    addressLine2: "",
+    addressLine3: "",
+    addressLines: [],
+    workDetails: [],
+    workDetail1: "",
+    workDetail2: "",
+    workDetail3: "",
+    postCode: "",
+    actualPostCode: "",
+    phoneNumber: "",
+    repairDetails: "",
+    specialNotes: ""
+  });
 
-  const [targetTime, setTargetTime] = useState("Emergency 24 Hours")
-  const [showDropdown, setShowDropdown] = useState(false)
-  const [residentName, setResidentName] = useState("")
-  const [residentAddress, setResidentAddress] = useState("")
-  const [postCode, setPostCode] = useState("")
-  const [actualPostCode, setActualPostCode] = useState("") // Add new state for the actual postcode field
-  const [repairDetails, setRepairDetails] = useState("")
-  const [callDuration, setCallDuration] = useState(0);
+  const [media, setMedia] = useState({
+    recordings: [],
+    existingScreenshots: [],
+    isRecording: false,
+    mediaRecorder: null,
+    recordingStream: null,
+    playingVideos: new Set(),
+    recordingStartTime: null,
+    currentRecordingDuration: 0,
+    videoProgress: {}
+  });
 
-  // Add state for existing meeting data
-  const [existingMeetingData, setExistingMeetingData] = useState(null);
-  const [isLoadingMeetingData, setIsLoadingMeetingData] = useState(true);
-  const [existingScreenshots, setExistingScreenshots] = useState([]); // Add state for existing screenshots
+  const [app, setApp] = useState({
+    callDuration: 0,
+    existingMeetingData: null,
+    isLoadingMeetingData: true,
+    screenshotSavedStatus: new Map(),
+    isSaving: false,
+    isEndingSave: false,
+    isEndingVideo: false,
+    savingRecordingId: null,
+    savingScreenshotIndex: null,
+    savingScreenshotIds: new Set(),
+    saveInProgress: false,
+    tokenLandlordInfo: null,
+    isLoadingTokenInfo: true,
+    zoomLevel: 1,
+    videoPanX: 0,
+    videoPanY: 0
+  });
 
-  // Add missing maximized item state
-  const [maximizedItem, setMaximizedItem] = useState(null);
-
-  // Add loading states for save operations
-  const [isSaving, setIsSaving] = useState(false);
-  const [isEndingSave, setIsEndingSave] = useState(false);
-  const [savingRecordingId, setSavingRecordingId] = useState(null);
-  const [savingScreenshotIndex, setSavingScreenshotIndex] = useState(null);
-  // NEW: Add individual screenshot saving state with ID tracking
-  const [savingScreenshotIds, setSavingScreenshotIds] = useState(new Set());
-
-  // NEW: Add save protection state and refs
-  const [saveInProgress, setSaveInProgress] = useState(false);
-  const saveTimeoutRef = useRef(null);
-  const processedItemsRef = useRef(new Set());
-
-  // Screen recording states
-  const [isRecording, setIsRecording] = useState(false);
-  const [recordings, setRecordings] = useState([]);
-  const [mediaRecorder, setMediaRecorder] = useState(null);
-  const [recordingStream, setRecordingStream] = useState(null);
-  const [playingVideos, setPlayingVideos] = useState(new Set());
-  const [recordingStartTime, setRecordingStartTime] = useState(null);
-  const [currentRecordingDuration, setCurrentRecordingDuration] = useState(0);
-
-  // Add state for tracking video progress - MOVED HERE FROM BOTTOM
-  const [videoProgress, setVideoProgress] = useState({});
-
-  // Pencil tool states - updated to use drawing hook
-  const [activePencilScreenshot, setActivePencilScreenshot] = useState(null);
-  const [showPencilDropdown, setShowPencilDropdown] = useState(null);
-
-  // Add state for token-specific landlord info 
-  const [tokenLandlordInfo, setTokenLandlordInfo] = useState(null);
-  const [isLoadingTokenInfo, setIsLoadingTokenInfo] = useState(true);
-
-  // Initialize drawing tools hook
   const {
-    colors,
-    tools,
-    selectedColor,
-    setSelectedColor,
-    selectedTool,
-    setSelectedTool,
-    lineWidth,
-    setLineWidth,
-    initializeCanvas,
-    startDrawing,
-    draw,
-    stopDrawing,
-    clearCanvas,
-    mergeWithBackground,
-    drawingData
+    colors, tools, selectedColor, setSelectedColor, selectedTool, setSelectedTool,
+    lineWidth, setLineWidth, initializeCanvas, startDrawing, draw, stopDrawing,
+    clearCanvas, mergeWithBackground, drawingData
   } = useDrawingTools();
 
   const videoRef = useRef(null);
@@ -100,2543 +99,137 @@ export default function Page({ params }) {
   const timerRef = useRef(null);
   const recordingChunks = useRef([]);
   const recordingTimerRef = useRef(null);
-  const [zoomLevel, setZoomLevel] = useState(1);
-  const [videoPanX, setVideoPanX] = useState(0);
-  const [videoPanY, setVideoPanY] = useState(0);
+  const saveTimeoutRef = useRef(null);
+  const processedItemsRef = useRef(new Set());
 
-  const { handleDisconnect, isConnected, screenshots, takeScreenshot, startPeerConnection, deleteScreenshot, handleVideoPlay, showVideoPlayError } = useWebRTC(true, id, videoRef);
-  const { setResetOpen, setMessageOpen, setLandlordDialogOpen, setTickerOpen, setFeedbackOpen, setFaqOpen, setShareLinkOpen } = useDialog();
+  const { handleDisconnect, isConnected, screenshots, takeScreenshot, startPeerConnection, deleteScreenshot, handleVideoPlay, showVideoPlayError, isCapturingScreenshot, updateScreenshotProperties } = useWebRTC(true, id, videoRef);
+  const { setResetOpen, setMessageOpen, setLandlordDialogOpen, setTickerOpen, setFeedbackOpen, setFaqOpen, setShareLinkOpen, setInviteOpen } = useDialog();
   const { user, isAuth, setIsAuth, setUser } = useUser();
 
-  const [clickPosition, setClickPosition] = useState({ x: 0, y: 0 });
+  const ttOptions = ["Emergency 24 Hours", "Urgent (7 Days)", "Routine (28 Days)", "Follow Up Work", "Other"];
 
-  // Add effect to handle client-side hydration right after state declarations
+  const updateUI = (updates) => setUI(prev => ({ ...prev, ...updates }));
+  const updateForm = (updates) => setForm(prev => ({ ...prev, ...updates }));
+  const updateMedia = (updates) => setMedia(prev => ({ ...prev, ...updates }));
+  const updateApp = (updates) => setApp(prev => ({ ...prev, ...updates }));
+
+  const handleTTDropdownToggle = (fieldId) => updateUI({ showTTDropdown: ui.showTTDropdown === fieldId ? null : fieldId });
+
+  const handleTTOptionSelect = (fieldId, option) => {
+    updateForm({ selectedTTValues: { ...form.selectedTTValues, [fieldId]: option } });
+    updateUI({ showTTDropdown: null });
+  };
+
+  const getTTDisplayText = (fieldId) => {
+    const selected = form.selectedTTValues[fieldId];
+    return selected ? selected.substring(0, 3) + '...' : 'T T';
+  };
+
+  const addAddressLine = () => updateForm({ addressLines: [...form.addressLines, ""] });
+  const updateAddressLine = (index, value) => updateForm({ addressLines: form.addressLines.map((line, i) => i === index ? value : line) });
+  const removeAddressLine = (index) => updateForm({ addressLines: form.addressLines.filter((_, i) => i !== index) });
+
+  const addWorkDetail = () => updateForm({ workDetails: [...form.workDetails, ""] });
+  const updateWorkDetail = (index, value) => updateForm({ workDetails: form.workDetails.map((detail, i) => i === index ? value : detail) });
+  const removeWorkDetail = (index) => updateForm({ workDetails: form.workDetails.filter((_, i) => i !== index) });
+
+  const handleEndVideo = async () => {
+    try {
+      console.log('End Video button clicked - disconnecting without redirect');
+      handleDisconnect(false);
+    } catch (error) {
+      console.error('Error ending video:', error);
+    }
+  };
+
+  const handleSaveAndRedirect = async (saveAction) => {
+    try {
+      updateApp({ isEndingVideo: true });
+      if (saveAction) await saveAction();
+      handleDisconnect(false); // Don't redirect here, we'll do it manually
+      
+      // Explicitly redirect to dashboard after save
+      setTimeout(() => {
+        router.push("../../../dashboard");
+      }, 500);
+    } catch (error) {
+      console.error('Error in save and redirect:', error);
+      updateApp({ isEndingVideo: false });
+    }
+  };
+
   useEffect(() => {
-    setIsClient(true);
+    try {
+      updateUI({ isClient: true });
+    } catch (error) {
+      console.error('Error setting isClient:', error);
+    }
   }, []);
 
-  // Add effect to fetch existing meeting data when component mounts (FROM SECOND CODE)
   useEffect(() => {
-    if (!isClient || !id) return;
+    if (!ui.isClient || !id) return;
 
     const fetchExistingMeetingData = async () => {
-      setIsLoadingMeetingData(true);
+      updateApp({ isLoadingMeetingData: true });
       try {
-        console.log('🔍 Fetching existing meeting data for ID:', id);
+        console.log('Fetching existing meeting data for ID:', id);
         const response = await getMeetingByMeetingId(id);
 
-        if (response.data.success && response.data.meeting) {
+        if (response?.data?.success && response?.data?.meeting) {
           const meetingData = response.data.meeting;
-          console.log('✅ Found existing meeting data:', meetingData);
-
-          // Pre-populate form fields with existing data
-          setResidentName(meetingData.name || "");
-          setResidentAddress(meetingData.address || "");
-          setPostCode(meetingData.reference || ""); // This is for the "Ref:" field
-          setActualPostCode(meetingData.post_code || ""); // This is for the "Post code:" field
-          setRepairDetails(meetingData.repair_detail || "");
-          setTargetTime(meetingData.target_time || "Emergency 24 Hours");
-
-          // Store existing recordings
-          if (meetingData.recordings && meetingData.recordings.length > 0) {
-            const existingRecordings = meetingData.recordings.map(rec => ({
-              id: rec._id || Date.now() + Math.random(),
-              url: rec.url,
-              blob: null,
-              timestamp: new Date(rec.timestamp).toLocaleString(),
-              duration: rec.duration || 0,
-              isExisting: true
-            }));
-            setRecordings(existingRecordings);
-          }
-
-          // Store existing screenshots
-          if (meetingData.screenshots && meetingData.screenshots.length > 0) {
-            const existingScreenshotsData = meetingData.screenshots.map(screenshot => ({
-              id: screenshot._id || Date.now() + Math.random(),
-              url: screenshot.url,
-              timestamp: new Date(screenshot.timestamp).toLocaleString(),
-              isExisting: true
-            }));
-            setExistingScreenshots(existingScreenshotsData);
-            console.log('📸 Loaded existing screenshots:', existingScreenshotsData.length);
-          }
-
-          setExistingMeetingData(meetingData);
-
-          toast.success("Meeting data loaded successfully!", {
-            description: `Found ${meetingData.recordings?.length || 0} recordings and ${meetingData.screenshots?.length || 0} screenshots`
+          console.log('Found existing meeting data:', meetingData);
+          
+          updateForm({
+            residentName: meetingData.name || "",
+            residentAddress: meetingData.address || "",
+            addressLine1: meetingData.address_line_1 || "",
+            addressLine2: meetingData.address_line_2 || "",
+            addressLine3: meetingData.address_line_3 || "",
+            addressLines: meetingData.additional_address_lines || [],
+            postCode: meetingData.reference || "",
+            actualPostCode: meetingData.post_code || "",
+            phoneNumber: meetingData.phone_number || "",
+            repairDetails: meetingData.repair_detail || "",
+            targetTime: meetingData.target_time || "Emergency 24 Hours",
+            specialNotes: meetingData.special_notes || ""
           });
-        }
-      } catch (error) {
-        // Handle different types of errors gracefully
-        if (error.code === 'ERR_NETWORK') {
-          console.log('ℹ️ Cannot connect to server - this is normal if server is starting up');
-        } else if (error?.response?.status === 404) {
-          console.log('ℹ️ No existing meeting data found for ID:', id, '(This is normal for new meetings)');
-        } else if (error?.response?.status === 500) {
-          console.log('ℹ️ Server error while fetching meeting data - this may be temporary');
-        } else if (error.code === 'ECONNABORTED') {
-          console.log('ℹ️ Request timeout while fetching meeting data');
-        } else {
-          console.log('ℹ️ Error fetching meeting data:', error.message);
-        }
-      } finally {
-        setIsLoadingMeetingData(false);
-        setIsLoadingTokenInfo(false);
-      }
-    };
 
-    fetchExistingMeetingData();
-  }, [id, isClient]);
-
-  // Helper function to convert blob to base64
-  const blobToBase64 = (blob) => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result);
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
-    });
-  };
-
-  // NEW: Debounced save function
-  const debouncedSave = useCallback((saveFunction) => {
-    if (saveTimeoutRef.current) {
-      clearTimeout(saveTimeoutRef.current);
-    }
-    
-    saveTimeoutRef.current = setTimeout(() => {
-      if (!saveInProgress) {
-        saveFunction();
-      }
-    }, 300); // 300ms debounce
-  }, [saveInProgress]);
-
-  // NEW: Check if save should be disabled
-  const isSaveDisabled = useCallback(() => {
-    return (
-      (!isConnected && recordings.length === 0 && screenshots.length === 0) ||
-      isSaving ||
-      isEndingSave ||
-      saveInProgress
-    );
-  }, [isConnected, recordings.length, screenshots.length, isSaving, isEndingSave, saveInProgress]);
-
-  // NEW: Extract common save logic - UPDATED to properly handle drawings
-  const performSave = useCallback(async (options = {}) => {
-    const { disconnectVideo = false } = options;
-    
-    console.log('💾 Starting save process...');
-    
-    // Separate new recordings from existing ones
-    const newRecordings = recordings.filter(recording => !recording.isExisting && recording.blob);
-    const existingRecordings = recordings.filter(recording => recording.isExisting);
-
-    // Process recordings with duplicate prevention
-    const recordingsData = [];
-    const processedRecordings = new Set();
-    
-    for (let i = 0; i < newRecordings.length; i++) {
-      const recording = newRecordings[i];
-      const recordingKey = `${recording.id}-${recording.timestamp}`;
-      
-      if (processedRecordings.has(recordingKey)) {
-        console.log('⚠️ Skipping duplicate recording:', recordingKey);
-        continue;
-      }
-      
-      processedRecordings.add(recordingKey);
-      
-      try {
-        const base64Data = await blobToBase64(recording.blob);
-        recordingsData.push({
-          data: base64Data,
-          timestamp: recording.timestamp,
-          duration: recording.duration || Math.floor((recording.blob.size / 1000) / 16),
-          size: recording.blob.size
-        });
-        console.log(`✅ NEW recording ${i + 1} processed successfully`);
-      } catch (error) {
-        console.error(`❌ Error processing NEW recording ${i + 1}:`, error);
-      }
-    }
-
-    // Process screenshots with duplicate prevention AND drawings merge
-    const screenshotsData = [];
-    const processedScreenshots = new Set();
-    
-    for (let i = 0; i < screenshots.length; i++) {
-      const screenshot = screenshots[i];
-      // FIXED: Handle different screenshot formats (object or string)
-      let screenshotIdentifier;
-      if (typeof screenshot === 'object' && screenshot !== null) {
-        screenshotIdentifier = screenshot.id || screenshot.data?.substring(0, 50) || i;
-      } else if (typeof screenshot === 'string') {
-        screenshotIdentifier = screenshot.substring(0, 50);
-      } else {
-        screenshotIdentifier = `screenshot-${i}`;
-      }
-      
-      const screenshotKey = `screenshot-${i}-${screenshotIdentifier}`;
-      
-      if (processedScreenshots.has(screenshotKey)) {
-        console.log('⚠️ Skipping duplicate screenshot:', screenshotKey);
-        continue;
-      }
-      
-      processedScreenshots.add(screenshotKey);
-      
-      try {
-        let finalScreenshotData = typeof screenshot === 'object' ? screenshot.data || screenshot : screenshot;
-        if (typeof finalScreenshotData === 'string') {
-          finalScreenshotData = finalScreenshotData.split('#')[0]; // Clean URL
-        }
-        
-        const canvasId = `new-${i}`;
-
-        console.log(`🎨 Checking for drawings in canvas ${canvasId} for screenshot ${i + 1}`);
-        console.log('📊 Available drawing data keys:', Object.keys(drawingData));
-
-        // FIXED: Check for drawings and merge them
-        if (drawingData[canvasId] && drawingData[canvasId].strokes && drawingData[canvasId].strokes.length > 0) {
-          console.log(`🎨 Found ${drawingData[canvasId].strokes.length} strokes for screenshot ${i + 1}. Merging drawings...`);
-          try {
-            finalScreenshotData = await mergeWithBackground(finalScreenshotData, canvasId);
-            console.log(`✅ Drawing merge completed for screenshot ${i + 1}`);
-          } catch (mergeError) {
-            console.error(`❌ Error merging drawings for screenshot ${i + 1}:`, mergeError);
-          }
-        } else {
-          console.log(`ℹ️ No drawings found for screenshot ${i + 1} (canvas: ${canvasId})`);
-        }
-
-        screenshotsData.push({
-          data: finalScreenshotData,
-          timestamp: new Date().toISOString(),
-          size: finalScreenshotData.length,
-          hasDrawings: drawingData[canvasId] && drawingData[canvasId].strokes && drawingData[canvasId].strokes.length > 0
-        });
-        console.log(`✅ NEW screenshot ${i + 1} processed successfully with drawings: ${screenshotsData[screenshotsData.length - 1].hasDrawings}`);
-      } catch (error) {
-        console.error(`❌ Error processing screenshot ${i + 1}:`, error);
-        // Fallback handling for invalid screenshot data
-        let fallbackData;
-        try {
-          fallbackData = typeof screenshot === 'object' ? screenshot.data || JSON.stringify(screenshot) : String(screenshot);
-          if (typeof fallbackData === 'string' && fallbackData.indexOf('#') > 0) {
-            fallbackData = fallbackData.split('#')[0];
-          }
-        } catch (fallbackError) {
-          console.error('Failed to create fallback screenshot data:', fallbackError);
-          fallbackData = `fallback-screenshot-${i}`;
-        }
-        
-        screenshotsData.push({
-          data: fallbackData,
-          timestamp: new Date().toISOString(),
-          size: typeof fallbackData === 'string' ? fallbackData.length : 0,
-          hasDrawings: false
-        });
-      }
-    }
-
-    const formData = {
-      meeting_id: id,
-      name: residentName,
-      address: residentAddress,
-      post_code: actualPostCode, // Save the actual postcode
-      reference: postCode, // Save the reference field
-      repair_detail: repairDetails,
-      target_time: targetTime,
-      recordings: recordingsData,
-      screenshots: screenshotsData,
-      update_mode: existingMeetingData ? 'update' : 'create'
-    };
-
-    console.log('📤 Sending data to server...');
-    console.log('📋 Form data summary:', {
-      meeting_id: id,
-      update_mode: formData.update_mode,
-      new_recordings_count: recordingsData.length,
-      new_screenshots_count: screenshotsData.length,
-      screenshots_with_drawings: screenshotsData.filter(s => s.hasDrawings).length,
-      existing_recordings_count: existingRecordings.length,
-      total_recordings_after_save: existingRecordings.length + recordingsData.length
-    });
-
-    const response = await createRequest(formData);
-    console.log('✅ Save successful!');
-
-    // Reset pencil mode and clear all drawing data
-    setActivePencilScreenshot(null);
-
-    // Clear all drawing data after successful save
-    Object.keys(drawingData).forEach(canvasId => {
-      if (canvasId.startsWith('new-')) {
-        console.log('🧹 Clearing drawing data for:', canvasId);
-        delete drawingData[canvasId];
-      }
-    });
-
-    // Update recordings state to mark all recordings as existing/saved - ATOMIC UPDATE
-    setRecordings(prev => prev.map(rec => ({
-      ...rec,
-      isExisting: true
-    })));
-
-    // Move all new screenshots to existing screenshots and mark them as saved - ATOMIC UPDATE
-    if (screenshotsData.length > 0) {
-      const newSavedScreenshots = screenshotsData.map((screenshot, index) => ({
-        id: `saved-${Date.now()}-${index}-${Math.random()}`, // Add random to ensure uniqueness
-        url: screenshot.data,
-        timestamp: new Date(screenshot.timestamp).toLocaleString(),
-        isExisting: true,
-        hasDrawings: screenshot.hasDrawings
-      }));
-
-      setExistingScreenshots(prev => {
-        // Filter out any potential duplicates based on URL
-        const existingUrls = new Set(prev.map(s => s.url));
-        const uniqueNewScreenshots = newSavedScreenshots.filter(s => !existingUrls.has(s.url));
-        
-        if (uniqueNewScreenshots.length !== newSavedScreenshots.length) {
-          console.log('⚠️ Filtered out duplicate screenshots');
-        }
-        
-        // Add to the end of the array instead of beginning for chronological order
-        return [...prev, ...uniqueNewScreenshots];
-      });
-
-      // Clear all screenshots from useWebRTC after saving
-      const screenshotCount = screenshots.length;
-      for (let i = screenshotCount - 1; i >= 0; i--) {
-        deleteScreenshot(i);
-      }
-      console.log(`🧹 Cleared ${screenshotCount} screenshots from new screenshots array`);
-    }
-
-    // Update existing meeting data reference
-    if (!existingMeetingData) {
-      setExistingMeetingData({
-        meeting_id: id,
-        name: residentName,
-        address: residentAddress,
-        post_code: postCode,
-        repair_detail: repairDetails,
-        target_time: targetTime
-      });
-    }
-
-    return { recordingsData, screenshotsData };
-  }, [
-    recordings, screenshots, drawingData, mergeWithBackground, deleteScreenshot,
-    id, residentName, residentAddress, actualPostCode, postCode, repairDetails, targetTime, existingMeetingData
-  ]);
-
-  const handleZoomIn = () => {
-    setZoomLevel(prev => {
-      const newZoom = Math.min(prev + 0.25, 3); // Max zoom 3x
-      console.log('Zooming in to:', newZoom);
-      return newZoom;
-    });
-  };
-
-  const handleZoomOut = () => {
-    setZoomLevel(prev => {
-      const newZoom = Math.max(prev - 0.25, 0.5); // Min zoom 0.5x
-      console.log('Zooming out to:', newZoom);
-
-      // Reset pan when zooming out to 1x
-      if (newZoom <= 1) {
-        setVideoPanX(0);
-        setVideoPanY(0);
-      }
-
-      return newZoom;
-    });
-  };
-
-  const handleZoomReset = () => {
-    setZoomLevel(1);
-    setVideoPanX(0);
-    setVideoPanY(0);
-    console.log('Zoom reset to 1x');
-  };
-
-  // Add pan functionality for when zoomed in
-  const handleVideoPan = (e) => {
-    if (zoomLevel <= 1) return;
-
-    const rect = e.currentTarget.getBoundingClientRect();
-    const centerX = rect.width / 2;
-    const centerY = rect.height / 2;
-
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
-
-    // Calculate pan offset based on mouse position
-    const panX = (centerX - mouseX) * 0.5;
-    const panY = (centerY - mouseY) * 0.5;
-
-    setVideoPanX(panX);
-    setVideoPanY(panY);
-  };
-
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      // Only handle zoom shortcuts when not in input fields
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-
-      if (e.ctrlKey || e.metaKey) {
-        switch (e.key) {
-          case '=':
-          case '+':
-            e.preventDefault();
-            handleZoomIn();
-            break;
-          case '-':
-            e.preventDefault();
-            handleZoomOut();
-            break;
-          case '0':
-            e.preventDefault();
-            handleZoomReset();
-            break;
-        }
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, []);
-
-  // Optional: Reset zoom when video connection changes
-  useEffect(() => {
-    if (!isConnected) {
-      setZoomLevel(1);
-      setVideoPanX(0);
-      setVideoPanY(0);
-    }
-  }, [isConnected]);
-
-  // UPDATED: Add new function to handle "End Video and Save Images" with better protection
-  const handleEndVideoAndSave = async (e) => {
-    // Prevent form submission and page refresh
-    if (e) {
-      e.preventDefault();
-      e.stopPropagation();
-      // Check if stopImmediatePropagation exists before calling it
-      if (typeof e.stopImmediatePropagation === 'function') {
-        e.stopImmediatePropagation();
-      }
-    }
-
-    // Check if already in progress
-    if (isEndingSave || isSaving || saveInProgress) {
-      console.log('⚠️ End video save already in progress');
-      return;
-    }
-
-    try {
-      setSaveInProgress(true);
-      setIsEndingSave(true);
-      console.log('🎬 Starting End Video and Save process...');
-
-      // First disconnect the video call
-      if (isConnected) {
-        handleDisconnect();
-      }
-
-      // Stop any ongoing recording
-      if (isRecording) {
-        stopScreenRecording();
-      }
-
-      // Wait a moment for any final recording to process
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      // Use shared save logic
-      const result = await performSave({ disconnectVideo: true });
-
-      toast.success("Video ended and all content saved successfully!");
-
-    } catch (error) {
-      console.error('❌ End Video and Save failed:', error);
-      toast.error("Failed to end video and save content", {
-        description: error?.response?.data?.message || error.message
-      });
-    } finally {
-      setIsEndingSave(false);
-      setSaveInProgress(false);
-    }
-  };
-
-  // UPDATED: handleSave with better protection and shared logic
-  const handleSave = async (e) => {
-    // Prevent form submission and page refresh
-    if (e) {
-      e.preventDefault();
-      e.stopPropagation();
-      // Check if stopImmediatePropagation exists before calling it
-      if (typeof e.stopImmediatePropagation === 'function') {
-        e.stopImmediatePropagation();
-      }
-    }
-
-    // Check if already in progress
-    if (isSaving || isEndingSave || saveInProgress) {
-      console.log('⚠️ Save already in progress');
-      return;
-    }
-
-    try {
-      setSaveInProgress(true);
-      setIsSaving(true);
-      
-      // Use shared save logic
-      const result = await performSave();
-
-      toast.success("Repair saved successfully!", {
-        description: `Added ${result.recordingsData.length} new recordings and ${result.screenshotsData.length} new screenshots.`
-      });
-
-    } catch (error) {
-      console.error('❌ Save failed:', error);
-      toast.error("Failed to save repair", {
-        description: error?.response?.data?.message || error.message
-      });
-    } finally {
-      setIsSaving(false);
-      setSaveInProgress(false);
-    }
-  };
-
-  const handleLogout = async () => {
-    try {
-      const res = await logoutRequest();
-      
-      // Additional cleanup - clear any localStorage/sessionStorage
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      sessionStorage.clear();
-      
-      // Clear cookies from frontend side as well
-      document.cookie = "token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; secure; samesite=none";
-      
-      toast("Logout Successful", {
-        description: res.data.message
-      });
-      
-      setIsAuth(false);
-      setUser(null);
-      router.push('../');
-    } catch (error) {
-      // Even if logout API fails, clear local state
-      setIsAuth(false);
-      setUser(null);
-      localStorage.clear();
-      
-      toast("Logout Unsuccessful", {
-        description: error?.response?.data?.message || error.message
-      });
-      
-      router.push('../');
-    }
-  }
-
-  // Add dashboard handler
-  const handleDashboard = () => {
-    router.push("../../../dashboard/");
-  }
-
-  // Simple timer effect that doesn't interfere with WebRTC - with localStorage persistence
-  useEffect(() => {
-    if (!isClient) return;
-
-    // Load saved timer data from localStorage on component mount
-    const savedStartTime = localStorage.getItem(`call-start-time-${id}`);
-    const savedDuration = localStorage.getItem(`call-duration-${id}`);
-
-    if (isConnected && !startTimeRef.current) {
-      // If there's saved data and we're reconnecting, restore it
-      if (savedStartTime) {
-        const savedTime = parseInt(savedStartTime);
-        const elapsedSinceStart = Math.floor((Date.now() - savedTime) / 1000);
-        startTimeRef.current = savedTime;
-        setCallDuration(elapsedSinceStart);
-        console.log('Restored call timer from localStorage:', elapsedSinceStart);
-      } else {
-        // New call - save start time
-        const startTime = Date.now();
-        startTimeRef.current = startTime;
-        localStorage.setItem(`call-start-time-${id}`, startTime.toString());
-        console.log('Started new call timer');
-      }
-
-      timerRef.current = setInterval(() => {
-        const currentDuration = Math.floor((Date.now() - startTimeRef.current) / 1000);
-        setCallDuration(currentDuration);
-        // Save current duration to localStorage
-        localStorage.setItem(`call-duration-${id}`, currentDuration.toString());
-      }, 1000);
-    }
-
-    if (!isConnected && timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-      startTimeRef.current = null;
-      setCallDuration(0);
-      // Clear localStorage when call ends
-      localStorage.removeItem(`call-start-time-${id}`);
-      localStorage.removeItem(`call-duration-${id}`);
-      console.log('Call ended, cleared timer from localStorage');
-    }
-
-    return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
-    };
-  }, [isConnected, id, isClient]);
-
-  // Load saved duration on component mount (for page refresh scenarios)
-  useEffect(() => {
-    if (!isClient) return;
-
-    const savedDuration = localStorage.getItem(`call-duration-${id}`);
-    const savedStartTime = localStorage.getItem(`call-start-time-${id}`);
-
-    if (savedDuration && savedStartTime && !isConnected) {
-      // If we have saved data but not connected, show the last known duration
-      const duration = parseInt(savedDuration);
-      setCallDuration(duration);
-      console.log('Loaded call duration from localStorage on mount:', duration);
-    }
-  }, [id, isClient]);
-
-  // Format time to MM:SS
-  const formatTime = (seconds) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  // Format recording duration
-  const formatRecordingTime = (seconds) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  // Recording timer effect
-  useEffect(() => {
-    if (isRecording && recordingStartTime) {
-      recordingTimerRef.current = setInterval(() => {
-        const elapsed = Math.floor((Date.now() - recordingStartTime) / 1000);
-        setCurrentRecordingDuration(elapsed);
-      }, 1000);
-    } else {
-      if (recordingTimerRef.current) {
-        clearInterval(recordingTimerRef.current);
-        recordingTimerRef.current = null;
-      }
-      setCurrentRecordingDuration(0);
-    }
-
-    return () => {
-      if (recordingTimerRef.current) {
-        clearInterval(recordingTimerRef.current);
-      }
-    };
-  }, [isRecording, recordingStartTime]);
-
-  // ENHANCED Screen recording functions with ULTRA HIGH QUALITY
-  const startScreenRecording = async () => {
-    try {
-      // Get video stream from the video element instead of screen
-      if (!videoRef.current || !videoRef.current.srcObject) {
-        toast('No video stream available to record');
-        return;
-      }
-
-      // Set recording start time
-      const startTime = Date.now();
-      setRecordingStartTime(startTime);
-
-      // Hide video controls during recording
-      if (videoRef.current) {
-        videoRef.current.controls = false;
-        videoRef.current.style.pointerEvents = 'none';
-      }
-
-      const stream = videoRef.current.srcObject;
-
-      setRecordingStream(stream);
-
-      // ENHANCED: Create MediaRecorder with ULTRA HIGH quality settings
-      const recorderOptions = [
-        {
-          mimeType: 'video/webm;codecs=vp9,opus',
-          videoBitsPerSecond: 150000000, // 150 Mbps for ultra quality
-          audioBitsPerSecond: 256000     // High quality audio
-        },
-        {
-          mimeType: 'video/webm;codecs=vp9',
-          videoBitsPerSecond: 120000000  // 120 Mbps fallback
-        },
-        {
-          mimeType: 'video/webm;codecs=h264,avc1',
-          videoBitsPerSecond: 100000000  // 100 Mbps H.264
-        },
-        {
-          mimeType: 'video/webm;codecs=vp8',
-          videoBitsPerSecond: 80000000   // 80 Mbps VP8 fallback
-        },
-        {
-          mimeType: 'video/webm',
-          videoBitsPerSecond: 60000000   // 60 Mbps basic WebM
-        }
-      ];
-
-      let selectedOption = null;
-      for (const option of recorderOptions) {
-        if (MediaRecorder.isTypeSupported(option.mimeType)) {
-          selectedOption = option;
-          console.log(`✅ Selected ULTRA HIGH recording: ${option.mimeType} @ ${option.videoBitsPerSecond / 1000000}Mbps`);
-          break;
-        }
-      }
-
-      if (!selectedOption) {
-        toast('No high quality recording format supported');
-        return;
-      }
-
-      const recorder = new MediaRecorder(stream, selectedOption);
-
-      // Reset chunks
-      recordingChunks.current = [];
-
-      // ENHANCED: Handle data available event - record in smaller chunks for ultra quality
-      recorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          recordingChunks.current.push(event.data);
-          console.log(`📊 Ultra quality chunk: ${(event.data.size / 1024 / 1024).toFixed(2)}MB`);
-        }
-      };
-
-      // Handle recording stop event
-      recorder.onstop = () => {
-        // Calculate final duration
-        const endTime = Date.now();
-        const duration = Math.floor((endTime - startTime) / 1000);
-
-        // Restore video controls after recording
-        if (videoRef.current) {
-          videoRef.current.style.pointerEvents = 'auto';
-        }
-
-        const blob = new Blob(recordingChunks.current, { type: selectedOption.mimeType });
-        const videoUrl = URL.createObjectURL(blob);
-
-        const newRecording = {
-          id: Date.now(),
-          url: videoUrl,
-          blob: blob,
-          timestamp: new Date().toLocaleString(),
-          duration: duration
-        };
-
-        setRecordings(prev => [...prev, newRecording]);
-        setIsRecording(false);
-        setRecordingStartTime(null);
-        
-        console.log('✅ ULTRA HIGH quality recording completed:', {
-          duration: `${duration}s`,
-          size: `${(blob.size / 1024 / 1024).toFixed(2)}MB`,
-          bitrate: `${selectedOption.videoBitsPerSecond / 1000000}Mbps`
-        });
-      };
-
-      setMediaRecorder(recorder);
-      // ENHANCED: Start recording with ultra small timeslice for maximum quality
-      recorder.start(50); // Record in 50ms chunks for ultra smooth quality
-      setIsRecording(true);
-      toast(`Ultra high quality recording started (${selectedOption.videoBitsPerSecond / 1000000}Mbps)`);
-
-    } catch (error) {
-      console.error('Error starting ultra high quality recording:', error);
-      // ENHANCED: Fallback with still high quality settings
-      try {
-        const stream = videoRef.current.srcObject;
-        const startTime = Date.now();
-        setRecordingStartTime(startTime);
-
-        const recorder = new MediaRecorder(stream, {
-          mimeType: 'video/webm',
-          videoBitsPerSecond: 50000000, // 50 Mbps fallback quality
-          audioBitsPerSecond: 192000
-        });
-
-        // Hide controls
-        if (videoRef.current) {
-          videoRef.current.controls = false;
-          videoRef.current.style.pointerEvents = 'none';
-        }
-
-        // Reset chunks
-        recordingChunks.current = [];
-
-        recorder.ondataavailable = (event) => {
-          if (event.data.size > 0) {
-            recordingChunks.current.push(event.data);
-          }
-        };
-
-        recorder.onstop = () => {
-          const endTime = Date.now();
-          const duration = Math.floor((endTime - startTime) / 1000);
-
-          if (videoRef.current) {
-            videoRef.current.style.pointerEvents = 'auto';
-          }
-
-          const blob = new Blob(recordingChunks.current, { type: 'video/webm' });
-          const videoUrl = URL.createObjectURL(blob);
-
-          const newRecording = {
-            id: Date.now(),
-            url: videoUrl,
-            blob: blob,
-            timestamp: new Date().toLocaleString(),
-            duration: duration
-          };
-
-          setRecordings(prev => [...prev, newRecording]);
-          setIsRecording(false);
-          setRecordingStartTime(null);
-        };
-
-        setMediaRecorder(recorder);
-        recorder.start(100); // 100ms chunks for fallback
-        setIsRecording(true);
-        toast('High quality video recording started (50Mbps fallback)');
-      } catch (fallbackError) {
-        toast('Failed to start video recording');
-        setRecordingStartTime(null);
-      }
-    }
-  };
-
-  const stopScreenRecording = () => {
-    if (mediaRecorder && mediaRecorder.state === 'recording') {
-      mediaRecorder.stop();
-      // Restore video controls
-      if (videoRef.current) {
-        videoRef.current.style.pointerEvents = 'auto';
-      }
-      toast('Recording stopped');
-    }
-  };
-
-  const handleRecordingToggle = () => {
-    if (isRecording) {
-      stopScreenRecording();
-    } else {
-      startScreenRecording();
-    }
-  };
-
-  // Individual save functions from second code
-  const saveIndividualRecording = useCallback(async (recording) => {
-    if (recording.isExisting) {
-      toast.info("Recording already saved");
-      return;
-    }
-
-    const itemKey = `recording-${recording.id}`;
-
-    // Prevent duplicate processing
-    if (processedItemsRef.current.has(itemKey)) {
-      console.log('⚠️ Recording already being processed:', itemKey);
-      return;
-    }
-
-    processedItemsRef.current.add(itemKey);
-
-    try {
-      setSavingRecordingId(recording.id);
-      console.log('💾 Saving individual recording...');
-      
-      // Show loading toast
-      toast.loading("Saving recording...", {
-        id: `save-recording-${recording.id}`
-      });
-
-      const base64Data = await blobToBase64(recording.blob);
-      const recordingsData = [{
-        data: base64Data,
-        timestamp: recording.timestamp,
-        duration: recording.duration,
-        size: recording.blob.size
-      }];
-
-      const formData = {
-        meeting_id: id,
-        name: residentName,
-        address: residentAddress,
-        post_code: actualPostCode,
-        reference: postCode,
-        repair_detail: repairDetails,
-        target_time: targetTime,
-        recordings: recordingsData,
-        screenshots: [],
-        update_mode: existingMeetingData ? 'update' : 'create'
-      };
-
-      const response = await createRequest(formData);
-
-      // Update the recording to mark it as existing - ATOMIC UPDATE
-      setRecordings(prev => prev.map(r =>
-        r.id === recording.id
-          ? { ...r, isExisting: true }
-          : r
-      ));
-
-      // Show success toast
-      toast.success("Recording saved successfully!", {
-        id: `save-recording-${recording.id}`
-      });
-
-    } catch (error) {
-      console.error('❌ Save recording failed:', error);
-      toast.error("Failed to save recording", {
-        id: `save-recording-${recording.id}`
-      });
-    } finally {
-      setSavingRecordingId(null);
-      processedItemsRef.current.delete(itemKey);
-    }
-  }, [id, residentName, residentAddress, actualPostCode, postCode, repairDetails, targetTime, existingMeetingData]);
-
-  // Updated delete recording function
-  const deleteRecording = async (recording) => {
-    try {
-      if (recording.isExisting) {
-        // Send delete request to backend for existing recordings
-        console.log(`🗑️ Deleting existing recording ${recording.id} from meeting ${id}`);
-
-        try {
-          const response = await deleteRecordingRequest(id, recording.id);
-
-          if (response.data.timeout) {
-            toast.success("Recording deletion requested (processing in background)");
-          } else {
-            toast.success("Recording deleted successfully!");
-          }
-        } catch (error) {
-          console.error('Error during API delete call:', error);
-          // Even if API call fails, remove from UI for better user experience
-          toast.info("Recording removed from view but backend deletion failed");
-        }
-      } else {
-        // Local deletion for new recordings (not yet saved)
-        console.log(`🗑️ Deleting local recording ${recording.id}`);
-      }
-
-      // Always remove from state regardless of API success
-      setRecordings(prev => {
-        const recordingToDelete = prev.find(r => r.id === recording.id);
-        if (recordingToDelete && recordingToDelete.url) {
-          URL.revokeObjectURL(recordingToDelete.url);
-        }
-        return prev.filter(r => r.id !== recording.id);
-      });
-
-      if (!recording.isExisting) {
-        toast.success("Recording removed!");
-      }
-    } catch (error) {
-      console.error('❌ Delete recording failed:', error);
-      toast.error("Failed to delete recording", {
-        description: error?.response?.data?.message || error.message
-      });
-    }
-  };
-
-  // Delete existing screenshot function
-  const deleteExistingScreenshot = async (screenshot) => {
-    try {
-      console.log(`🗑️ Deleting existing screenshot ${screenshot.id} from meeting ${id}`);
-      const response = await deleteScreenshotRequest(id, screenshot.id);
-
-      if (response.data.timeout) {
-        toast.success("Screenshot deletion requested (processing in background)");
-      } else {
-        toast.success("Screenshot deleted successfully!");
-      }
-
-      // Remove from existing screenshots state immediately
-      setExistingScreenshots(prev => prev.filter(s => s.id !== screenshot.id));
-    } catch (error) {
-      console.error('❌ Delete screenshot failed:', error);
-      toast.error("Failed to delete screenshot", {
-        description: error?.response?.data?.message || error.message
-      });
-    }
-  };
-
-  // Local screenshot delete function (for new screenshots from useWebRTC)
-  const deleteNewScreenshot = (screenshotIndex, screenshotId) => {
-    try {
-      console.log('🗑️ Deleting screenshot:', { index: screenshotIndex, id: screenshotId });
-      
-      // Clean up any associated drawing data before deleting
-      const canvasId = screenshotId || `new-${screenshotIndex}`;
-      if (drawingData[canvasId]) {
-        console.log('🧹 Cleaning up drawing data for:', canvasId);
-        delete drawingData[canvasId];
-      }
-      
-      // Use the deleteScreenshot function from useWebRTC hook
-      deleteScreenshot(screenshotIndex);
-      toast.success("Screenshot removed!");
-    } catch (error) {
-      console.error('Error deleting screenshot:', error);
-      toast.error("Failed to delete screenshot");
-    }
-  };
-
-  // Update the handlePencilClick function to use screenshot ID instead of canvas index
-  const handlePencilClick = useCallback((canvasId, screenshotId) => {
-    console.log('🖋️ Pencil button clicked for canvas:', canvasId, 'screenshot ID:', screenshotId);
-    console.log('Current state - active:', activePencilScreenshot, 'dropdown:', showPencilDropdown);
-
-    // Use the screenshot ID as the identifier
-    const activeId = screenshotId || canvasId;
-
-    if (showPencilDropdown === activeId) {
-      // If dropdown is already open for this canvas, close it
-      console.log('Closing dropdown for:', activeId);
-      setShowPencilDropdown(null);
-    } else {
-      // Open dropdown for this canvas
-      console.log('Opening dropdown for:', activeId);
-      setActivePencilScreenshot(activeId);  // Set active for drawing
-      setShowPencilDropdown(activeId);     // Show dropdown
-    }
-  }, [activePencilScreenshot, showPencilDropdown]);
-
-  // Update the save individual screenshot function to use screenshot ID
-  const saveIndividualScreenshot = useCallback(async (screenshotData, index, screenshotId) => {
-    const itemKey = `screenshot-${screenshotId || index}`;
-    
-    // Prevent duplicate processing
-    if (processedItemsRef.current.has(itemKey) || savingScreenshotIds.has(screenshotId)) {
-      console.log('⚠️ Screenshot already being processed:', itemKey);
-      return;
-    }
-    
-    processedItemsRef.current.add(itemKey);
-
-    try {
-      // FIXED: Set both index and ID tracking for proper spinner display
-      setSavingScreenshotIndex(index);
-      setSavingScreenshotIds(prev => new Set(prev).add(screenshotId));
-      
-      console.log('💾 Saving individual ULTRA HIGH QUALITY screenshot...', index, 'ID:', screenshotId);
-      
-      // Show loading toast
-      toast.loading("Saving screenshot...", {
-        id: `save-screenshot-${screenshotId}`
-      });
-
-      // FIXED: Use clean screenshot data (remove unique identifiers)
-      let finalScreenshotData = screenshotData.split('#')[0]; // Remove timestamp markers
-      
-      // Use screenshot ID to track drawing data instead of index-based canvasId
-      const canvasId = screenshotId || `new-${index}`;
-
-      console.log('🎨 Checking for drawings in canvas:', canvasId);
-      console.log('📊 Available drawing data:', Object.keys(drawingData));
-
-      // ENHANCED: Check if this screenshot has drawings and merge them at ULTRA HIGH resolution
-      if (drawingData[canvasId] && drawingData[canvasId].strokes && drawingData[canvasId].strokes.length > 0) {
-        console.log('🎨 Found drawings for canvas:', canvasId, 'Strokes:', drawingData[canvasId].strokes.length);
-        console.log('🖼️ Merging drawings with screenshot at ULTRA HIGH resolution...');
-        
-        try {
-          finalScreenshotData = await mergeWithBackground(finalScreenshotData, canvasId);
-          console.log('✅ ULTRA HIGH quality drawing merge completed successfully');
-        } catch (mergeError) {
-          console.error('❌ Error merging drawings:', mergeError);
-          console.log('📷 Proceeding with original screenshot without drawings');
-        }
-      } else {
-        console.log('ℹ️ No drawings found for canvas:', canvasId);
-        console.log('📋 Canvas data structure:', drawingData[canvasId]);
-      }
-
-      // ENHANCED: Additional quality check - ensure PNG format for maximum quality
-      if (!finalScreenshotData.startsWith('data:image/png')) {
-        console.log('🔄 Converting to PNG for maximum quality...');
-
-        return new Promise((resolve) => {
-          const img = new Image();
-          img.onload = () => {
-            const canvas = document.createElement('canvas');
-            const scale = 2; // Additional scaling for ultra quality
-            canvas.width = img.width * scale;
-            canvas.height = img.height * scale;
+          if (meetingData.work_details && Array.isArray(meetingData.work_details)) {
+            let workDetail1Text = "", workDetail2Text = "", workDetail3Text = "";
+            const additionalWorkDetails = [], ttValues = {};
             
-            const ctx = canvas.getContext('2d');
-            ctx.imageSmoothingEnabled = true;
-            ctx.imageSmoothingQuality = 'high';
-            ctx.scale(scale, scale);
-            ctx.drawImage(img, 0, 0);
-            
-            finalScreenshotData = canvas.toDataURL('image/png', 1.0);
-            console.log('✅ Enhanced to ultra high quality PNG');
-            
-            // Continue with save process
-            processSave(finalScreenshotData);
-          };
-          img.src = finalScreenshotData;
-        });
-      } else {
-        processSave(finalScreenshotData);
-      }
-
-      async function processSave(imageData) {
-        const screenshotsData = [{
-          data: imageData,
-          timestamp: new Date().toISOString(),
-          size: imageData.length,
-          quality: 'ultra_high',
-          index: index, // Add index for tracking
-          hasDrawings: drawingData[canvasId] && drawingData[canvasId].strokes && drawingData[canvasId].strokes.length > 0
-        }];
-
-        const formData = {
-          meeting_id: id,
-          name: residentName,
-          address: residentAddress,
-          post_code: actualPostCode,
-          reference: postCode,
-          repair_detail: repairDetails,
-          target_time: targetTime,
-          recordings: [],
-          screenshots: screenshotsData,
-          update_mode: existingMeetingData ? 'update' : 'create'
-        };
-
-        console.log('📤 Sending screenshot data to server:', {
-          hasDrawings: screenshotsData[0].hasDrawings,
-          dataSize: Math.round(imageData.length / 1024) + 'KB',
-          canvasId: canvasId
-        });
-
-        const response = await createRequest(formData);
-
-        // Show success toast
-        toast.success(
-          screenshotsData[0].hasDrawings 
-            ? "Ultra high quality screenshot with drawings saved successfully!" 
-            : "Ultra high quality screenshot saved successfully!",
-          {
-            id: `save-screenshot-${screenshotId}`
-          }
-        );
-
-        // Clear pencil mode and drawing data after successful save
-        setActivePencilScreenshot(null);
-        setShowPencilDropdown(null);
-
-        // Add saved screenshot to existing screenshots with unique ID
-        const newSavedScreenshot = {
-          id: `saved-${Date.now()}-${index}-${Math.random()}`,
-          url: imageData,
-          timestamp: new Date().toLocaleString(),
-          isExisting: true,
-          quality: 'ultra_high',
-          hasDrawings: screenshotsData[0].hasDrawings
-        };
-
-        setExistingScreenshots(prev => {
-          // Check for duplicates
-          const alreadyExists = prev.some(s => s.url === newSavedScreenshot.url);
-          if (alreadyExists) {
-            console.log('⚠️ Screenshot already in existing array, skipping add');
-            return prev;
-          }
-          // Add to the end of the array instead of beginning for chronological order
-          return [...prev, newSavedScreenshot];
-        });
-
-        // Remove the screenshot from new screenshots array
-        deleteScreenshot(index);
-        console.log(`🧹 Removed ultra high quality screenshot at index ${index} from new screenshots array`);
-        
-        // Clear the drawing data for this canvas after successful save
-        if (drawingData[canvasId]) {
-          console.log('🧹 Clearing drawing data for canvas:', canvasId);
-          delete drawingData[canvasId];
-        }
-      }
-
-    } catch (error) {
-      console.error('❌ Save ultra high quality screenshot failed:', error);
-      toast.error("Failed to save ultra high quality screenshot", {
-        id: `save-screenshot-${screenshotId}`
-      });
-    } finally {
-      // FIXED: Clear both index and ID tracking
-      setSavingScreenshotIndex(null);
-      setSavingScreenshotIds(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(screenshotId);
-        return newSet;
-      });
-      processedItemsRef.current.delete(itemKey);
-    }
-  }, [id, residentName, residentAddress, actualPostCode, postCode, repairDetails, targetTime, existingMeetingData, drawingData, mergeWithBackground, deleteScreenshot, savingScreenshotIds]);
-
-  // Maximize handlers - Memoize these functions
-  const maximizeVideo = useCallback((recording) => {
-    setMaximizedItem({
-      type: 'video',
-      id: recording.id,
-      data: recording
-    });
-  }, []);
-
-  const maximizeScreenshot = useCallback((screenshot, index, isExisting = false) => {
-    setMaximizedItem({
-      type: 'screenshot',
-      id: isExisting ? screenshot.id : `new-${index}`,
-      data: screenshot,
-      index: isExisting ? null : index,
-      isExisting
-    });
-  }, []);
-
-  const closeMaximized = useCallback(() => {
-    setMaximizedItem(null);
-  }, []);
-
-  // Handle escape key to close maximized view
-  useEffect(() => {
-    const handleEscape = (e) => {
-      if (e.key === 'Escape' && maximizedItem) {
-        closeMaximized();
-      }
-    };
-
-    document.addEventListener('keydown', handleEscape);
-    return () => document.removeEventListener('keydown', handleEscape);
-  }, [maximizedItem]);
-
-  // Helper function to get landlord name (prioritize token info)
-  const getLandlordName = () => {
-    if (tokenLandlordInfo?.landlordName) {
-      return tokenLandlordInfo.landlordName;
-    }
-    return user?.landlordInfo?.landlordName || null;
-  };
-
-  // Helper function to get landlord logo (prioritize token info)
-  const getLandlordLogo = () => {
-    if (tokenLandlordInfo?.landlordLogo && isValidImageUrl(tokenLandlordInfo.landlordLogo)) {
-      return tokenLandlordInfo.landlordLogo;
-    }
-    if (user?.landlordInfo?.landlordLogo && isValidImageUrl(user.landlordInfo.landlordLogo)) {
-      return user.landlordInfo.landlordLogo;
-    }
-    return null;
-  };
-
-  const getTotalRecordingsCount = () => {
-  const existingRecordingsCount = existingMeetingData?.recordings?.length || 0;
-  const newRecordingsCount = recordings.length;
-  return existingRecordingsCount + newRecordingsCount;
-};
-
-// Function to display recordings count in header
-const displayRecordingsCount = () => {
-  const totalCount = getTotalRecordingsCount();
-  return totalCount > 0 ? totalCount : null;
-};
-
-  // Helper function to get profile image (prioritize token info)
-  const getProfileImage = () => {
-    // Check token info first
-    if (tokenLandlordInfo?.profileImage && isValidImageUrl(tokenLandlordInfo.profileImage)) {
-      return tokenLandlordInfo.profileImage;
-    }
-
-    // Fallback to current user info
-    if (user?.landlordInfo?.useLandlordLogoAsProfile && user?.landlordInfo?.landlordLogo) {
-      if (isValidImageUrl(user.landlordInfo.landlordLogo)) {
-        return user.landlordInfo.landlordLogo;
-      }
-    }
-
-    if (user?.landlordInfo?.officerImage) {
-      if (isValidImageUrl(user.landlordInfo.officerImage)) {
-        return user.landlordInfo.officerImage;
-      }
-    }
-
-    return null;
-  };
-
-  // Helper function to check if image URL is valid
-  const isValidImageUrl = (url) => {
-    if (!url) return false;
-    return url.startsWith('data:') || url.startsWith('http://') || url.startsWith('https://');
-  };
-
-  // Helper function to get display name (prioritize token info)
-  const getDisplayName = () => {
-    // Use landlord name if available from token or user
-    const landlordName = getLandlordName();
-    if (landlordName) {
-      return landlordName;
-    }
-
-    // Fallback to username from email
-    if (user?.email) {
-      return user.email.split('@')[0];
-    }
-
-    return 'User';
-  };
-
-  // Helper function to get initials
-  const getInitials = (name) => {
-    if (!name) return 'U';
-
-    const words = name.trim().split(' ').filter(word => word.length > 0);
-    if (words.length === 1) {
-      return words[0].charAt(0).toUpperCase();
-    } else if (words.length >= 2) {
-      return (words[0].charAt(0) + words[words.length - 1].charAt(0)).toUpperCase();
-    }
-    return name.charAt(0).toUpperCase();
-  };
-
-  // Add function to create and show share link for current meeting
-  const handleCreateShareLink = () => {
-    if (!id) {
-      toast.error("No meeting ID available");
-      return;
-    }
-
-    // Create a meeting object with current form data for sharing
-    const meetingData = {
-      meeting_id: id,
-      name: residentName,
-      address: residentAddress,
-      post_code: postCode,
-      repair_detail: repairDetails,
-      target_time: targetTime,
-      createdAt: new Date().toISOString(),
-      recordings: recordings, // Using existing recordings array
-      screenshots: [...existingScreenshots, ...screenshots.map((screenshot, index) => ({ id: `new-${index}`, url: screenshot }))]
-    };
-
-    // Open the share link dialog with meeting data
-    setShareLinkOpen(true, meetingData);
-  };
-
-  // NEW: Add cleanup effect to prevent memory leaks
-  useEffect(() => {
-    return () => {
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current);
-      }
-      processedItemsRef.current.clear();
-    };
-  }, []);
-
-  // Enhanced loading guard to prevent hydration mismatch
-  if (!isClient || isLoadingMeetingData) {
-    return (
-      <div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="max-w-6xl mx-auto p-4 py-10 font-sans">
-      <button onClick={startPeerConnection}>Start</button>
-      {/* Maximized Item Modal */}
-      {maximizedItem && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-          <div className="relative w-full h-full flex items-center justify-center">
-            {/* Close button */}
-            <button
-              onClick={closeMaximized}
-              className="absolute top-4 right-4 z-10 p-2 bg-black bg-opacity-50 text-white rounded-full hover:bg-opacity-75"
-            >
-              <X className="w-6 h-6" />
-            </button>
-
-            {/* Maximized Video */}
-            {maximizedItem.type === 'video' && (
-              <video
-                src={maximizedItem.data.url}
-                controls={true}
-                autoPlay={false}
-                muted={false}
-                className="max-w-full max-h-full w-auto h-auto object-contain"
-                style={{
-                  maxWidth: '95vw',
-                  maxHeight: '95vh'
-                }}
-                onLoadedMetadata={(e) => {
-                  console.log('Video resolution:', e.target.videoWidth, 'x', e.target.videoHeight);
-                }}
-              />
-            )}
-
-            {/* Maximized Screenshot */}
-            {maximizedItem.type === 'screenshot' && (
-              <div className="relative w-full h-full flex items-center justify-center p-4">
-                <div
-                  className="relative flex items-center justify-center w-full h-full"
-                  style={{
-                    maxWidth: 'calc(100vw - 2rem)',
-                    maxHeight: 'calc(100vh - 2rem)',
-                    minWidth: '300px',
-                    minHeight: '300px'
-                  }}
-                >
-                  {/* Original Screenshot as Background */}
-                  <img
-                    id={`maximized-img-${maximizedItem.id}`}
-                    src={maximizedItem.isExisting ? maximizedItem.data.url : maximizedItem.data}
-                    alt="Maximized screenshot"
-                    className="w-full h-full object-contain"
-                    style={{
-                      maxWidth: '100%',
-                      maxHeight: '100%',
-                      width: 'auto',
-                      height: 'auto'
-                    }}
-                  />
-                </div>
-              </div>
-            )}
-
-          </div>
-        </div>
-      )}
-
-      <div className="gap-6" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr' }}>
-        {/* Left Column */}
-        <div className="space-y-6 flex gap-5">
-          <div className="flex-1 relative">
-            {/* Logo and User */}
-            <div className="flex items-center gap-4 mb-6">
-              <div className="flex items-center">
-                <a href="/" className="text-2xl font-bold text-gray-900 flex items-center">
-                  <VideoIcon className="mr-2" />
-                  <span> Videodesk.co.uk</span>
-                </a>
-              </div>
-            </div>
-
-            {/* User Greeting */}
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-12 h-12 rounded-full overflow-hidden">
-                {getProfileImage() ? (
-                  <img
-                    src={getProfileImage()}
-                    alt="Profile Image"
-                    width={48}
-                    height={48}
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      e.target.style.display = 'none';
-                    }}
-                  />
-                ) : (
-                  <div className="w-full h-full bg-gray-200 flex items-center justify-center text-gray-600 font-semibold text-lg rounded-full">
-                    {getInitials(getDisplayName())}
-                  </div>
-                )}
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Hello,</p>
-                <p className="font-semibold">{getDisplayName()}</p>
-              </div>
-            </div>
-
-            {/* Live Video */}
-            <div className="relative w-[270px]">
-              <div className="h-[480px] w-[270px] bg-gray-200 rounded-md overflow-hidden relative">
-                <video
-                  id="live-video"
-                  ref={videoRef}
-                  autoPlay
-                  playsInline
-                  controls={false}
-                  className="w-full h-full object-contain absolute top-0 left-0 transition-transform duration-300 ease-out"
-                  style={{
-                    // Apply zoom and pan transformations
-                    transform: `scale(${zoomLevel}) translate(${videoPanX}px, ${videoPanY}px)`,
-                    transformOrigin: 'center center',
-                    // Hide all video controls and UI elements during recording
-                    ...(isRecording && {
-                      pointerEvents: 'none',
-                      outline: 'none',
-                      border: 'none'
-                    }),
-                    // Enable panning when zoomed in
-                    ...(zoomLevel > 1 && !isRecording && {
-                      cursor: 'grab'
-                    })
-                  }}
-                  onMouseMove={handleVideoPan}
-                  onMouseDown={(e) => {
-                    if (zoomLevel > 1) {
-                      e.currentTarget.style.cursor = 'grabbing';
-                    }
-                  }}
-                  onMouseUp={(e) => {
-                    if (zoomLevel > 1) {
-                      e.currentTarget.style.cursor = 'grab';
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (zoomLevel > 1) {
-                      e.currentTarget.style.cursor = 'grab';
-                    }
-                  }}
-                />
-              </div>
-
-              {/* Recording Timer Overlay - Shows during recording */}
-              {isRecording && (
-                <div className="absolute top-2 left-2 bg-red-600 text-white px-3 py-1 text-sm font-medium flex items-center gap-2 rounded-md">
-                  <span className="w-3 h-3 rounded-full bg-white animate-pulse"></span>
-                  <span>REC {formatRecordingTime(currentRecordingDuration)}</span>
-                </div>
-              )}
-
-              <div
-                className="absolute top-2 left-2 bg-red-600 text-white px-3 py-1 text-sm font-medium"
-                style={{ display: isRecording ? 'none' : 'block' }}
-              >
-                {isConnected ? "Live" : "Disconnected"}
-              </div>
-
-              {
-                showVideoPlayError &&
-                <button
-                  className="w-[3rem] h-[3rem] bg-amber-500 text-white rounded-full absolute top-[50%] left-[50%] -translate-x-[50%] -translate-y-[50%] flex items-center justify-center cursor-pointer"
-                  title={`Play Video`}
-                  onClick={handleVideoPlay}
-                >
-                  <Play />
-                </button>
+            meetingData.work_details.forEach((wd) => {
+              if (wd.detail) {
+                if (wd.detail === meetingData.repair_detail) {
+                  ttValues['field1'] = wd.target_time || "Emergency 24 Hours";
+                } else {
+                  if (!workDetail1Text) {
+                    workDetail1Text = wd.detail;
+                    ttValues['field1'] = wd.target_time || "Emergency 24 Hours";
+                  } else if (!workDetail2Text) {
+                    workDetail2Text = wd.detail;
+                    ttValues['field2'] = wd.target_time || "Emergency 24 Hours";
+                  } else if (!workDetail3Text) {
+                    workDetail3Text = wd.detail;
+                    ttValues['field3'] = wd.target_time || "Emergency 24 Hours";
+                  } else {
+                    additionalWorkDetails.push(wd.detail);
+                    ttValues[`workDetail${additionalWorkDetails.length - 1}`] = wd.target_time || "Emergency 24 Hours";
+                  }
+                }
               }
-
-              <div
-                className="absolute bottom-2 left-[50%] -translate-x-[50%] text-white px-3 py-1 text-sm font-medium flex items-center gap-3"
-                style={{ display: isRecording ? 'none' : 'flex' }}
-              >
-                <span className="w-4 h-4 rounded-full bg-red-600 block"></span>
-                <span className="text-white text-lg">{isConnected ? formatTime(callDuration) : "0:00"}</span>
-              </div>
-
-              <div
-                className="absolute bottom-2 right-0 text-white px-3 py-1 text-sm font-medium flex items-center gap-3 flex-col"
-                style={{ display: isRecording ? 'none' : 'flex' }}
-              >
-                <button
-                  className="p-1 rounded text-white cursor-pointer hover:bg-black/20 transition-colors"
-                  onClick={handleZoomIn}
-                  disabled={zoomLevel >= 3}
-                  title={`Zoom In (${Math.round(zoomLevel * 100)}%)`}
-                >
-                  <ZoomIn className={`w-4 h-4 ${zoomLevel >= 3 ? 'opacity-50' : ''}`} />
-                </button>
-
-                {/* Zoom level indicator - clickable to reset */}
-                <button
-                  className="text-xs bg-black/30 px-2 py-1 rounded hover:bg-black/50 transition-colors"
-                  onClick={handleZoomReset}
-                  title="Click to reset zoom"
-                >
-                  {Math.round(zoomLevel * 100)}%
-                </button>
-
-                <button
-                  className="p-1 rounded text-white cursor-pointer hover:bg-black/20 transition-colors"
-                  onClick={handleZoomOut}
-                  disabled={zoomLevel <= 0.5}
-                  title={`Zoom Out (${Math.round(zoomLevel * 100)}%)`}
-                >
-                  <ZoomOut className={`w-4 h-4 ${zoomLevel <= 0.5 ? 'opacity-50' : ''}`} />
-                </button>
-              </div>
-            </div>
-
-            <div className="w-[270px] flex gap-2 mt-2">
-              <button
-                onClick={handleRecordingToggle}
-                disabled={!isConnected}
-                className={`disabled:opacity-50 flex items-center justify-center gap-2 font-medium py-4 rounded-md transition-colors flex-1 ${isRecording
-                  ? 'bg-red-500 hover:bg-red-600 text-white'
-                  : 'bg-green-500 hover:bg-green-600 text-white'
-                  }`}
-              >
-                <span className="w-6 h-6 bg-white rounded-full flex items-center justify-center">
-                  <span className={`w-3 h-3 rounded-full ${isRecording ? 'bg-red-500' : 'bg-green-500'}`}></span>
-                </span>
-                {isRecording ? `Stop (${formatRecordingTime(currentRecordingDuration)})` : 'Recording'}
-              </button>
-
-              <button onClick={takeScreenshot} disabled={!isConnected} className="disabled:opacity-50 flex items-center justify-center gap-2 bg-orange-400 hover:bg-orange-500 text-white font-medium py-4 rounded-md transition-colors flex-1">
-                <Maximize2 className="w-5 h-5" />
-                Screenshot
-              </button>
-            </div>
-
-          </div>
-
-          <div className="flex-1 flex flex-col gap-10">
-            {/* Resident Name Section */}
-            <div className="">
-              <label htmlFor="residentName" className="block text-lg font-medium mb-5">
-                Resident Name :
-              </label>
-              <textarea
-                id="residentName"
-                value={residentName}
-                onChange={(e) => setResidentName(e.target.value)}
-                placeholder="Enter resident's name"
-                rows={1}
-                className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-300"
-              />
-            </div>
-
-            {/* Video Recording Section */}
-            <div>
-              <h2 className="text-lg font-medium mb-3">Video Recording(s): {displayRecordingsCount()}</h2>
-              <div className="grid grid-cols-2 gap-3 h-[20rem] overflow-y-auto">
-                {recordings.length === 0 && (
-                  <h1>No recordings</h1>
-                )}
-
-                {recordings.map((recording) => (
-                  <div key={recording.id} className="relative group">
-                    <img src="/icons/ci_label.svg" className="mb-2" />
-                    <div
-                      data-recording-id={recording.id}
-                      className="aspect-[9/16] bg-gray-200 rounded-md overflow-hidden relative cursor-pointer"
-                      onClick={(e) => {
-                        const video = e.currentTarget.querySelector('video');
-                        if (video.paused) {
-                          video.play();
-                        } else {
-                          video.pause();
-                        }
-                      }}>
-
-                      <video
-                        src={recording.url}
-                        controls={true}
-                        muted={false}
-                        className="w-full h-full object-cover"
-                        onPlay={() => setPlayingVideos(prev => new Set(prev).add(recording.id))}
-                        onPause={() => setPlayingVideos(prev => {
-                          const newSet = new Set(prev);
-                          newSet.delete(recording.id);
-                          return newSet;
-                        })}
-                      />
-
-                      {/* Action icons moved to top left corner, vertical alignment */}
-                      <div className="absolute top-2 left-2 flex flex-col gap-1 z-10">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            saveIndividualRecording(recording);
-                          }}
-                          className={`p-1 hover:bg-black/20 rounded text-white ${recording.isExisting || savingRecordingId === recording.id ? 'opacity-50' : ''}`}
-                          title={recording.isExisting ? "Already saved" : "Save recording"}
-                          disabled={recording.isExisting || savingRecordingId === recording.id}
-                        >
-                          {savingRecordingId === recording.id ? (
-                            <div className="w-4 h-4 flex items-center justify-center">
-                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                            </div>
-                          ) : (
-                            <Save className="w-4 h-4" />
-                          )}
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            deleteRecording(recording);
-                          }}
-                          className="p-1 hover:bg-black/20 rounded text-white"
-                          title="Delete"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-
-                      {/* Minimize/Maximize icons at top right corner, horizontal alignment */}
-                      <div className="absolute top-2 right-2 flex flex-row gap-1 z-10">
-                        <button
-                          className="p-1 hover:bg-black/20 rounded text-white"
-                          title="Minimize"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <Minimize2 className="w-4 h-4" />
-                        </button>
-                        <button
-                          className="p-1 hover:bg-black/20 rounded text-white"
-                          title="Maximize"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            maximizeVideo(recording);
-                          }}
-                        >
-                          <Expand className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Image Screenshot Section */}
-            <div>
-              <h2 className="text-lg font-medium mb-3">Image screenshot(s): {(existingScreenshots?.length + screenshots?.length) != 0 && (existingScreenshots?.length + screenshots?.length)}</h2>
-
-              {/* Grid with overflow-visible to allow dropdown to show */}
-              <div className="h-[20rem] overflow-y-auto">
-
+            });
             
-                <div className="grid grid-cols-2 gap-3 overflow-x-visible">
-                  {(existingScreenshots.length === 0 && screenshots.length === 0) && (
-                    <h1>No screenshots</h1>
-                  )}
+            updateForm({
+              workDetail1: workDetail1Text,
+              workDetail2: workDetail2Text,
+              workDetail3: workDetail3Text,
+              workDetails: additionalWorkDetails,
+              selectedTTValues: ttValues
+            });
+          }
 
-                  {/* Sort existing screenshots to ensure chronological order (oldest first) */}
-                  {existingScreenshots
-                    .sort((a, b) => {
-                      // Convert timestamp strings to Date objects for proper comparison
-                      const dateA = new Date(a.timestamp);
-                      const dateB = new Date(b.timestamp);
-                      return dateA - dateB; // Ascending order (oldest first)
-                    })
-                    .map((screenshot, index) => (
-                      <div key={`existing-${screenshot.id}`}>
-                        <img src="/icons/ci_label.svg" className="mb-2" />
-                        <div className="aspect-[9/16] bg-gray-200 rounded-md overflow-hidden flex items-center justify-center relative">
-                          <div className="absolute top-2 right-2 flex flex-row gap-1 z-10">
-                            <button className="p-1 hover:bg-black/20 rounded text-white">
-                              <Minimize2 className="w-4 h-4" />
-                            </button>
-                            <button
-                              className="p-1 hover:bg-black/20 rounded text-white"
-                              onClick={() => maximizeScreenshot(screenshot, index, true)}
-                            >
-                              <Expand className="w-4 h-4" />
-                            </button>
-                          </div>
-
-                          {/* Action icons for existing screenshots */}
-                          <div className="absolute bottom-2 right-2 flex flex-col gap-1 z-10">
-                            <button className="p-1 hover:bg-black/20 rounded text-white opacity-50" disabled>
-                              <Pencil className="w-4 h-4" />
-                            </button>
-                            <button className="p-1 hover:bg-black/20 rounded text-white opacity-50" disabled title="Already saved">
-                              <Save className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => deleteExistingScreenshot(screenshot)}
-                              className="p-1 hover:bg-black/20 rounded text-white"
-                              title="Delete screenshot"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-
-                          {/* Existing Screenshot Image */}
-                          <img
-                            src={screenshot.url}
-                            alt="existing screenshot"
-                            className="w-full h-full object-fill absolute top-0 left-0 z-0 rounded-md"
-                          />
-                        </div>
-                      </div>
-                    ))}
-
-                  {/* Render new screenshots in chronological order (as they were taken) */}
-                  {[...screenshots].map((screenshot, index) => {
-                    // ENHANCED: Handle both object and string screenshot formats
-                    const screenshotData = typeof screenshot === 'object' ? screenshot.data : screenshot;
-                    // FIXED: Use more reliable unique ID for each screenshot
-                    const screenshotId = typeof screenshot === 'object' ? 
-                      (screenshot.id || `screenshot-${screenshot.timestamp || Date.now()}-${Math.random()}`) : 
-                      `screenshot-${index}-${Date.now()}-${Math.random()}`;
-                    const screenshotUniqueId = typeof screenshot === 'object' ? screenshot.uniqueId : `${index}`;
-                    
-                    // FIXED: Use screenshot ID as canvasId to keep drawings attached to the correct screenshot
-                    const canvasId = screenshotId;
-                    const isActive = activePencilScreenshot === canvasId;
-                    const shouldShowDropdown = showPencilDropdown === canvasId;
-                    
-                    // FIXED: Use clean screenshot URL without excessive unique identifiers
-                    const cleanScreenshotUrl = screenshotData.split('#')[0];
-
-                    console.log(`🖼️ Rendering screenshot ${index}:`, { canvasId, screenshotId });
-
-                    return (
-                      <div key={`screenshot-container-${screenshotId}`} className="relative pencil-dropdown-container">
-                        <img src="/icons/ci_label.svg" className="mb-2" />
-                        <div className="aspect-[9/16] bg-gray-200 rounded-md overflow-visible flex items-center justify-center relative">
-                          {/* Minimize/Maximize icons */}
-                          <div className="absolute top-2 right-2 flex flex-row gap-1 z-20">
-                            <button className="p-1 hover:bg-black/20 rounded text-white">
-                              <Minimize2 className="w-4 h-4" />
-                            </button>
-                            <button
-                              className="p-1 hover:bg-black/20 rounded text-white"
-                              onClick={() => {
-                                console.log('🔍 Maximizing screenshot:', { index, cleanScreenshotUrl });
-                                maximizeScreenshot(cleanScreenshotUrl, index, false);
-                              }}
-                            >
-                              <Expand className="w-4 h-4" />
-                            </button>
-                          </div>
-
-                          {/* Action icons */}
-                          <div className="absolute bottom-2 right-2 flex flex-col gap-1 z-20">
-                            <button
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                const rect = e.currentTarget.getBoundingClientRect();
-                                setClickPosition({
-                                  x: rect.right,
-                                  y: rect.top + (rect.height / 2)
-                                });
-                                console.log('🖋️ Pencil clicked for canvas:', canvasId);
-                                handlePencilClick(canvasId, screenshotId);
-                              }}
-                              className={`p-1 hover:bg-black/20 rounded text-white transition-colors border-2 ${
-                                isActive ? 'bg-blue-500 border-blue-300' : 'bg-black/10 border-transparent'
-                              }`}
-                              title="Drawing tools"
-                            >
-                              <Pencil className="w-4 h-4" />
-                            </button>
-
-                            <button
-                              onClick={() => {
-                                console.log('💾 Saving individual screenshot:', { index, cleanScreenshotUrl, id: screenshotId });
-                                saveIndividualScreenshot(cleanScreenshotUrl, index, screenshotId);
-                              }}
-                              className={`p-1 hover:bg-black/20 rounded text-white transition-all duration-200 ${
-                                savingScreenshotIds.has(screenshotId) || savingScreenshotIndex === index 
-                                  ? 'opacity-80 cursor-not-allowed bg-gray-600' 
-                                  : 'hover:scale-105'
-                              }`}
-                              title={savingScreenshotIds.has(screenshotId) || savingScreenshotIndex === index ? "Saving..." : "Save screenshot"}
-                              disabled={savingScreenshotIds.has(screenshotId) || savingScreenshotIndex === index}
-                            >
-                              {(savingScreenshotIds.has(screenshotId) || savingScreenshotIndex === index) ? (
-                                <div className="w-4 h-4 flex items-center justify-center">
-                                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                                </div>
-                              ) : (
-                                <Save className="w-4 h-4" />
-                              )}
-                            </button>
-                            <button
-                              onClick={() => {
-                                console.log('🗑️ Deleting screenshot:', { index, id: screenshotId });
-                                deleteNewScreenshot(index, screenshotId);
-                              }}
-                              className="p-1 hover:bg-black/20 rounded text-white"
-                              title="Delete screenshot"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-
-                          {/* FIXED: Screenshot Image with stable loading and NO LOOPS */}
-                          <img
-                            key={`screenshot-img-${screenshotId}`}
-                            src={cleanScreenshotUrl}
-                            alt={`screenshot ${index + 1}`}
-                            className="w-full h-full object-fill absolute top-0 left-0 z-0 rounded-md"
-                            onLoad={(e) => {
-                              console.log(`📸 Screenshot ${index + 1} loaded successfully`);
-                              
-                              // CRITICAL: Only initialize canvas ONCE per screenshot
-                              const canvas = e.target.parentElement.querySelector(`canvas[data-canvas-id="${canvasId}"]`);
-                              if (canvas) {
-                                console.log(`🎨 Found canvas for initialization: ${canvasId}`);
-                                // FIXED: Only initialize if not already initialized
-                                initializeCanvas(canvas, cleanScreenshotUrl, canvasId);
-                              } else {
-                                console.warn(`❌ Canvas not found for canvasId: ${canvasId}`);
-                              }
-                            }}
-                            onError={(e) => {
-                              console.error(`❌ Error loading screenshot ${index + 1}:`, e);
-                            }}
-                            data-screenshot-id={screenshotId} // Store ID on the element
-                          />
-
-                          {/* FIXED: Canvas for drawings with STABLE event handling */}
-                          <canvas
-                            key={`canvas-${screenshotId}`}
-                            data-canvas-id={canvasId}
-                            data-screenshot-id={screenshotId}
-                            data-screenshot-index={index}
-                            className={`absolute top-0 left-0 w-full h-full z-10 rounded-md transition-all ${
-                              isActive 
-                                ? 'cursor-crosshair pointer-events-auto' 
-                                : 'pointer-events-none'
-                            }`}
-                            style={{
-                              pointerEvents: isActive ? 'auto' : 'none',
-                              touchAction: isActive ? 'none' : 'auto',
-                              zIndex: isActive ? 15 : 10,
-                              border: isActive ? '2px solid #3b82f6' : 'none'
-                            }}
-                            onMouseDown={(e) => {
-                              if (isActive) {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                console.log('🖱️ Mouse down on canvas:', canvasId);
-                                startDrawing(e);
-                              }
-                            }}
-                            onMouseMove={(e) => {
-                              if (isActive) {
-                                e.preventDefault();
-                                draw(e);
-                              }
-                            }}
-                            onMouseUp={(e) => {
-                              if (isActive) {
-                                e.preventDefault();
-                                console.log('🖱️ Mouse up on canvas:', canvasId);
-                                stopDrawing(e);
-                              }
-                            }}
-                            onMouseLeave={(e) => {
-                              if (isActive) {
-                                e.preventDefault();
-                                stopDrawing(e);
-                              }
-                            }}
-                            onTouchStart={(e) => {
-                              if (isActive) {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                console.log('👆 Touch start on canvas:', canvasId);
-                                const touch = e.touches[0];
-                                const mouseEvent = {
-                                  ...e,
-                                  clientX: touch.clientX,
-                                  clientY: touch.clientY,
-                                  target: e.target,
-                                  currentTarget: e.currentTarget
-                                };
-                                startDrawing(mouseEvent);
-                              }
-                            }}
-                            onTouchMove={(e) => {
-                              if (isActive) {
-                                e.preventDefault();
-                                const touch = e.touches[0];
-                                const mouseEvent = {
-                                  ...e,
-                                  clientX: touch.clientX,
-                                  clientY: touch.clientY,
-                                  target: e.target,
-                                  currentTarget: e.currentTarget
-                                };
-                                draw(mouseEvent);
-                              }
-                            }}
-                            onTouchEnd={(e) => {
-                              if (isActive) {
-                                e.preventDefault();
-                                console.log('👆 Touch end on canvas:', canvasId);
-                                stopDrawing(e);
-                              }
-                            }}
-                          />
-
-                          {/* Drawing Tools Dropdown Modal */}
-                          {shouldShowDropdown && (
-                            <div 
-                              className="fixed bg-white border border-gray-300 rounded-lg shadow-xl p-3 min-w-[240px] z-50 max-h-[400px] overflow-y-auto"
-                              style={{
-                                left: `${clickPosition.x}px`,
-                                top: `${clickPosition.y-60}px`,
-                                transform: 'translate(20px, -50%)'
-                              }}
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <div className="space-y-3">
-                                <div className="flex items-center justify-between pb-2 border-b border-gray-200">
-                                  <h3 className="text-sm font-semibold text-gray-800">
-                                    Drawing Tools
-                                    <span className="text-xs text-gray-500 block">Canvas: {canvasId.substring(0, 10)}...</span>
-                                  </h3>
-                                  <div className="flex items-center gap-1">
-                                    <button
-                                      onClick={(e) => {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        console.log('🧹 Clearing canvas:', canvasId);
-                                        clearCanvas(canvasId);
-                                      }}
-                                      className="p-1 hover:bg-red-50 rounded text-red-600 transition-colors"
-                                      title="Clear Canvas"
-                                    >
-                                      🗑️
-                                    </button>
-                                    <button
-                                      onClick={(e) => {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        console.log('❌ Closing dropdown for:', canvasId);
-                                        setShowPencilDropdown(null);
-                                        setActivePencilScreenshot(null);
-                                      }}
-                                      className="p-1 hover:bg-gray-100 rounded transition-colors"
-                                      title="Close"
-                                    >
-                                      <X className="w-4 h-4 text-gray-600" />
-                                    </button>
-                                  </div>
-                                </div>
-                                
-                                {/* Tools Section */}
-                                <div>
-                                  <p className="text-xs font-medium text-gray-700 mb-2">Tools:</p>
-                                  <div className="grid grid-cols-5 gap-1">
-                                    {tools.map((tool) => (
-                                      <button
-                                        key={tool.name}
-                                        onClick={(e) => {
-                                          e.preventDefault();
-                                          e.stopPropagation();
-                                          console.log('🔧 Tool selected:', tool.name, 'for canvas:', canvasId);
-                                          setSelectedTool(tool.name);
-                                        }}
-                                        className={`p-2 text-xs border rounded hover:scale-105 transition-all duration-200 flex flex-col items-center gap-1 ${
-                                          selectedTool === tool.name
-                                            ? 'bg-blue-100 text-blue-700 border-blue-300'
-                                            : 'bg-gray-50 border-gray-300 hover:bg-gray-100'
-                                        }`}
-                                        title={tool.title}
-                                      >
-                                        <span className="text-sm">{tool.icon}</span>
-                                      </button>
-                                    ))}
-                                  </div>
-                                </div>
-
-                                {/* Colors Section */}
-                                <div>
-                                  <p className="text-xs font-medium text-gray-700 mb-2">Colors:</p>
-                                  <div className="grid grid-cols-6 gap-1">
-                                    {colors.map((color) => (
-                                      <button
-                                        key={color}
-                                        onClick={(e) => {
-                                          e.preventDefault();
-                                          e.stopPropagation();
-                                          console.log('🎨 Color selected:', color, 'for canvas:', canvasId);
-                                          setSelectedColor(color);
-                                        }}
-                                        className={`w-6 h-6 rounded border-2 transition-all duration-200 hover:scale-110 ${
-                                          selectedColor === color 
-                                            ? 'border-gray-800 scale-110 ring-2 ring-gray-300' 
-                                            : 'border-gray-300 hover:border-gray-500'
-                                        }`}
-                                        style={{ backgroundColor: color }}
-                                        title={`Select ${color}`}
-                                      />
-                                    ))}
-                                  </div>
-                                </div>
-
-                                {/* Line Width Section */}
-                                <div>
-                                  <p className="text-xs font-medium text-gray-700 mb-2">Size: {lineWidth}px</p>
-                                  <input
-                                    type="range"
-                                    min="1"
-                                    max="20"
-                                    value={lineWidth}
-                                    onChange={(e) => {
-                                      e.stopPropagation();
-                                      const newWidth = parseInt(e.target.value);
-                                      console.log('📏 Line width changed:', newWidth, 'for canvas:', canvasId);
-                                      setLineWidth(newWidth);
-                                    }}
-                                    className="w-full h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-                                    style={{
-                                      background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${(lineWidth / 20) * 100}%, #e5e7eb ${(lineWidth / 20) * 100}%, #e5e7eb 100%)`
-                                    }}
-                                  />
-                                </div>
-
-                                {/* Current Settings Display */}
-                                <div className="bg-gray-50 p-2 rounded border text-center">
-                                  <p className="text-xs text-gray-600">
-                                    <span className="font-medium text-gray-800">
-                                      {tools.find(t => t.name === selectedTool)?.icon} {selectedTool}
-                                    </span>
-                                    {selectedTool !== 'eraser' && (
-                                      <>
-                                        {' '}- <span
-                                          className="inline-block w-3 h-3 rounded border align-middle mx-1"
-                                          style={{ backgroundColor: selectedColor }}
-                                        ></span>
-                                        {lineWidth}px
-                                      </>
-                                    )}
-                                  </p>
-                                </div>
-                              </div>
-                            </div>
-                          )}
-
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Right Column - MOVED OUTSIDE LEFT COLUMN */}
-        <div className="space-y-6">
-          {/* Resident Information */}
-          <div>
-            <div className="flex flex-col md:flex-row md:justify-between gap-4 mb-6">
-              <div className="flex-1">
-                <div className="flex items-center justify-between mb-3">
-
-                  <label htmlFor="residentAddress" className="block text-lg font-medium mb-2">
-                    Resident Address :
-                  </label>
-
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button className={"bg-amber-500 text-white rounded-3xl flex items-center gap-2 text-xl"}>Actions <img src="/icons/arrow-down.svg" /></Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent className={'bg-white border-none shadow-sm'}>
-                      <DropdownMenuItem>
-                        <button className='bg-none border-none cursor-pointer' onClick={handleLogout}>Logout</button>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem>
-                        <button className='bg-none border-none cursor-pointer' onClick={handleDashboard}>Dashboard</button>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem>
-                        <button className='bg-none border-none cursor-pointer' onClick={() => setTickerOpen(true)}>Raise Support Ticket</button>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem><button className='bg-none border-none cursor-pointer' onClick={() => setResetOpen(true)}>Reset Password</button></DropdownMenuItem>
-                      <DropdownMenuItem > <button className='bg-none border-none cursor-pointer' onClick={() => setInviteOpen(true)}>Invite Coworkers</button></DropdownMenuItem>
-                      <DropdownMenuItem><button className='bg-none border-none cursor-pointer' onClick={() => setMessageOpen(true)}>Amend Message</button></DropdownMenuItem>
-                      <DropdownMenuItem> <button className='bg-none border-none cursor-pointer text-left' onClick={() => setLandlordDialogOpen(true)}>Add Landlord Name/Logo/ <br />Profile Image </button></DropdownMenuItem>
-                      <DropdownMenuItem > <button className='bg-none border-none cursor-pointer' onClick={() => setFaqOpen(true)}>FAQ's</button></DropdownMenuItem>
-                      <DropdownMenuItem > <button className='bg-none border-none cursor-pointer' onClick={() => setFeedbackOpen(true)}>Give Feedback</button></DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-
-                </div>
-                <textarea
-                  id="residentAddress"
-                  value={residentAddress}
-                  onChange={(e) => setResidentAddress(e.target.value)}
-                  placeholder="Enter resident's address"
-                  rows={1}
-                  className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-300"
-                />
-              </div>
-            </div>
-            <div className="mb-6">
-              <textarea
-                placeholder="Post code:"
-                value={actualPostCode}
-                onChange={(e) => setActualPostCode(e.target.value)}
-                className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-300"
-                rows={1}
-              />
-            </div>
-            <div className="mb-6">
-              <textarea
-                id="postCode"
-                value={postCode}
-                onChange={(e) => setPostCode(e.target.value)}
-                placeholder="Ref:"
-                rows={1}
-                className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-300"
-              />
-            </div>
-          </div>
-
-          {/* Repair Details */}
-          <div>
-            <label htmlFor="repairDetails" className="block text-lg font-medium mb-2">
-              Repair details :
-            </label>
-            <textarea
-              id="repairDetails"
-              value={repairDetails}
-              onChange={(e) => setRepairDetails(e.target.value)}
-              placeholder="Description of repair"
-              rows={5}
-              className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-300"
-            />
-          </div>
-
-          {/* Target Time */}
-          <div className="relative">
-            <label htmlFor="targetTime" className="block text-lg font-medium mb-2">
-              Target time :
-            </label>
-            <div className="flex items-start gap-2">
-              <div className="relative flex-1">
-                <button
-                  type="button"
-                  onClick={() => setShowDropdown(!showDropdown)}
-                  className="w-full flex items-center justify-between p-3 bg-orange-100 rounded-md text-left"
-                >
-                  <span>{targetTime}</span>
-                  <svg
-                    className={`w-4 h-4 transition-transform ${showDropdown ? "rotate-180" : ""}`}
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
-                </button>
-
-                {showDropdown && (
-                  <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg">
-                    <ul>
-                      <li
-                        className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
-                        onClick={() => {
-                          setTargetTime("Emergency 24 Hours")
-                          setShowDropdown(false)
-                        }}
-                      >
-                        Emergency 24 Hours
-                      </li>
-                      <li
-                        className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
-                        onClick={() => {
-                          setTargetTime("Urgent (7 Days)")
-                          setShowDropdown(false)
-                        }}
-                      >
-                        Urgent (7 Days)
-                      </li>
-                      <li
-                        className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
-                        onClick={() => {
-                          setTargetTime("Routine (28 Days)")
-                          setShowDropdown(false)
-                        }}
-                      >
-                        Routine (28 Days)
-                      </li>
-                      <li
-                        className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
-                        onClick={() => {
-                          setTargetTime("Follow Up Work")
-                          setShowDropdown(false)
-                        }}
-                      >
-                        Follow Up Work
-                      </li>
-                      <li
-                        className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
-                        onClick={() => {
-                          setTargetTime("Other")
-                          setShowDropdown(false)
-                        }}
-                      >
-                        Other
-                      </li>
-                    </ul>
-                  </div>
-                )}
-              </div>
-              <div className="flex flex-col gap-2 items-end">
-
-                <button
-                  type="button"
-                  onClick={handleSave}
-                  disabled={isSaveDisabled()}
-                  className="w-full flex items-center justify-center p-3 bg-green-500 hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-md transition-colors"
-                >
-                  {isSaving ? (
-                    <div className="flex items-center gap-2">
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      <span>Saving...</span>
-                    </div>
-                  ) : (
-                    'Save repair'
-                  )}
-                </button>
-                <button className="p-2 bg-gray-100 rounded-md hover:bg-gray-200">
-                  <Plus className="w-6 h-6" />
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Generate Link Button */}
-          <button
-            onClick={handleCreateShareLink}
-            className="w-full bg-orange-400 hover:bg-orange-500 text-white font-medium py-4 rounded-md transition-colors mt-8 mb-2 flex flex-col gap-1 items-center justify-center"
-          >
-            <span>Create Share Link</span>
-            <span className="text-xs font-normal">to send to Contractor/Supplier or Co-workers</span>
-          </button>
-          <p className="text-center text-gray-600 mt-0 text-sm">(Copy and paste link to your job ticket or any system)</p>
-
-          <div className="w-full flex items-center gap-4">
-            <button onClick={handleDisconnect} disabled={!isConnected} className="bg-red-500 disabled:opacity-50 hover:bg-red-600 text-white font-medium py-4 rounded-md transition-colors flex-1 whitespace-pre">
-              End Video <br /> (Without Saving)
-            </button>
-            <button
-              onClick={handleEndVideoAndSave}
-              disabled={isSaveDisabled()}
-              className="bg-green-500 disabled:opacity-50 hover:bg-green-600 text-white font-medium py-4 rounded-md transition-colors flex-1 whitespace-pre"
-            >
-              {isEndingSave ? (
-                <div className="flex flex-col items-center gap-1">
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mb-1" />
-                  <span className="text-xs">Ending & Saving...</span>
-                </div>
-              ) : (
-                <>
-                  End Video and <br />
-                  Save Images
-                </>
-              )}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Footer with token info indicator */}
-      <div className="flex items-center justify-between mt-5">
-        <p className="text-xs">
-          User : {getDisplayName()} {isClient ? new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' }) : ''}, {isClient ? new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: true }).toLowerCase() : ''}
-        </p>
-        {tokenLandlordInfo && (
-          <p className="text-xs text-green-600">✓ Using profile info from video link</p>
-        )}
-      </div>
-    </div>
-  )
-}
-
-
-
-
-//meetingController.js
-import { v2 as cloudinary } from 'cloudinary';
-import "dotenv/config";
-
-cloudinary.config({
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-    api_key: process.env.CLOUDINARY_API_KEY,
-    api_secret: process.env.CLOUDINARY_API_SECRET
-});
-
-export const uploadToCloudinary = async (fileData, options = {}) => {
-    try {
-        const result = await cloudinary.uploader.upload(fileData, {
-            folder: 'videodesk_logos',
-            resource_type: 'auto',
-            ...options
-        });
-        return result;
-    } catch (error) {
-        console.error('Cloudinary upload error:', error);
-        throw error;
-    }
-};
-
-export default cloudinary;
-
-
-
-//admin/[id]
-"use client"
-import { useState, useRef, use, useEffect, useCallback } from "react"
-import { Trash2, Plus, Maximize2, VideoIcon, PlayIcon, Save, Edit, Minimize2, Expand, ZoomIn, ZoomOut, Pencil, X, Play } from "lucide-react"
-import useWebRTC from "@/hooks/useWebRTC"
-import useDrawingTools from "@/hooks/useDrawingTools"
-import { createRequest, getMeetingByMeetingId, deleteRecordingRequest, deleteScreenshotRequest } from "@/http/meetingHttp"
-import { toast } from "sonner"
-import { useRouter } from "next/navigation"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { useDialog } from "@/provider/DilogsProvider"
-import { Button } from "@/components/ui/button"
-import { logoutRequest } from "@/http/authHttp"
-import { useUser } from "@/provider/UserProvider"
-
-export default function Page({ params }) {
-  const { id } = use(params);
-  const router = useRouter();
-
-  // Add hydration state at the top
-  const [isClient, setIsClient] = useState(false);
-
-  const [targetTime, setTargetTime] = useState("Emergency 24 Hours")
-  const [showDropdown, setShowDropdown] = useState(false)
-  const [residentName, setResidentName] = useState("")
-  const [residentAddress, setResidentAddress] = useState("")
-  const [postCode, setPostCode] = useState("")
-  const [actualPostCode, setActualPostCode] = useState("") // Add new state for the actual postcode field
-  const [repairDetails, setRepairDetails] = useState("")
-  const [callDuration, setCallDuration] = useState(0);
-
-  // Add state for existing meeting data
-  const [existingMeetingData, setExistingMeetingData] = useState(null);
-  const [isLoadingMeetingData, setIsLoadingMeetingData] = useState(true);
-  const [existingScreenshots, setExistingScreenshots] = useState([]); // Add state for existing screenshots
-
-  // Add missing maximized item state
-  const [maximizedItem, setMaximizedItem] = useState(null);
-
-  // Add loading states for save operations
-  const [isSaving, setIsSaving] = useState(false);
-  const [isEndingSave, setIsEndingSave] = useState(false);
-  const [savingRecordingId, setSavingRecordingId] = useState(null);
-  const [savingScreenshotIndex, setSavingScreenshotIndex] = useState(null);
-  // NEW: Add individual screenshot saving state with ID tracking
-  const [savingScreenshotIds, setSavingScreenshotIds] = useState(new Set());
-
-  // NEW: Add save protection state and refs
-  const [saveInProgress, setSaveInProgress] = useState(false);
-  const saveTimeoutRef = useRef(null);
-  const processedItemsRef = useRef(new Set());
-
-  // Screen recording states
-  const [isRecording, setIsRecording] = useState(false);
-  const [recordings, setRecordings] = useState([]);
-  const [mediaRecorder, setMediaRecorder] = useState(null);
-  const [recordingStream, setRecordingStream] = useState(null);
-  const [playingVideos, setPlayingVideos] = useState(new Set());
-  const [recordingStartTime, setRecordingStartTime] = useState(null);
-  const [currentRecordingDuration, setCurrentRecordingDuration] = useState(0);
-
-  // Add state for tracking video progress - MOVED HERE FROM BOTTOM
-  const [videoProgress, setVideoProgress] = useState({});
-
-  // Pencil tool states - updated to use drawing hook
-  const [activePencilScreenshot, setActivePencilScreenshot] = useState(null);
-  const [showPencilDropdown, setShowPencilDropdown] = useState(null);
-
-  // Add state for token-specific landlord info 
-  const [tokenLandlordInfo, setTokenLandlordInfo] = useState(null);
-  const [isLoadingTokenInfo, setIsLoadingTokenInfo] = useState(true);
-
-  // Initialize drawing tools hook
-  const {
-    colors,
-    tools,
-    selectedColor,
-    setSelectedColor,
-    selectedTool,
-    setSelectedTool,
-    lineWidth,
-    setLineWidth,
-    initializeCanvas,
-    startDrawing,
-    draw,
-    stopDrawing,
-    clearCanvas,
-    mergeWithBackground,
-    drawingData
-  } = useDrawingTools();
-
-  const videoRef = useRef(null);
-  const startTimeRef = useRef(null);
-  const timerRef = useRef(null);
-  const recordingChunks = useRef([]);
-  const recordingTimerRef = useRef(null);
-  const [zoomLevel, setZoomLevel] = useState(1);
-  const [videoPanX, setVideoPanX] = useState(0);
-  const [videoPanY, setVideoPanY] = useState(0);
-
-  const { handleDisconnect, isConnected, screenshots, takeScreenshot, startPeerConnection, deleteScreenshot, handleVideoPlay, showVideoPlayError } = useWebRTC(true, id, videoRef);
-  const { setResetOpen, setMessageOpen, setLandlordDialogOpen, setTickerOpen, setFeedbackOpen, setFaqOpen, setShareLinkOpen } = useDialog();
-  const { user, isAuth, setIsAuth, setUser } = useUser();
-
-  const [clickPosition, setClickPosition] = useState({ x: 0, y: 0 });
-
-  // Add effect to handle client-side hydration right after state declarations
-  useEffect(() => {
-    setIsClient(true);
-  }, []);
-
-  // Add effect to fetch existing meeting data when component mounts (FROM SECOND CODE)
-  useEffect(() => {
-    if (!isClient || !id) return;
-
-    const fetchExistingMeetingData = async () => {
-      setIsLoadingMeetingData(true);
-      try {
-        console.log('🔍 Fetching existing meeting data for ID:', id);
-        const response = await getMeetingByMeetingId(id);
-
-        if (response.data.success && response.data.meeting) {
-          const meetingData = response.data.meeting;
-          console.log('✅ Found existing meeting data:', meetingData);
-
-          // Pre-populate form fields with existing data
-          setResidentName(meetingData.name || "");
-          setResidentAddress(meetingData.address || "");
-          setPostCode(meetingData.reference || ""); // This is for the "Ref:" field
-          setActualPostCode(meetingData.post_code || ""); // This is for the "Post code:" field
-          setRepairDetails(meetingData.repair_detail || "");
-          setTargetTime(meetingData.target_time || "Emergency 24 Hours");
-
-          // Store existing recordings
-          if (meetingData.recordings && meetingData.recordings.length > 0) {
+          if (meetingData.recordings?.length > 0) {
             const existingRecordings = meetingData.recordings.map(rec => ({
               id: rec._id || Date.now() + Math.random(),
               url: rec.url,
@@ -2645,102 +238,77 @@ export default function Page({ params }) {
               duration: rec.duration || 0,
               isExisting: true
             }));
-            setRecordings(existingRecordings);
+            updateMedia({ recordings: existingRecordings });
           }
 
-          // Store existing screenshots
-          if (meetingData.screenshots && meetingData.screenshots.length > 0) {
+          if (meetingData.screenshots?.length > 0) {
             const existingScreenshotsData = meetingData.screenshots.map(screenshot => ({
               id: screenshot._id || Date.now() + Math.random(),
               url: screenshot.url,
               timestamp: new Date(screenshot.timestamp).toLocaleString(),
               isExisting: true
             }));
-            setExistingScreenshots(existingScreenshotsData);
-            console.log('📸 Loaded existing screenshots:', existingScreenshotsData.length);
+            updateMedia({ existingScreenshots: existingScreenshotsData });
+            console.log('Loaded existing screenshots:', existingScreenshotsData.length);
           }
 
-          setExistingMeetingData(meetingData);
-
+          updateApp({ existingMeetingData: meetingData });
           toast.success("Meeting data loaded successfully!", {
             description: `Found ${meetingData.recordings?.length || 0} recordings and ${meetingData.screenshots?.length || 0} screenshots`
           });
         }
       } catch (error) {
-        // Handle different types of errors gracefully
         if (error.code === 'ERR_NETWORK') {
-          console.log('ℹ️ Cannot connect to server - this is normal if server is starting up');
+          console.log('Cannot connect to server - this is normal if server is starting up');
         } else if (error?.response?.status === 404) {
-          console.log('ℹ️ No existing meeting data found for ID:', id, '(This is normal for new meetings)');
+          console.log('No existing meeting data found for ID:', id, '(This is normal for new meetings)');
         } else if (error?.response?.status === 500) {
-          console.log('ℹ️ Server error while fetching meeting data - this may be temporary');
+          console.log('Server error while fetching meeting data - this may be temporary');
         } else if (error.code === 'ECONNABORTED') {
-          console.log('ℹ️ Request timeout while fetching meeting data');
+          console.log('Request timeout while fetching meeting data');
         } else {
-          console.log('ℹ️ Error fetching meeting data:', error.message);
+          console.log('Error fetching meeting data:', error.message);
         }
       } finally {
-        setIsLoadingMeetingData(false);
-        setIsLoadingTokenInfo(false);
+        updateApp({ isLoadingMeetingData: false, isLoadingTokenInfo: false });
       }
     };
 
     fetchExistingMeetingData();
-  }, [id, isClient]);
+  }, [id, ui.isClient]);
 
-  // Helper function to convert blob to base64
-  const blobToBase64 = (blob) => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result);
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
-    });
-  };
+  const blobToBase64 = (blob) => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
 
-  // NEW: Debounced save function
   const debouncedSave = useCallback((saveFunction) => {
-    if (saveTimeoutRef.current) {
-      clearTimeout(saveTimeoutRef.current);
-    }
-
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     saveTimeoutRef.current = setTimeout(() => {
-      if (!saveInProgress) {
-        saveFunction();
-      }
-    }, 300); // 300ms debounce
-  }, [saveInProgress]);
+      if (!app.saveInProgress) saveFunction();
+    }, 300);
+  }, [app.saveInProgress]);
 
-  // NEW: Check if save should be disabled
   const isSaveDisabled = useCallback(() => {
-    return (
-      (!isConnected && recordings.length === 0 && screenshots.length === 0) ||
-      isSaving ||
-      isEndingSave ||
-      saveInProgress
-    );
-  }, [isConnected, recordings.length, screenshots.length, isSaving, isEndingSave, saveInProgress]);
+    return (!isConnected && media.recordings.length === 0 && screenshots.length === 0) || app.isSaving || app.isEndingSave || app.saveInProgress;
+  }, [isConnected, media.recordings.length, screenshots.length, app.isSaving, app.isEndingSave, app.saveInProgress]);
 
-  // NEW: Extract common save logic - UPDATED to properly handle drawings
   const performSave = useCallback(async (options = {}) => {
     const { disconnectVideo = false } = options;
+    console.log('Starting save process...');
 
-    console.log('💾 Starting save process...');
-
-    // Separate new recordings from existing ones
-    const newRecordings = recordings.filter(recording => !recording.isExisting && recording.blob);
-    const existingRecordings = recordings.filter(recording => recording.isExisting);
-
-    // Process recordings with duplicate prevention
-    const recordingsData = [];
-    const processedRecordings = new Set();
+    const newRecordings = media.recordings.filter(recording => !recording.isExisting && recording.blob);
+    const existingRecordings = media.recordings.filter(recording => recording.isExisting);
+    const recordingsData = [], processedRecordings = new Set();
 
     for (let i = 0; i < newRecordings.length; i++) {
       const recording = newRecordings[i];
       const recordingKey = `${recording.id}-${recording.timestamp}`;
 
       if (processedRecordings.has(recordingKey)) {
-        console.log('⚠️ Skipping duplicate recording:', recordingKey);
+        console.log('Skipping duplicate recording:', recordingKey);
         continue;
       }
 
@@ -2754,23 +322,17 @@ export default function Page({ params }) {
           duration: recording.duration || Math.floor((recording.blob.size / 1000) / 16),
           size: recording.blob.size
         });
-        console.log(`✅ NEW recording ${i + 1} processed successfully`);
+        console.log(`NEW recording ${i + 1} processed successfully`);
       } catch (error) {
-        console.error(`❌ Error processing NEW recording ${i + 1}:`, error);
+        console.error(`Error processing NEW recording ${i + 1}:`, error);
       }
     }
 
-    // FIXED: Process screenshots with duplicate prevention AND drawings merge
-    const screenshotsData = [];
-    const processedScreenshots = new Set();
+    const screenshotsData = [], processedScreenshots = new Set();
 
     for (let i = 0; i < screenshots.length; i++) {
       const screenshot = screenshots[i];
-
-      // Handle different screenshot formats (object or string)
-      let screenshotIdentifier;
-      let screenshotData;
-      let screenshotId;
+      let screenshotIdentifier, screenshotData, screenshotId;
 
       if (typeof screenshot === 'object' && screenshot !== null) {
         screenshotIdentifier = screenshot.id || screenshot.data?.substring(0, 50) || `screenshot-${i}`;
@@ -2786,10 +348,15 @@ export default function Page({ params }) {
         screenshotId = `screenshot-${i}-${Date.now()}-${Math.random()}`;
       }
 
+      if (getScreenshotStatus(screenshotId)) {
+        console.log('Skipping already saved screenshot:', screenshotId);
+        continue;
+      }
+
       const screenshotKey = `screenshot-${i}-${screenshotIdentifier}`;
 
       if (processedScreenshots.has(screenshotKey)) {
-        console.log('⚠️ Skipping duplicate screenshot:', screenshotKey);
+        console.log('Skipping duplicate screenshot:', screenshotKey);
         continue;
       }
 
@@ -2798,58 +365,50 @@ export default function Page({ params }) {
       try {
         let finalScreenshotData = typeof screenshotData === 'string' ? screenshotData : String(screenshotData);
         if (finalScreenshotData.indexOf('#') > 0) {
-          finalScreenshotData = finalScreenshotData.split('#')[0]; // Clean URL
+          finalScreenshotData = finalScreenshotData.split('#')[0];
         }
 
-        // FIXED: Use screenshotId as canvasId to match the drawing system
         const canvasId = screenshotId;
+        console.log(`Checking for drawings in canvas ${canvasId} for screenshot ${i + 1}`);
+        console.log('Available drawing data keys:', Object.keys(drawingData));
 
-        console.log(`🎨 Checking for drawings in canvas ${canvasId} for screenshot ${i + 1}`);
-        console.log('📊 Available drawing data keys:', Object.keys(drawingData));
-
-        // CRITICAL FIX: Check for drawings and merge them properly
         let hasDrawings = false;
-        if (drawingData[canvasId] && drawingData[canvasId].strokes && drawingData[canvasId].strokes.length > 0) {
-          console.log(`🎨 Found ${drawingData[canvasId].strokes.length} strokes for screenshot ${i + 1}. Merging drawings...`);
+        if (drawingData[canvasId]?.strokes?.length > 0) {
+          console.log(`Found ${drawingData[canvasId].strokes.length} strokes for screenshot ${i + 1}. Merging drawings...`);
           try {
             const mergedData = await mergeWithBackground(finalScreenshotData, canvasId);
             if (mergedData && mergedData !== finalScreenshotData) {
               finalScreenshotData = mergedData;
               hasDrawings = true;
-              console.log(`✅ Drawing merge completed for screenshot ${i + 1}`);
+              console.log(`Drawing merge completed for screenshot ${i + 1}`);
             } else {
-              console.log(`⚠️ Merge returned same data for screenshot ${i + 1}`);
+              console.log(`Merge returned same data for screenshot ${i + 1}`);
             }
           } catch (mergeError) {
-            console.error(`❌ Error merging drawings for screenshot ${i + 1}:`, mergeError);
+            console.error(`Error merging drawings for screenshot ${i + 1}:`, mergeError);
           }
         } else {
-          // ADDITIONAL CHECK: Try alternative canvasId formats
-          const alternativeCanvasIds = [
-            `new-${i}`,
-            `screenshot-${i}`,
-            screenshotIdentifier
-          ];
+          const alternativeCanvasIds = [`new-${i}`, `screenshot-${i}`, screenshotIdentifier];
 
           for (const altCanvasId of alternativeCanvasIds) {
-            if (drawingData[altCanvasId] && drawingData[altCanvasId].strokes && drawingData[altCanvasId].strokes.length > 0) {
-              console.log(`🎨 Found drawings in alternative canvas ID: ${altCanvasId} for screenshot ${i + 1}`);
+            if (drawingData[altCanvasId]?.strokes?.length > 0) {
+              console.log(`Found drawings in alternative canvas ID: ${altCanvasId} for screenshot ${i + 1}`);
               try {
                 const mergedData = await mergeWithBackground(finalScreenshotData, altCanvasId);
                 if (mergedData && mergedData !== finalScreenshotData) {
                   finalScreenshotData = mergedData;
                   hasDrawings = true;
-                  console.log(`✅ Drawing merge completed using alternative ID ${altCanvasId} for screenshot ${i + 1}`);
+                  console.log(`Drawing merge completed using alternative ID ${altCanvasId} for screenshot ${i + 1}`);
                   break;
                 }
               } catch (mergeError) {
-                console.error(`❌ Error merging drawings with alternative ID ${altCanvasId}:`, mergeError);
+                console.error(`Error merging drawings with alternative ID ${altCanvasId}:`, mergeError);
               }
             }
           }
 
           if (!hasDrawings) {
-            console.log(`ℹ️ No drawings found for screenshot ${i + 1} (tried canvas IDs: ${canvasId}, ${alternativeCanvasIds.join(', ')})`);
+            console.log(`No drawings found for screenshot ${i + 1} (tried canvas IDs: ${canvasId}, ${alternativeCanvasIds.join(', ')})`);
           }
         }
 
@@ -2859,13 +418,13 @@ export default function Page({ params }) {
           size: finalScreenshotData.length,
           hasDrawings: hasDrawings,
           originalIndex: i,
-          canvasId: canvasId
+          canvasId: canvasId,
+          originalScreenshotId: screenshotId
         });
 
-        console.log(`✅ Screenshot ${i + 1} processed successfully with drawings: ${hasDrawings}`);
+        console.log(`Screenshot ${i + 1} processed successfully with drawings: ${hasDrawings}`);
       } catch (error) {
-        console.error(`❌ Error processing screenshot ${i + 1}:`, error);
-        // Fallback handling for invalid screenshot data
+        console.error(`Error processing screenshot ${i + 1}:`, error);
         let fallbackData;
         try {
           fallbackData = typeof screenshotData === 'object' ? JSON.stringify(screenshotData) : String(screenshotData);
@@ -2883,26 +442,62 @@ export default function Page({ params }) {
           size: typeof fallbackData === 'string' ? fallbackData.length : 0,
           hasDrawings: false,
           originalIndex: i,
-          canvasId: screenshotId
+          canvasId: screenshotId,
+          originalScreenshotId: screenshotId
         });
       }
     }
 
     const formData = {
       meeting_id: id,
-      name: residentName,
-      address: residentAddress,
-      post_code: actualPostCode, // Save the actual postcode
-      reference: postCode, // Save the reference field
-      repair_detail: repairDetails,
-      target_time: targetTime,
+      name: form.residentName,
+      address: form.residentAddress,
+      address_line_1: form.addressLine1,
+      address_line_2: form.addressLine2,
+      address_line_3: form.addressLine3,
+      additional_address_lines: form.addressLines.filter(line => line && line.trim() !== ''),
+      post_code: form.actualPostCode,
+      phone_number: form.phoneNumber,
+      reference: form.postCode,
+      repair_detail: form.repairDetails,
+      work_details: [
+        ...(form.repairDetails?.trim() ? [{
+          detail: form.repairDetails.trim(),
+          target_time: form.selectedTTValues['field1'] || "Emergency 24 Hours",
+          timestamp: new Date().toISOString()
+        }] : []),
+        ...(form.workDetail1?.trim() ? [{
+          detail: form.workDetail1.trim(),
+          target_time: form.selectedTTValues['field1'] || "Emergency 24 Hours",
+          timestamp: new Date().toISOString()
+        }] : []),
+        ...(form.workDetail2?.trim() ? [{
+          detail: form.workDetail2.trim(),
+          target_time: form.selectedTTValues['field2'] || "Emergency 24 Hours",
+          timestamp: new Date().toISOString()
+        }] : []),
+        ...(form.workDetail3?.trim() ? [{
+          detail: form.workDetail3.trim(),
+          target_time: form.selectedTTValues['field3'] || "Emergency 24 Hours",
+          timestamp: new Date().toISOString()
+        }] : []),
+        ...form.workDetails
+          .filter(detail => detail?.trim())
+          .map((detail, index) => ({
+            detail: detail.trim(),
+            target_time: form.selectedTTValues[`workDetail${index}`] || "Emergency 24 Hours",
+            timestamp: new Date().toISOString()
+          }))
+      ],
+      target_time: form.targetTime,
+      special_notes: form.specialNotes,
       recordings: recordingsData,
       screenshots: screenshotsData,
-      update_mode: existingMeetingData ? 'update' : 'create'
+      update_mode: app.existingMeetingData ? 'update' : 'create'
     };
 
-    console.log('📤 Sending data to server...');
-    console.log('📋 Form data summary:', {
+    console.log('Sending data to server...');
+    console.log('Form data summary:', {
       meeting_id: id,
       update_mode: formData.update_mode,
       new_recordings_count: recordingsData.length,
@@ -2912,130 +507,234 @@ export default function Page({ params }) {
       total_recordings_after_save: existingRecordings.length + recordingsData.length
     });
 
-    const response = await createRequest(formData);
-    console.log('✅ Save successful!');
+    try {
+      const response = await createRequest(formData);
+      console.log('Save successful!');
+      
+      if (response?.data?.upload_summary || response?.data?.media_summary) {
+        const summary = response.data.upload_summary || response.data.media_summary;
+        const recordingsUploaded = summary.recordings_uploaded || summary.new_recordings_added || 0;
+        const recordingsAttempted = summary.recordings_attempted || recordingsData.length;
+        const screenshotsUploaded = summary.screenshots_uploaded || summary.new_screenshots_added || 0;
+        const screenshotsAttempted = summary.screenshots_attempted || screenshotsData.length;
+        
+        const recordingsFailed = recordingsAttempted - recordingsUploaded;
+        const screenshotsFailed = screenshotsAttempted - screenshotsUploaded;
+        const totalSuccessful = recordingsUploaded + screenshotsUploaded;
+        const totalFailed = recordingsFailed + screenshotsFailed;
+        
+        if (totalFailed === 0 && totalSuccessful > 0) {
+          toast.success("All content saved successfully!", {
+            description: `${screenshotsUploaded} screenshots and ${recordingsUploaded} recordings saved.`
+          });
+        } else if (totalSuccessful > 0 && totalFailed > 0) {
+          let description = `${totalSuccessful} items saved successfully.`;
+          if (recordingsFailed > 0) {
+            description += ` ${recordingsFailed} recording(s) failed (file too large - max 10MB).`;
+          }
+          if (screenshotsFailed > 0) {
+            description += ` ${screenshotsFailed} screenshot(s) failed.`;
+          }
+          
+          toast.warning("Partial save completed", { description });
+        } else if (totalFailed > 0 && totalSuccessful === 0) {
+          let description = "Save failed. ";
+          if (recordingsFailed > 0) {
+            description += `${recordingsFailed} recording(s) too large (max 10MB). `;
+          }
+          if (screenshotsFailed > 0) {
+            description += `${screenshotsFailed} screenshot(s) failed. `;
+          }
+          description += "Try reducing file sizes.";
+          
+          toast.error("Save failed", { description });
+        }
+      }
 
-    // Reset pencil mode and clear drawing data for processed screenshots
-    setActivePencilScreenshot(null);
-    setShowPencilDropdown(null);
+      // Get backend IDs from response and update local screenshots
+      if (response?.data?.meeting?.screenshots && screenshotsData.length > 0) {
+        const backendScreenshots = response.data.meeting.screenshots;
+        const recentScreenshots = backendScreenshots.filter(s => {
+          const screenshotTime = new Date(s.timestamp);
+          const now = new Date();
+          const timeDiff = now - screenshotTime;
+          return timeDiff < 60000; // Within last minute
+        });
+        
+        console.log('All backend screenshots:', backendScreenshots.length);
+        console.log('Recent backend screenshots found:', recentScreenshots.length);
+        recentScreenshots.forEach((s, i) => {
+          console.log(`Recent backend screenshot ${i + 1}:`, {
+            id: s._id,
+            timestamp: s.timestamp,
+            url: s.url?.substring(0, 50) + '...'
+          });
+        });
+        
+        // Update local screenshots with backend IDs
+        const updatedScreenshots = screenshots.map((screenshot, index) => {
+          const screenshotData = typeof screenshot === 'object' ? screenshot.data : screenshot;
+          const screenshotId = typeof screenshot === 'object' ?
+            (screenshot.id || `screenshot-${screenshot.timestamp || Date.now()}-${Math.random()}`) :
+            `screenshot-${index}-${Date.now()}-${Math.random()}`;
+          
+          // Find matching backend screenshot
+          const matchingBackendScreenshot = recentScreenshots.find(bs => {
+            // Try to match by timestamp or other criteria
+            const bsTime = new Date(bs.timestamp);
+            const now = new Date();
+            const timeDiff = Math.abs(now - bsTime);
+            return timeDiff < 60000; // Within last minute
+          });
+          
+          if (matchingBackendScreenshot) {
+            const updatedScreenshot = {
+              ...screenshot,
+              backendId: matchingBackendScreenshot._id,
+              isSaved: true,
+              savedAt: new Date().toISOString()
+            };
+            console.log('Updated screenshot with backend ID:', updatedScreenshot.backendId, 'Local ID:', screenshotId);
+            return updatedScreenshot;
+          }
+          
+          return screenshot;
+        });
+        
+        console.log('Updated local screenshots with backend IDs');
+        
+        // Use updateScreenshotProperties to update each screenshot
+        screenshots.forEach((screenshot, index) => {
+          const screenshotId = typeof screenshot === 'object' ? screenshot.id : null;
+          if (screenshotId) {
+            const matchingBackendScreenshot = recentScreenshots.find(bs => {
+              const bsTime = new Date(bs.timestamp);
+              const now = new Date();
+              const timeDiff = Math.abs(now - bsTime);
+              return timeDiff < 60000; // Within last minute
+            });
+            
+            if (matchingBackendScreenshot) {
+              updateScreenshotProperties(screenshotId, {
+                backendId: matchingBackendScreenshot._id,
+                isSaved: true,
+                savedAt: new Date().toISOString()
+              });
+              console.log('Updated screenshot with backend ID using updateScreenshotProperties');
+              
+              // Verify the update worked
+              setTimeout(() => {
+                const updatedScreenshot = screenshots.find(s => s.id === screenshotId);
+                console.log('Verification - Updated screenshot:', {
+                  id: updatedScreenshot?.id,
+                  backendId: updatedScreenshot?.backendId,
+                  isSaved: updatedScreenshot?.isSaved,
+                  savedAt: updatedScreenshot?.savedAt
+                });
+              }, 100);
+            } else {
+              updateScreenshotProperties(screenshotId, {
+                isSaved: true,
+                savedAt: new Date().toISOString()
+              });
+              console.log('Screenshot marked as saved using updateScreenshotProperties');
+            }
+          }
+        });
+      }
 
-    // Clear drawing data for processed screenshots
+    } catch (error) {
+      console.error('Save failed:', error);
+      
+      if (error?.response?.data?.message?.includes('File size too large')) {
+        toast.error("Recording too large", {
+          description: "Video file exceeds 10MB limit. Try recording shorter videos or reduce quality."
+        });
+      } else if (error?.response?.data?.message?.includes('timeout')) {
+        toast.error("Upload timeout", {
+          description: "Upload took too long. Please try again with smaller files."
+        });
+      } else {
+        toast.error("Save failed", {
+          description: error?.response?.data?.message || error.message || "Please try again."
+        });
+      }
+      
+      throw error;
+    }
+
+    updateUI({ activePencilScreenshot: null, showPencilDropdown: null });
+
     screenshotsData.forEach(screenshot => {
       if (screenshot.canvasId && drawingData[screenshot.canvasId]) {
-        console.log('🧹 Clearing drawing data for:', screenshot.canvasId);
+        console.log('Clearing drawing data for:', screenshot.canvasId);
         delete drawingData[screenshot.canvasId];
+      }
+      if (screenshot.originalScreenshotId) {
+        markScreenshotAsSaved(screenshot.originalScreenshotId);
+        console.log('Marked screenshot as saved:', screenshot.originalScreenshotId);
       }
     });
 
-    // Update recordings state to mark all recordings as existing/saved - ATOMIC UPDATE
-    setRecordings(prev => prev.map(rec => ({
-      ...rec,
-      isExisting: true
-    })));
+    updateMedia({ recordings: media.recordings.map(rec => ({ ...rec, isExisting: true })) });
 
-    // Move all new screenshots to existing screenshots and mark them as saved - ATOMIC UPDATE
-    if (screenshotsData.length > 0) {
-      const newSavedScreenshots = screenshotsData.map((screenshot, index) => ({
-        id: `saved-${Date.now()}-${index}-${Math.random()}`, // Add random to ensure uniqueness
-        url: screenshot.data,
-        timestamp: new Date(screenshot.timestamp).toLocaleString(),
-        isExisting: true,
-        hasDrawings: screenshot.hasDrawings,
-        quality: 'high'
-      }));
-
-      setExistingScreenshots(prev => {
-        // Filter out any potential duplicates based on URL
-        const existingUrls = new Set(prev.map(s => s.url));
-        const uniqueNewScreenshots = newSavedScreenshots.filter(s => !existingUrls.has(s.url));
-
-        if (uniqueNewScreenshots.length !== newSavedScreenshots.length) {
-          console.log('⚠️ Filtered out duplicate screenshots');
+    if (!app.existingMeetingData) {
+      updateApp({
+        existingMeetingData: {
+          meeting_id: id,
+          name: form.residentName,
+          address: form.residentAddress,
+          post_code: form.actualPostCode,
+          reference: form.postCode,
+          repair_detail: form.repairDetails,
+          target_time: form.targetTime
         }
-
-        // Add to the end of the array instead of beginning for chronological order
-        return [...prev, ...uniqueNewScreenshots];
-      });
-
-      // Clear all screenshots from useWebRTC after saving
-      const screenshotCount = screenshots.length;
-      for (let i = screenshotCount - 1; i >= 0; i--) {
-        deleteScreenshot(i);
-      }
-      console.log(`🧹 Cleared ${screenshotCount} screenshots from new screenshots array`);
-    }
-
-    // Update existing meeting data reference
-    if (!existingMeetingData) {
-      setExistingMeetingData({
-        meeting_id: id,
-        name: residentName,
-        address: residentAddress,
-        post_code: actualPostCode,
-        reference: postCode,
-        repair_detail: repairDetails,
-        target_time: targetTime
       });
     }
 
     return { recordingsData, screenshotsData };
   }, [
-    recordings, screenshots, drawingData, mergeWithBackground, deleteScreenshot,
-    id, residentName, residentAddress, actualPostCode, postCode, repairDetails, targetTime, existingMeetingData
+    media.recordings, screenshots, drawingData, mergeWithBackground, deleteScreenshot,
+    id, form, app.existingMeetingData
   ]);
 
-  const handleZoomIn = () => {
-    setZoomLevel(prev => {
-      const newZoom = Math.min(prev + 0.25, 3); // Max zoom 3x
-      console.log('Zooming in to:', newZoom);
-      return newZoom;
-    });
-  };
-
-  const handleZoomOut = () => {
-    setZoomLevel(prev => {
-      const newZoom = Math.max(prev - 0.25, 0.5); // Min zoom 0.5x
-      console.log('Zooming out to:', newZoom);
-
-      // Reset pan when zooming out to 1x
+  const handleZoom = (direction) => {
+    updateApp(prev => {
+      const newZoom = direction === 'in' 
+        ? Math.min(prev.zoomLevel + 0.25, 3) 
+        : Math.max(prev.zoomLevel - 0.25, 0.5);
+      
+      console.log(`Zooming ${direction} to:`, newZoom);
+      
       if (newZoom <= 1) {
-        setVideoPanX(0);
-        setVideoPanY(0);
+        return { zoomLevel: newZoom, videoPanX: 0, videoPanY: 0 };
       }
-
-      return newZoom;
+      
+      return { zoomLevel: newZoom };
     });
   };
 
   const handleZoomReset = () => {
-    setZoomLevel(1);
-    setVideoPanX(0);
-    setVideoPanY(0);
+    updateApp({ zoomLevel: 1, videoPanX: 0, videoPanY: 0 });
     console.log('Zoom reset to 1x');
   };
 
-  // Add pan functionality for when zoomed in
   const handleVideoPan = (e) => {
-    if (zoomLevel <= 1) return;
+    if (app.zoomLevel <= 1) return;
 
     const rect = e.currentTarget.getBoundingClientRect();
     const centerX = rect.width / 2;
     const centerY = rect.height / 2;
-
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
-
-    // Calculate pan offset based on mouse position
     const panX = (centerX - mouseX) * 0.5;
     const panY = (centerY - mouseY) * 0.5;
 
-    setVideoPanX(panX);
-    setVideoPanY(panY);
+    updateApp({ videoPanX: panX, videoPanY: panY });
   };
 
   useEffect(() => {
     const handleKeyDown = (e) => {
-      // Only handle zoom shortcuts when not in input fields
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
       if (e.ctrlKey || e.metaKey) {
@@ -3043,11 +742,11 @@ export default function Page({ params }) {
           case '=':
           case '+':
             e.preventDefault();
-            handleZoomIn();
+            handleZoom('in');
             break;
           case '-':
             e.preventDefault();
-            handleZoomOut();
+            handleZoom('out');
             break;
           case '0':
             e.preventDefault();
@@ -3061,164 +760,115 @@ export default function Page({ params }) {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Optional: Reset zoom when video connection changes
   useEffect(() => {
     if (!isConnected) {
-      setZoomLevel(1);
-      setVideoPanX(0);
-      setVideoPanY(0);
+      updateApp({ zoomLevel: 1, videoPanX: 0, videoPanY: 0 });
     }
   }, [isConnected]);
 
-  // UPDATED: Add new function to handle "End Video and Save Images" with better protection
   const handleEndVideoAndSave = async (e) => {
-    // Prevent form submission and page refresh
-    if (e) {
-      e.preventDefault();
-      e.stopPropagation();
-      // Check if stopImmediatePropagation exists before calling it
-      if (typeof e.stopImmediatePropagation === 'function') {
-        e.stopImmediatePropagation();
-      }
-    }
+    e?.preventDefault();
+    e?.stopPropagation();
+    e?.stopImmediatePropagation?.();
 
-    // Check if already in progress
-    if (isEndingSave || isSaving || saveInProgress) {
-      console.log('⚠️ End video save already in progress');
+    if (app.isEndingSave || app.isSaving || app.saveInProgress) {
+      console.log('End video save already in progress');
       return;
     }
 
     try {
-      setSaveInProgress(true);
-      setIsEndingSave(true);
-      console.log('🎬 Starting End Video and Save process...');
+      updateApp({ saveInProgress: true, isEndingSave: true });
+      console.log('Starting End Video and Save process...');
 
-      // First disconnect the video call
-      if (isConnected) {
-        handleDisconnect();
-      }
+      if (isConnected) handleDisconnect();
+      if (media.isRecording) stopScreenRecording();
 
-      // Stop any ongoing recording
-      if (isRecording) {
-        stopScreenRecording();
-      }
-
-      // Wait a moment for any final recording to process
       await new Promise(resolve => setTimeout(resolve, 1000));
+      await performSave({ disconnectVideo: true });
 
-      // Use shared save logic
-      const result = await performSave({ disconnectVideo: true });
-
-      toast.success("Video ended and all content saved successfully!");
-      router.push("../../../dashboard/");
+      console.log('Video ended and content saved');
+      updateApp({ isLoadingMeetingData: false, saveInProgress: false, isEndingSave: false });
+      router.push("../../../dashboard");
 
     } catch (error) {
-      console.error('❌ End Video and Save failed:', error);
-      toast.error("Failed to end video and save content", {
-        description: error?.response?.data?.message || error.message
-      });
+      console.error('End Video and Save failed:', error);
+      
+      if (!error?.handledByPerformSave) {
+        toast.error("Failed to end video and save content", {
+          description: error?.response?.data?.message || error.message || "Please try again."
+        });
+      }
     } finally {
-      setIsEndingSave(false);
-      setSaveInProgress(false);
+      updateApp({ isEndingSave: false, saveInProgress: false });
     }
   };
 
-  // UPDATED: handleSave with better protection and shared logic
   const handleSave = async (e) => {
-    // Prevent form submission and page refresh
-    if (e) {
-      e.preventDefault();
-      e.stopPropagation();
-      // Check if stopImmediatePropagation exists before calling it
-      if (typeof e.stopImmediatePropagation === 'function') {
-        e.stopImmediatePropagation();
-      }
-    }
+    e?.preventDefault();
+    e?.stopPropagation();
+    e?.stopImmediatePropagation?.();
 
-    // Check if already in progress
-    if (isSaving || isEndingSave || saveInProgress) {
-      console.log('⚠️ Save already in progress');
+    if (app.isSaving || app.isEndingSave || app.saveInProgress) {
+      console.log('Save already in progress');
       return;
     }
 
     try {
-      setSaveInProgress(true);
-      setIsSaving(true);
-
-      // Use shared save logic
-      const result = await performSave();
-
-      toast.success("Repair saved successfully!", {
-        description: `Added ${result.recordingsData.length} new recordings and ${result.screenshotsData.length} new screenshots.`
-      });
-
+      updateApp({ saveInProgress: true, isSaving: true });
+      await performSave();
+      console.log('Save operation completed');
     } catch (error) {
-      console.error('❌ Save failed:', error);
-      toast.error("Failed to save repair", {
-        description: error?.response?.data?.message || error.message
-      });
+      console.error('Save failed:', error);
+      
+      if (!error?.handledByPerformSave) {
+        toast.error("Failed to save repair", {
+          description: error?.response?.data?.message || error.message || "Please try again."
+        });
+      }
     } finally {
-      setIsSaving(false);
-      setSaveInProgress(false);
+      updateApp({ isSaving: false, saveInProgress: false });
     }
   };
 
   const handleLogout = async () => {
     try {
       const res = await logoutRequest();
-
-      // Additional cleanup - clear any localStorage/sessionStorage
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       sessionStorage.clear();
-
-      // Clear cookies from frontend side as well
       document.cookie = "token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; secure; samesite=none";
-
-      toast("Logout Successful", {
-        description: res.data.message
-      });
-
+      toast("Logout Successful", { description: res.data.message });
       setIsAuth(false);
       setUser(null);
       router.push('../');
     } catch (error) {
-      // Even if logout API fails, clear local state
       setIsAuth(false);
       setUser(null);
       localStorage.clear();
-
-      toast("Logout Unsuccessful", {
-        description: error?.response?.data?.message || error.message
-      });
-
+      toast("Logout Unsuccessful", { description: error?.response?.data?.message || error.message });
       router.push('../');
     }
-  }
+  };
 
-  // Add dashboard handler
   const handleDashboard = () => {
-    router.push("../../../dashboard/");
-  }
+    updateApp({ isLoadingMeetingData: false, saveInProgress: false, isEndingSave: false, isSaving: false });
+    router.push("/dashboard");
+  };
 
-  // Simple timer effect that doesn't interfere with WebRTC - with localStorage persistence
   useEffect(() => {
-    if (!isClient) return;
+    if (!ui.isClient) return;
 
-    // Load saved timer data from localStorage on component mount
     const savedStartTime = localStorage.getItem(`call-start-time-${id}`);
     const savedDuration = localStorage.getItem(`call-duration-${id}`);
 
     if (isConnected && !startTimeRef.current) {
-      // If there's saved data and we're reconnecting, restore it
       if (savedStartTime) {
         const savedTime = parseInt(savedStartTime);
         const elapsedSinceStart = Math.floor((Date.now() - savedTime) / 1000);
         startTimeRef.current = savedTime;
-        setCallDuration(elapsedSinceStart);
+        updateApp({ callDuration: elapsedSinceStart });
         console.log('Restored call timer from localStorage:', elapsedSinceStart);
       } else {
-        // New call - save start time
         const startTime = Date.now();
         startTimeRef.current = startTime;
         localStorage.setItem(`call-start-time-${id}`, startTime.toString());
@@ -3227,8 +877,7 @@ export default function Page({ params }) {
 
       timerRef.current = setInterval(() => {
         const currentDuration = Math.floor((Date.now() - startTimeRef.current) / 1000);
-        setCallDuration(currentDuration);
-        // Save current duration to localStorage
+        updateApp({ callDuration: currentDuration });
         localStorage.setItem(`call-duration-${id}`, currentDuration.toString());
       }, 1000);
     }
@@ -3237,153 +886,112 @@ export default function Page({ params }) {
       clearInterval(timerRef.current);
       timerRef.current = null;
       startTimeRef.current = null;
-      setCallDuration(0);
-      // Clear localStorage when call ends
+      updateApp({ callDuration: 0 });
       localStorage.removeItem(`call-start-time-${id}`);
       localStorage.removeItem(`call-duration-${id}`);
       console.log('Call ended, cleared timer from localStorage');
     }
 
     return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
+      if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [isConnected, id, isClient]);
+  }, [isConnected, id, ui.isClient]);
 
-  // Load saved duration on component mount (for page refresh scenarios)
   useEffect(() => {
-    if (!isClient) return;
+    if (!ui.isClient) return;
 
     const savedDuration = localStorage.getItem(`call-duration-${id}`);
     const savedStartTime = localStorage.getItem(`call-start-time-${id}`);
 
     if (savedDuration && savedStartTime && !isConnected) {
-      // If we have saved data but not connected, show the last known duration
       const duration = parseInt(savedDuration);
-      setCallDuration(duration);
+      updateApp({ callDuration: duration });
       console.log('Loaded call duration from localStorage on mount:', duration);
     }
-  }, [id, isClient]);
+  }, [id, ui.isClient]);
 
-  // Format time to MM:SS
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Format recording duration
-  const formatRecordingTime = (seconds) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
+  const formatRecordingTime = (seconds) => formatTime(seconds);
 
-  // Recording timer effect
   useEffect(() => {
-    if (isRecording && recordingStartTime) {
+    if (media.isRecording && media.recordingStartTime) {
       recordingTimerRef.current = setInterval(() => {
-        const elapsed = Math.floor((Date.now() - recordingStartTime) / 1000);
-        setCurrentRecordingDuration(elapsed);
+        const elapsed = Math.floor((Date.now() - media.recordingStartTime) / 1000);
+        updateMedia({ currentRecordingDuration: elapsed });
       }, 1000);
     } else {
       if (recordingTimerRef.current) {
         clearInterval(recordingTimerRef.current);
         recordingTimerRef.current = null;
       }
-      setCurrentRecordingDuration(0);
+      updateMedia({ currentRecordingDuration: 0 });
     }
 
     return () => {
-      if (recordingTimerRef.current) {
-        clearInterval(recordingTimerRef.current);
-      }
+      if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
     };
-  }, [isRecording, recordingStartTime]);
+  }, [media.isRecording, media.recordingStartTime]);
 
-  // ENHANCED Screen recording functions with ULTRA HIGH QUALITY
   const startScreenRecording = async () => {
+    console.log('Starting screen recording...');
+    
     try {
-      // Get video stream from the video element instead of screen
-      if (!videoRef.current || !videoRef.current.srcObject) {
-        toast('No video stream available to record');
+      if (!videoRef.current?.srcObject) {
+        console.log('No video stream available');
+        toast.error('No video stream available');
         return;
       }
 
-      // Set recording start time
-      const startTime = Date.now();
-      setRecordingStartTime(startTime);
+      console.log('Video stream found, proceeding with recording setup');
 
-      // Hide video controls during recording
+      const startTime = Date.now();
+      updateMedia({ recordingStartTime: startTime });
+
       if (videoRef.current) {
         videoRef.current.controls = false;
         videoRef.current.style.pointerEvents = 'none';
       }
 
       const stream = videoRef.current.srcObject;
+      updateMedia({ recordingStream: stream });
 
-      setRecordingStream(stream);
-
-      // ENHANCED: Create MediaRecorder with ULTRA HIGH quality settings
       const recorderOptions = [
-        {
-          mimeType: 'video/webm;codecs=vp9,opus',
-          videoBitsPerSecond: 150000000, // 150 Mbps for ultra quality
-          audioBitsPerSecond: 256000     // High quality audio
-        },
-        {
-          mimeType: 'video/webm;codecs=vp9',
-          videoBitsPerSecond: 120000000  // 120 Mbps fallback
-        },
-        {
-          mimeType: 'video/webm;codecs=h264,avc1',
-          videoBitsPerSecond: 100000000  // 100 Mbps H.264
-        },
-        {
-          mimeType: 'video/webm;codecs=vp8',
-          videoBitsPerSecond: 80000000   // 80 Mbps VP8 fallback
-        },
-        {
-          mimeType: 'video/webm',
-          videoBitsPerSecond: 60000000   // 60 Mbps basic WebM
-        }
+        { mimeType: 'video/webm;codecs=vp9,opus', videoBitsPerSecond: 150000000, audioBitsPerSecond: 256000 },
+        { mimeType: 'video/webm;codecs=vp9', videoBitsPerSecond: 120000000 },
+        { mimeType: 'video/webm;codecs=h264,avc1', videoBitsPerSecond: 100000000 },
+        { mimeType: 'video/webm;codecs=vp8', videoBitsPerSecond: 80000000 },
+        { mimeType: 'video/webm', videoBitsPerSecond: 60000000 }
       ];
 
-      let selectedOption = null;
-      for (const option of recorderOptions) {
-        if (MediaRecorder.isTypeSupported(option.mimeType)) {
-          selectedOption = option;
-          console.log(`✅ Selected ULTRA HIGH recording: ${option.mimeType} @ ${option.videoBitsPerSecond / 1000000}Mbps`);
-          break;
-        }
-      }
+      let selectedOption = recorderOptions.find(option => MediaRecorder.isTypeSupported(option.mimeType));
 
       if (!selectedOption) {
-        toast('No high quality recording format supported');
+        console.log('No supported recording format found');
+        toast.error('Recording format not supported');
         return;
       }
 
-      const recorder = new MediaRecorder(stream, selectedOption);
+      console.log(`Selected recording format: ${selectedOption.mimeType} @ ${selectedOption.videoBitsPerSecond / 1000000}Mbps`);
 
-      // Reset chunks
+      const recorder = new MediaRecorder(stream, selectedOption);
       recordingChunks.current = [];
 
-      // ENHANCED: Handle data available event - record in smaller chunks for ultra quality
       recorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
           recordingChunks.current.push(event.data);
-          console.log(`📊 Ultra quality chunk: ${(event.data.size / 1024 / 1024).toFixed(2)}MB`);
+          console.log(`Ultra quality chunk: ${(event.data.size / 1024 / 1024).toFixed(2)}MB`);
         }
       };
 
-      // Handle recording stop event
       recorder.onstop = () => {
-        // Calculate final duration
         const endTime = Date.now();
         const duration = Math.floor((endTime - startTime) / 1000);
 
-        // Restore video controls after recording
         if (videoRef.current) {
           videoRef.current.style.pointerEvents = 'auto';
         }
@@ -3399,44 +1007,53 @@ export default function Page({ params }) {
           duration: duration
         };
 
-        setRecordings(prev => [...prev, newRecording]);
-        setIsRecording(false);
-        setRecordingStartTime(null);
+        setMedia(prev => ({ 
+          ...prev, 
+          recordings: [...prev.recordings, newRecording], 
+          isRecording: false, 
+          recordingStartTime: null 
+        }));
 
-        console.log('✅ ULTRA HIGH quality recording completed:', {
+        console.log('ULTRA HIGH quality recording completed:', {
           duration: `${duration}s`,
           size: `${(blob.size / 1024 / 1024).toFixed(2)}MB`,
           bitrate: `${selectedOption.videoBitsPerSecond / 1000000}Mbps`
         });
+        
+        const fileSizeMB = blob.size / 1024 / 1024;
+        if (fileSizeMB > 8) {
+          toast.warning(`Recording saved but file is large (${fileSizeMB.toFixed(1)}MB)`);
+        } else {
+          toast.success(`Recording completed (${fileSizeMB.toFixed(1)}MB)`);
+        }
       };
 
-      setMediaRecorder(recorder);
-      // ENHANCED: Start recording with ultra small timeslice for maximum quality
-      recorder.start(50); // Record in 50ms chunks for ultra smooth quality
-      setIsRecording(true);
-      toast(`Ultra high quality recording started (${selectedOption.videoBitsPerSecond / 1000000}Mbps)`);
+      updateMedia({ mediaRecorder: recorder, isRecording: true });
+      recorder.start(50);
+      toast.success('Video recording started');
 
     } catch (error) {
       console.error('Error starting ultra high quality recording:', error);
-      // ENHANCED: Fallback with still high quality settings
+      toast.error('Failed to start recording');
+      
       try {
+        console.log('Attempting fallback recording...');
+        
         const stream = videoRef.current.srcObject;
         const startTime = Date.now();
-        setRecordingStartTime(startTime);
+        updateMedia({ recordingStartTime: startTime });
 
         const recorder = new MediaRecorder(stream, {
           mimeType: 'video/webm',
-          videoBitsPerSecond: 50000000, // 50 Mbps fallback quality
+          videoBitsPerSecond: 50000000,
           audioBitsPerSecond: 192000
         });
 
-        // Hide controls
         if (videoRef.current) {
           videoRef.current.controls = false;
           videoRef.current.style.pointerEvents = 'none';
         }
 
-        // Reset chunks
         recordingChunks.current = [];
 
         recorder.ondataavailable = (event) => {
@@ -3464,42 +1081,54 @@ export default function Page({ params }) {
             duration: duration
           };
 
-          setRecordings(prev => [...prev, newRecording]);
-          setIsRecording(false);
-          setRecordingStartTime(null);
+          setMedia(prev => ({ 
+            ...prev, 
+            recordings: [...prev.recordings, newRecording], 
+            isRecording: false, 
+            recordingStartTime: null 
+          }));
+          
+          const fileSizeMB = blob.size / 1024 / 1024;
+          if (fileSizeMB > 8) {
+            toast.warning(`Recording saved but file is large (${fileSizeMB.toFixed(1)}MB)`);
+          } else {
+            toast.success(`Recording completed (${fileSizeMB.toFixed(1)}MB)`);
+          }
         };
 
-        setMediaRecorder(recorder);
-        recorder.start(100); // 100ms chunks for fallback
-        setIsRecording(true);
-        toast('High quality video recording started (50Mbps fallback)');
+        updateMedia({ mediaRecorder: recorder, isRecording: true });
+        recorder.start(100);
+        toast.success('Video recording started');
       } catch (fallbackError) {
-        toast('Failed to start video recording');
-        setRecordingStartTime(null);
+        console.error('Fallback recording also failed:', fallbackError);
+        toast.error('Failed to start video recording');
+        updateMedia({ recordingStartTime: null, isRecording: false });
       }
     }
   };
 
   const stopScreenRecording = () => {
-    if (mediaRecorder && mediaRecorder.state === 'recording') {
-      mediaRecorder.stop();
-      // Restore video controls
+    if (media.mediaRecorder?.state === 'recording') {
+      media.mediaRecorder.stop();
       if (videoRef.current) {
         videoRef.current.style.pointerEvents = 'auto';
       }
-      toast('Recording stopped');
+      toast.success('Recording stopped');
     }
   };
 
   const handleRecordingToggle = () => {
-    if (isRecording) {
+    console.log('Recording toggle clicked. Current state:', { isRecording: media.isRecording });
+    
+    if (media.isRecording) {
+      console.log('Stopping recording...');
       stopScreenRecording();
     } else {
+      console.log('Starting recording...');
       startScreenRecording();
     }
   };
 
-  // Individual save functions from second code
   const saveIndividualRecording = useCallback(async (recording) => {
     if (recording.isExisting) {
       toast.info("Recording already saved");
@@ -3508,22 +1137,18 @@ export default function Page({ params }) {
 
     const itemKey = `recording-${recording.id}`;
 
-    // Prevent duplicate processing
     if (processedItemsRef.current.has(itemKey)) {
-      console.log('⚠️ Recording already being processed:', itemKey);
+      console.log('Recording already being processed:', itemKey);
       return;
     }
 
     processedItemsRef.current.add(itemKey);
 
     try {
-      setSavingRecordingId(recording.id);
-      console.log('💾 Saving individual recording...');
+      updateApp({ savingRecordingId: recording.id });
+      console.log('Saving individual recording...');
 
-      // Show loading toast
-      toast.loading("Saving recording...", {
-        id: `save-recording-${recording.id}`
-      });
+      toast.loading("Saving recording...", { id: `save-recording-${recording.id}` });
 
       const base64Data = await blobToBase64(recording.blob);
       const recordingsData = [{
@@ -3535,101 +1160,160 @@ export default function Page({ params }) {
 
       const formData = {
         meeting_id: id,
-        name: residentName,
-        address: residentAddress,
-        post_code: actualPostCode,
-        reference: postCode,
-        repair_detail: repairDetails,
-        target_time: targetTime,
+        name: form.residentName,
+        address: form.residentAddress,
+        address_line_1: form.addressLine1,
+        address_line_2: form.addressLine2,
+        address_line_3: form.addressLine3,
+        additional_address_lines: form.addressLines,
+        post_code: form.actualPostCode,
+        phone_number: form.phoneNumber,
+        reference: form.postCode,
+        repair_detail: form.repairDetails,
+        work_details: [
+          { detail: form.repairDetails, target_time: form.selectedTTValues['field1'] || "Emergency 24 Hours", timestamp: new Date().toISOString() },
+          ...(form.workDetail1?.trim() ? [{ detail: form.workDetail1.trim(), target_time: form.selectedTTValues['field1'] || "Emergency 24 Hours", timestamp: new Date().toISOString() }] : []),
+          ...(form.workDetail2?.trim() ? [{ detail: form.workDetail2.trim(), target_time: form.selectedTTValues['field2'] || "Emergency 24 Hours", timestamp: new Date().toISOString() }] : []),
+          ...(form.workDetail3?.trim() ? [{ detail: form.workDetail3.trim(), target_time: form.selectedTTValues['field3'] || "Emergency 24 Hours", timestamp: new Date().toISOString() }] : []),
+          ...form.workDetails.map((detail, index) => ({ detail: detail.trim(), target_time: form.selectedTTValues[`workDetail${index}`] || "Emergency 24 Hours", timestamp: new Date().toISOString() }))
+        ].filter(item => item.detail?.trim()),
+        target_time: form.targetTime,
+        special_notes: form.specialNotes,
         recordings: recordingsData,
         screenshots: [],
-        update_mode: existingMeetingData ? 'update' : 'create'
+        update_mode: app.existingMeetingData ? 'update' : 'create'
       };
 
       const response = await createRequest(formData);
 
-      // Update the recording to mark it as existing - ATOMIC UPDATE
-      setRecordings(prev => prev.map(r =>
-        r.id === recording.id
-          ? { ...r, isExisting: true }
-          : r
-      ));
-
-      // Show success toast
-      toast.success("Recording saved successfully!", {
-        id: `save-recording-${recording.id}`
-      });
+      if (response?.data?.upload_summary || response?.data?.media_summary) {
+        const summary = response.data.upload_summary || response.data.media_summary;
+        const recordingsUploaded = summary.recordings_uploaded || summary.new_recordings_added || 0;
+        
+        if (recordingsUploaded > 0) {
+          toast.success("Recording saved successfully!", { id: `save-recording-${recording.id}` });
+          setMedia(prev => ({
+            ...prev,
+            recordings: prev.recordings.map(r => r.id === recording.id ? { ...r, isExisting: true } : r)
+          }));
+        } else {
+          toast.error("Recording too large", {
+            id: `save-recording-${recording.id}`,
+            description: "Video file exceeds 10MB limit. Try recording shorter videos."
+          });
+        }
+      } else {
+        toast.success("Recording saved successfully!", { id: `save-recording-${recording.id}` });
+        setMedia(prev => ({
+          ...prev,
+          recordings: prev.recordings.map(r => r.id === recording.id ? { ...r, isExisting: true } : r)
+        }));
+      }
 
     } catch (error) {
-      console.error('❌ Save recording failed:', error);
-      toast.error("Failed to save recording", {
-        id: `save-recording-${recording.id}`
-      });
+      console.error('Save recording failed:', error);
+      
+      if (error?.response?.data?.message?.includes('File size too large')) {
+        toast.error("Recording too large", {
+          id: `save-recording-${recording.id}`,
+          description: "Video file exceeds 10MB limit. Try recording shorter videos."
+        });
+      } else if (error?.response?.data?.message?.includes('timeout')) {
+        toast.error("Upload timeout", {
+          id: `save-recording-${recording.id}`,
+          description: "Upload took too long. Please try again."
+        });
+      } else {
+        toast.error("Failed to save recording", {
+          id: `save-recording-${recording.id}`,
+          description: error?.response?.data?.message || error.message || "Please try again."
+        });
+      }
     } finally {
-      setSavingRecordingId(null);
+      updateApp({ savingRecordingId: null });
       processedItemsRef.current.delete(itemKey);
     }
-  }, [id, residentName, residentAddress, actualPostCode, postCode, repairDetails, targetTime, existingMeetingData]);
+  }, [id, form, app.existingMeetingData, media.recordings]);
 
-  // Updated delete recording function
   const deleteRecording = async (recording) => {
     try {
       if (recording.isExisting) {
-        // Send delete request to backend for existing recordings
-        console.log(`🗑️ Deleting existing recording ${recording.id} from meeting ${id}`);
+        console.log(`Deleting existing recording ${recording.id} from meeting ${id}`);
 
         try {
           const response = await deleteRecordingRequest(id, recording.id);
-
-          if (response.data.timeout) {
-            toast.success("Recording deletion requested (processing in background)");
-          } else {
-            toast.success("Recording deleted successfully!");
-          }
+          toast.success(response.data.timeout ? "Recording deletion requested (processing in background)" : "Recording deleted successfully!");
         } catch (error) {
           console.error('Error during API delete call:', error);
-          // Even if API call fails, remove from UI for better user experience
           toast.info("Recording removed from view but backend deletion failed");
         }
       } else {
-        // Local deletion for new recordings (not yet saved)
-        console.log(`🗑️ Deleting local recording ${recording.id}`);
+        console.log(`Deleting local recording ${recording.id}`);
       }
 
-      // Always remove from state regardless of API success
-      setRecordings(prev => {
-        const recordingToDelete = prev.find(r => r.id === recording.id);
-        if (recordingToDelete && recordingToDelete.url) {
-          URL.revokeObjectURL(recordingToDelete.url);
-        }
-        return prev.filter(r => r.id !== recording.id);
-      });
+      setMedia(prev => ({
+        ...prev,
+        recordings: prev.recordings.filter(r => {
+          if (r.id === recording.id && r.url) {
+            URL.revokeObjectURL(r.url);
+          }
+          return r.id !== recording.id;
+        })
+      }));
 
       if (!recording.isExisting) {
         toast.success("Recording removed!");
       }
     } catch (error) {
-      console.error('❌ Delete recording failed:', error);
+      console.error('Delete recording failed:', error);
       toast.error("Failed to delete recording", {
         description: error?.response?.data?.message || error.message
       });
     }
   };
 
-  // Delete existing screenshot function
   const deleteExistingScreenshot = async (screenshot) => {
     try {
-      console.log(`🗑️ Deleting existing screenshot ${screenshot.id} from meeting ${id}`);
-      const response = await deleteScreenshotRequest(id, screenshot.id);
-
-      if (response.data.timeout) {
-        toast.success("Screenshot deletion requested (processing in background)");
+      // Handle different input formats
+      let backendId;
+      if (typeof screenshot === 'object' && screenshot !== null) {
+        // Case 1: Full screenshot object (from maximized view)
+        if (screenshot.backendId) {
+          backendId = screenshot.backendId;
+        } else if (screenshot.id && screenshot.id.match(/^[0-9a-fA-F]{24}$/)) {
+          // Case 2: Object with MongoDB ObjectId as id
+          backendId = screenshot.id;
+        } else {
+          // Case 3: Object with local screenshot id (not a backend ID)
+          console.error('❌ Invalid screenshot object for deletion:', screenshot);
+          toast.error("Cannot delete screenshot - invalid ID format");
+          return;
+        }
       } else {
-        toast.success("Screenshot deleted successfully!");
+        console.error('❌ Invalid screenshot parameter:', screenshot);
+        toast.error("Cannot delete screenshot - invalid parameter");
+        return;
       }
 
-      // Remove from existing screenshots state immediately
-      setExistingScreenshots(prev => prev.filter(s => s.id !== screenshot.id));
+      const response = await deleteScreenshotRequest(id, backendId);
+
+      toast.success(response.data.timeout ? "Screenshot deletion requested (processing in background)" : "Screenshot deleted successfully!");
+      
+      // Remove from existing screenshots if it's there
+      setMedia(prev => {
+        const filteredScreenshots = prev.existingScreenshots.filter(s => s.id !== backendId);
+        return {
+          ...prev,
+          existingScreenshots: filteredScreenshots
+        };
+      });
+      
+      // Also remove from local screenshots array if it has the same backend ID
+      const localScreenshotIndex = screenshots.findIndex(s => s.backendId === backendId);
+      if (localScreenshotIndex !== -1) {
+        deleteScreenshot(localScreenshotIndex);
+      }
+      
     } catch (error) {
       console.error('❌ Delete screenshot failed:', error);
       toast.error("Failed to delete screenshot", {
@@ -3638,19 +1322,16 @@ export default function Page({ params }) {
     }
   };
 
-  // Local screenshot delete function (for new screenshots from useWebRTC)
   const deleteNewScreenshot = (screenshotIndex, screenshotId) => {
     try {
-      console.log('🗑️ Deleting screenshot:', { index: screenshotIndex, id: screenshotId });
+      console.log('Deleting screenshot:', { index: screenshotIndex, id: screenshotId });
 
-      // Clean up any associated drawing data before deleting
       const canvasId = screenshotId || `new-${screenshotIndex}`;
       if (drawingData[canvasId]) {
-        console.log('🧹 Cleaning up drawing data for:', canvasId);
+        console.log('Cleaning up drawing data for:', canvasId);
         delete drawingData[canvasId];
       }
 
-      // Use the deleteScreenshot function from useWebRTC hook
       deleteScreenshot(screenshotIndex);
       toast.success("Screenshot removed!");
     } catch (error) {
@@ -3659,247 +1340,450 @@ export default function Page({ params }) {
     }
   };
 
-  // Update the handlePencilClick function to use screenshot ID instead of canvas index
-  const handlePencilClick = useCallback((canvasId, screenshotId) => {
-    console.log('🖋️ Pencil button clicked for canvas:', canvasId, 'screenshot ID:', screenshotId);
-    console.log('Current state - active:', activePencilScreenshot, 'dropdown:', showPencilDropdown);
+  const markScreenshotAsSaved = (screenshotId) => {
+    updateApp({ screenshotSavedStatus: new Map(app.screenshotSavedStatus).set(screenshotId, true) });
+  };
 
-    // Use the screenshot ID as the identifier
-    const activeId = screenshotId || canvasId;
+  const getScreenshotStatus = (screenshotId) => {
+    // Check the saved status map first
+    const savedStatus = app.screenshotSavedStatus.get(screenshotId);
+    if (savedStatus) return true;
+    
+    // Also check if the screenshot object itself has isSaved property
+    const screenshot = screenshots.find(s => {
+      const id = typeof s === 'object' ? s.id : null;
+      return id === screenshotId;
+    });
+    
+    return screenshot?.isSaved || false;
+  };
 
-    if (showPencilDropdown === activeId) {
-      // If dropdown is already open for this canvas, close it
-      console.log('Closing dropdown for:', activeId);
-      setShowPencilDropdown(null);
-    } else {
-      // Open dropdown for this canvas
-      console.log('Opening dropdown for:', activeId);
-      setActivePencilScreenshot(activeId);  // Set active for drawing
-      setShowPencilDropdown(activeId);     // Show dropdown
-    }
-  }, [activePencilScreenshot, showPencilDropdown]);
 
-  // Update the save individual screenshot function to use screenshot ID
+  console.log(screenshots,"AAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
   const saveIndividualScreenshot = useCallback(async (screenshotData, index, screenshotId) => {
     const itemKey = `screenshot-${screenshotId || index}`;
 
-    // Prevent duplicate processing
-    if (processedItemsRef.current.has(itemKey) || savingScreenshotIds.has(screenshotId)) {
-      console.log('⚠️ Screenshot already being processed:', itemKey);
+    if (processedItemsRef.current.has(itemKey) || app.savingScreenshotIds.has(screenshotId)) {
+      console.log('Screenshot already being processed:', itemKey);
       return;
     }
 
     processedItemsRef.current.add(itemKey);
 
     try {
-      // FIXED: Set both index and ID tracking for proper spinner display
-      setSavingScreenshotIndex(index);
-      setSavingScreenshotIds(prev => new Set(prev).add(screenshotId));
-
-      console.log('💾 Saving individual ULTRA HIGH QUALITY screenshot...', index, 'ID:', screenshotId);
-
-      // Show loading toast
-      toast.loading("Saving screenshot...", {
-        id: `save-screenshot-${screenshotId}`
+      updateApp({ 
+        savingScreenshotIndex: index, 
+        savingScreenshotIds: new Set(app.savingScreenshotIds).add(screenshotId) 
       });
 
-      // FIXED: Use clean screenshot data (remove unique identifiers)
-      let finalScreenshotData = screenshotData.split('#')[0]; // Remove timestamp markers
+      console.log('Saving individual screenshot...', index, 'Local ID:', screenshotId);
+      toast.loading("Saving screenshot...", { id: `save-screenshot-${screenshotId}` });
 
-      // Use screenshot ID to track drawing data instead of index-based canvasId
-      const canvasId = screenshotId || `new-${index}`;
+      let finalScreenshotData = screenshotData.split('#')[0];
 
-      console.log('🎨 Checking for drawings in canvas:', canvasId);
-      console.log('📊 Available drawing data:', Object.keys(drawingData));
+      const possibleCanvasIds = [
+        screenshotId,
+        `new-${index}`,
+        `maximized-canvas-${screenshotId}`,
+        `maximized-canvas-new-${index}`,
+        `screenshot-${index}-${Date.now()}-${Math.random()}`
+      ].filter(Boolean);
 
-      // ENHANCED: Check if this screenshot has drawings and merge them at ULTRA HIGH resolution
-      if (drawingData[canvasId] && drawingData[canvasId].strokes && drawingData[canvasId].strokes.length > 0) {
-        console.log('🎨 Found drawings for canvas:', canvasId, 'Strokes:', drawingData[canvasId].strokes.length);
-        console.log('🖼️ Merging drawings with screenshot at ULTRA HIGH resolution...');
+      console.log('Checking for drawings in possible canvas IDs:', possibleCanvasIds);
 
+      let foundCanvasId = null;
+      let foundDrawingData = null;
+
+      for (const canvasId of possibleCanvasIds) {
+        if (drawingData[canvasId]?.strokes?.length > 0) {
+          foundCanvasId = canvasId;
+          foundDrawingData = drawingData[canvasId];
+          console.log('Found drawings in canvas:', canvasId, 'Strokes:', foundDrawingData.strokes.length);
+          break;
+        }
+      }
+
+      if (foundCanvasId && foundDrawingData) {
+        console.log('Merging drawings with screenshot...');
         try {
-          finalScreenshotData = await mergeWithBackground(finalScreenshotData, canvasId);
-          console.log('✅ ULTRA HIGH quality drawing merge completed successfully');
+          finalScreenshotData = await mergeWithBackground(finalScreenshotData, foundCanvasId);
+          console.log('Drawing merge completed successfully');
         } catch (mergeError) {
-          console.error('❌ Error merging drawings:', mergeError);
-          console.log('📷 Proceeding with original screenshot without drawings');
+          console.error('Error merging drawings:', mergeError);
+          console.log('Proceeding with original screenshot without drawings');
         }
-      } else {
-        console.log('ℹ️ No drawings found for canvas:', canvasId);
-        console.log('📋 Canvas data structure:', drawingData[canvasId]);
       }
 
-      // ENHANCED: Additional quality check - ensure PNG format for maximum quality
-      if (!finalScreenshotData.startsWith('data:image/png')) {
-        console.log('🔄 Converting to PNG for maximum quality...');
+      const screenshotsData = [{
+        data: finalScreenshotData,
+        timestamp: new Date().toISOString(),
+        size: finalScreenshotData.length,
+        quality: 'ultra_high',
+        index: index,
+        hasDrawings: foundCanvasId !== null && foundDrawingData !== null
+      }];
 
-        return new Promise((resolve) => {
-          const img = new Image();
-          img.onload = () => {
-            const canvas = document.createElement('canvas');
-            const scale = 2; // Additional scaling for ultra quality
-            canvas.width = img.width * scale;
-            canvas.height = img.height * scale;
+      const formData = {
+        meeting_id: id,
+        name: form.residentName,
+        address: form.residentAddress,
+        address_line_1: form.addressLine1,
+        address_line_2: form.addressLine2,
+        address_line_3: form.addressLine3,
+        additional_address_lines: form.addressLines,
+        post_code: form.actualPostCode,
+        phone_number: form.phoneNumber,
+        reference: form.postCode,
+        repair_detail: form.repairDetails,
+        work_details: [
+          ...(form.repairDetails?.trim() ? [{ detail: form.repairDetails.trim(), target_time: form.selectedTTValues['field1'] || "Emergency 24 Hours", timestamp: new Date().toISOString() }] : []),
+          ...(form.workDetail1?.trim() ? [{ detail: form.workDetail1.trim(), target_time: form.selectedTTValues['field1'] || "Emergency 24 Hours", timestamp: new Date().toISOString() }] : []),
+          ...(form.workDetail2?.trim() ? [{ detail: form.workDetail2.trim(), target_time: form.selectedTTValues['field2'] || "Emergency 24 Hours", timestamp: new Date().toISOString() }] : []),
+          ...(form.workDetail3?.trim() ? [{ detail: form.workDetail3.trim(), target_time: form.selectedTTValues['field3'] || "Emergency 24 Hours", timestamp: new Date().toISOString() }] : []),
+          ...form.workDetails
+            .filter(detail => detail?.trim())
+            .map((detail, workIndex) => ({ detail: detail.trim(), target_time: form.selectedTTValues[`workDetail${workIndex}`] || "Emergency 24 Hours", timestamp: new Date().toISOString() }))
+        ],
+        target_time: form.targetTime,
+        special_notes: form.specialNotes,
+        recordings: [],
+        screenshots: screenshotsData,
+        update_mode: app.existingMeetingData ? 'update' : 'create'
+      };
 
-            const ctx = canvas.getContext('2d');
-            ctx.imageSmoothingEnabled = true;
-            ctx.imageSmoothingQuality = 'high';
-            ctx.scale(scale, scale);
-            ctx.drawImage(img, 0, 0);
+      console.log('Sending screenshot data to server');
 
-            finalScreenshotData = canvas.toDataURL('image/png', 1.0);
-            console.log('✅ Enhanced to ultra high quality PNG');
-
-            // Continue with save process
-            processSave(finalScreenshotData);
-          };
-          img.src = finalScreenshotData;
-        });
-      } else {
-        processSave(finalScreenshotData);
-      }
-
-      async function processSave(imageData) {
-        const screenshotsData = [{
-          data: imageData,
-          timestamp: new Date().toISOString(),
-          size: imageData.length,
-          quality: 'ultra_high',
-          index: index, // Add index for tracking
-          hasDrawings: drawingData[canvasId] && drawingData[canvasId].strokes && drawingData[canvasId].strokes.length > 0
-        }];
-
-        const formData = {
-          meeting_id: id,
-          name: residentName,
-          address: residentAddress,
-          post_code: actualPostCode,
-          reference: postCode,
-          repair_detail: repairDetails,
-          target_time: targetTime,
-          recordings: [],
-          screenshots: screenshotsData,
-          update_mode: existingMeetingData ? 'update' : 'create'
-        };
-
-        console.log('📤 Sending screenshot data to server:', {
-          hasDrawings: screenshotsData[0].hasDrawings,
-          dataSize: Math.round(imageData.length / 1024) + 'KB',
-          canvasId: canvasId
-        });
-
-        const response = await createRequest(formData);
-
-        // Show success toast
-        toast.success(
-          screenshotsData[0].hasDrawings
-            ? "Ultra high quality screenshot with drawings saved successfully!"
-            : "Ultra high quality screenshot saved successfully!",
-          {
-            id: `save-screenshot-${screenshotId}`
+      const response = await createRequest(formData);
+      
+      if (response?.data?.upload_summary || response?.data?.media_summary) {
+   
+        const summary = response.data.upload_summary || response.data.media_summary;
+        const screenshotsUploaded = summary.screenshots_uploaded || summary.new_screenshots_added || 0;
+        
+        if (screenshotsUploaded > 0) {
+          toast.success(
+            screenshotsData[0].hasDrawings
+              ? "Screenshot with drawings saved successfully!"
+              : "Screenshot saved successfully!",
+            { id: `save-screenshot-${screenshotId}` }
+          );
+          
+          markScreenshotAsSaved(screenshotId);
+         
+         
+          
+          // Get the backend ID from the response
+          let backendId = null;
+          if (response?.data?.meeting?.screenshots) {
+            // Find the newly added screenshot by matching the data or timestamp
+            const newScreenshots = response.data.meeting.screenshots.filter(s => {
+              // Check if this screenshot was just added (has recent timestamp)
+              const screenshotTime = new Date(s.timestamp);
+              const now = new Date();
+              const timeDiff = now - screenshotTime;
+              return timeDiff < 60000; // Within last minute
+            });
+            
+            console.log('All screenshots in response:', response.data.meeting.screenshots.length);
+            console.log('Recent screenshots found:', newScreenshots.length);
+            newScreenshots.forEach((s, i) => {
+              console.log(`Recent screenshot ${i + 1}:`, {
+                id: s._id,
+                timestamp: s.timestamp,
+                url: s.url?.substring(0, 50) + '...'
+              });
+            });
+            
+            if (newScreenshots.length > 0) {
+              // Get the most recent one
+              const latestScreenshot = newScreenshots[newScreenshots.length - 1];
+              backendId = latestScreenshot._id;
+              console.log('Backend ID received for screenshot:', backendId, 'Local ID:', screenshotId);
+            }
           }
-        );
+          
+          
+          
 
-        // Clear pencil mode and drawing data after successful save
-        setActivePencilScreenshot(null);
-        setShowPencilDropdown(null);
-
-        // Add saved screenshot to existing screenshots with unique ID
-        const newSavedScreenshot = {
-          id: `saved-${Date.now()}-${index}-${Math.random()}`,
-          url: imageData,
-          timestamp: new Date().toLocaleString(),
-          isExisting: true,
-          quality: 'ultra_high',
-          hasDrawings: screenshotsData[0].hasDrawings
-        };
-
-        setExistingScreenshots(prev => {
-          // Check for duplicates
-          const alreadyExists = prev.some(s => s.url === newSavedScreenshot.url);
-          if (alreadyExists) {
-            console.log('⚠️ Screenshot already in existing array, skipping add');
-            return prev;
+          // Update the screenshot in the local array to include backend ID and mark as saved
+          const updatedScreenshots = screenshots.map((screenshot, i) => {
+            if (i === index) {
+              const updatedScreenshot = {
+                ...screenshot,
+                backendId: backendId,
+                isSaved: true,
+                savedAt: new Date().toISOString()
+              };
+              console.log('Updated screenshot with backend ID:', updatedScreenshot.backendId, 'Local ID:', screenshotId);
+              return updatedScreenshot;
+            }
+            return screenshot;
+          });
+          
+          // Update the screenshots array without removing it
+          // Note: This assumes screenshots is managed by useWebRTC hook
+          // We need to update the local state to reflect the saved status
+          
+          // Use the updateScreenshotProperties function to update the screenshot
+          if (backendId) {
+            updateScreenshotProperties(screenshotId, {
+              backendId: backendId,
+              isSaved: true,
+              savedAt: new Date().toISOString(),
+              data: finalScreenshotData,
+              url: finalScreenshotData
+            });
+            console.log('Screenshot updated with backend ID using updateScreenshotProperties');
+           
+            // Verify the update worked
+            setTimeout(() => {
+              const updatedScreenshot = screenshots.find(s => s.id === screenshotId);
+              console.log('Verification - Updated screenshot:', {
+                id: updatedScreenshot?.id,
+                backendId: updatedScreenshot?.backendId,
+                isSaved: updatedScreenshot?.isSaved,
+                savedAt: updatedScreenshot?.savedAt
+              });
+            }, 100);
+          } else {
+            updateScreenshotProperties(screenshotId, {
+              isSaved: true,
+              savedAt: new Date().toISOString()
+            });
+            console.log('Screenshot marked as saved using updateScreenshotProperties');
           }
-          // Add to the end of the array instead of beginning for chronological order
-          return [...prev, newSavedScreenshot];
-        });
 
-        // Remove the screenshot from new screenshots array
-        deleteScreenshot(index);
-        console.log(`🧹 Removed ultra high quality screenshot at index ${index} from new screenshots array`);
-
-        // Clear the drawing data for this canvas after successful save
-        if (drawingData[canvasId]) {
-          console.log('🧹 Clearing drawing data for canvas:', canvasId);
-          delete drawingData[canvasId];
+          
+          
+          updateUI({ activePencilScreenshot: null, showPencilDropdown: null });
+          
+          if (foundCanvasId && drawingData[foundCanvasId]) {
+            console.log('Cleaning up drawing data after successful save');
+            delete drawingData[foundCanvasId];
+            
+            const relatedCanvasIds = [
+              `maximized-canvas-${screenshotId}`,
+              `new-${index}`,
+              `maximized-canvas-new-${index}`
+            ];
+            
+            relatedCanvasIds.forEach(relatedId => {
+              if (drawingData[relatedId]) {
+                console.log('Also clearing related canvas data:', relatedId);
+                delete drawingData[relatedId];
+              }
+            });
+          }
+          
+          console.log(`Screenshot ${index} successfully saved with backend ID: ${backendId}`);
+        } else {
+          toast.error("Screenshot too large", {
+            id: `save-screenshot-${screenshotId}`,
+            description: "Screenshot file is too large. Try reducing image quality."
+          });
         }
+      } else {
+        toast.success("Screenshot saved successfully!", { id: `save-screenshot-${screenshotId}` });
+        
+        markScreenshotAsSaved(screenshotId);
+        // Update the screenshot in the local array to mark as saved
+        const updatedScreenshots = screenshots.map((screenshot, i) => {
+          if (i === index) {
+            return {
+              ...screenshot,
+              isSaved: true,
+              savedAt: new Date().toISOString()
+            };
+          }
+          return screenshot;
+        });
+        
+        console.log('Screenshot marked as saved locally');
+        
+        // Use updateScreenshotProperties for the fallback case too
+        updateScreenshotProperties(screenshotId, {
+          isSaved: true,
+          savedAt: new Date().toISOString()
+        });
+        console.log('Screenshot marked as saved using updateScreenshotProperties (fallback)');
       }
 
     } catch (error) {
-      console.error('❌ Save ultra high quality screenshot failed:', error);
-      toast.error("Failed to save ultra high quality screenshot", {
-        id: `save-screenshot-${screenshotId}`
-      });
+      console.error('Save screenshot failed:', error);
+      
+      if (error?.response?.data?.message?.includes('File size too large')) {
+        toast.error("Screenshot too large", {
+          id: `save-screenshot-${screenshotId}`,
+          description: "Screenshot file is too large. Try reducing image quality."
+        });
+      } else if (error?.response?.data?.message?.includes('timeout')) {
+        toast.error("Upload timeout", {
+          id: `save-screenshot-${screenshotId}`,
+          description: "Upload took too long. Please try again."
+        });
+      } else {
+        toast.error("Failed to save screenshot", {
+          id: `save-screenshot-${screenshotId}`,
+          description: error?.response?.data?.message || error.message || "Please try again."
+        });
+      }
     } finally {
-      // FIXED: Clear both index and ID tracking
-      setSavingScreenshotIndex(null);
-      setSavingScreenshotIds(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(screenshotId);
-        return newSet;
+      updateApp({ 
+        savingScreenshotIndex: null, 
+        savingScreenshotIds: new Set([...app.savingScreenshotIds].filter(id => id !== screenshotId)) 
       });
       processedItemsRef.current.delete(itemKey);
     }
-  }, [id, residentName, residentAddress, actualPostCode, postCode, repairDetails, targetTime, existingMeetingData, drawingData, mergeWithBackground, deleteScreenshot, savingScreenshotIds]);
+  }, [
+    id, form, app.existingMeetingData, drawingData, mergeWithBackground, 
+    app.savingScreenshotIds, markScreenshotAsSaved, screenshots, updateScreenshotProperties
+  ]);
 
-  // Maximize handlers - Memoize these functions
   const maximizeVideo = useCallback((recording) => {
-    setMaximizedItem({
-      type: 'video',
-      id: recording.id,
-      data: recording
-    });
+    updateUI({ maximizedItem: { type: 'video', id: recording.id, data: recording } });
   }, []);
 
   const maximizeScreenshot = useCallback((screenshot, index, isExisting = false) => {
-    setMaximizedItem({
-      type: 'screenshot',
-      id: isExisting ? screenshot.id : `new-${index}`,
-      data: screenshot,
-      index: isExisting ? null : index,
-      isExisting
-    });
+    updateUI({ maximizedItem: { type: 'screenshot', id: screenshot.id, data: screenshot, index: isExisting ? null : index, isExisting } });
   }, []);
+
+  const handleScreenshotTaken = useCallback((screenshot, index) => {
+    console.log('Screenshot taken, auto-maximizing:', screenshot);
+    maximizeScreenshot(screenshot, index, false);
+  }, [maximizeScreenshot]);
 
   const closeMaximized = useCallback(() => {
-    setMaximizedItem(null);
+    if (ui.maximizedItem?.type === 'screenshot' && !ui.maximizedItem.isExisting) {
+      const screenshotId = ui.maximizedItem.data.id;
+      const canvasId = screenshotId;
+      
+      const mergedScreenshotKey = `merged-${screenshotId}`;
+      if (window.tempMergedScreenshots?.[mergedScreenshotKey]) {
+        console.log('Cleaning up temporary merged screenshot data:', mergedScreenshotKey);
+        delete window.tempMergedScreenshots[mergedScreenshotKey];
+      }
+      
+      const img = document.getElementById(`maximized-img-${ui.maximizedItem.id}`);
+      if (img?.cleanupPositioning) {
+        console.log('Cleaning up positioning event listeners');
+        img.cleanupPositioning();
+      }
+      
+      if (drawingData[canvasId]?.isSaved) {
+        console.log('Cleaning up saved drawing data on close:', canvasId);
+        delete drawingData[canvasId];
+        
+        const relatedCanvasIds = [
+          `maximized-canvas-${screenshotId}`,
+          `new-${ui.maximizedItem.index}`,
+          `maximized-canvas-new-${ui.maximizedItem.index}`
+        ];
+        
+        relatedCanvasIds.forEach(relatedId => {
+          if (drawingData[relatedId]?.isSaved) {
+            console.log('Also clearing related saved canvas data:', relatedId);
+            delete drawingData[relatedId];
+          }
+        });
+      }
+    }
+    
+    updateUI({ activePencilScreenshot: null, showPencilDropdown: null, maximizedItem: null });
+  }, [ui.maximizedItem, drawingData]);
+
+  useEffect(() => {
+    return () => {
+      const images = document.querySelectorAll('[id^="maximized-img-"]');
+      images.forEach(img => {
+        if (img.cleanupPositioning) {
+          img.cleanupPositioning();
+        }
+      });
+      
+      if (window.tempMergedScreenshots) {
+        delete window.tempMergedScreenshots;
+      }
+    };
   }, []);
 
-  // Handle escape key to close maximized view
   useEffect(() => {
     const handleEscape = (e) => {
-      if (e.key === 'Escape' && maximizedItem) {
-        closeMaximized();
+      if (e.key === 'Escape') {
+        if (ui.maximizedItem) closeMaximized();
+        if (ui.showTTDropdown) updateUI({ showTTDropdown: null });
+        if (ui.showPencilDropdown) updateUI({ showPencilDropdown: null, activePencilScreenshot: null });
       }
     };
 
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
-  }, [maximizedItem]);
+  }, [ui.maximizedItem, ui.showTTDropdown, ui.showPencilDropdown]);
 
-  // Helper function to get landlord name (prioritize token info)
-  const getLandlordName = () => {
-    if (tokenLandlordInfo?.landlordName) {
-      return tokenLandlordInfo.landlordName;
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      const isCanvasClick = e.target.tagName === 'CANVAS' || 
+                           e.target.closest('[data-canvas-id]') ||
+                           e.target.hasAttribute('data-canvas-id');
+      
+      if (ui.showTTDropdown) {
+        const dropdownElement = document.querySelector(`[data-dropdown-id="${ui.showTTDropdown}"]`);
+        if (dropdownElement && !dropdownElement.contains(e.target)) {
+          updateUI({ showTTDropdown: null });
+        }
+      }
+      if (ui.showPencilDropdown && !isCanvasClick) {
+        const pencilDropdownElement = document.querySelector(`[data-pencil-dropdown-id="${ui.showPencilDropdown}"]`);
+        const toolsButton = document.querySelector('[data-tools-button]');
+        
+        if (pencilDropdownElement && !pencilDropdownElement.contains(e.target) && 
+            (!toolsButton || !toolsButton.contains(e.target))) {
+          updateUI({ showPencilDropdown: null, activePencilScreenshot: null });
+        }
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [ui.showTTDropdown, ui.showPencilDropdown]);
+
+  const handlePencilClick = useCallback((canvasId, screenshotId, screenshotData = null, index = null) => {
+    console.log('Pencil button clicked for canvas:', canvasId, 'screenshot ID:', screenshotId);
+    console.log('Current state - active:', ui.activePencilScreenshot, 'dropdown:', ui.showPencilDropdown);
+
+    const activeId = screenshotId || canvasId;
+    const isInMinimizedView = !ui.maximizedItem;
+
+    if (isInMinimizedView && screenshotData && index !== null) {
+      console.log('Pencil clicked in minimized view - maximizing screenshot');
+      
+      maximizeScreenshot(screenshotData, index, false);
+      setSelectedTool('brush');
+      updateUI({ activePencilScreenshot: activeId });
+      
+      console.log('Screenshot maximized with pencil tool activated (no dropdown)');
+      return;
     }
-    return user?.landlordInfo?.landlordName || null;
-  };
 
-  // Helper function to get landlord logo (prioritize token info)
+    if (ui.showPencilDropdown === activeId) {
+      console.log('Closing dropdown for:', activeId);
+      updateUI({ showPencilDropdown: null, activePencilScreenshot: null });
+    } else {
+      console.log('Opening dropdown for:', activeId);
+      updateUI({ activePencilScreenshot: activeId, showPencilDropdown: activeId });
+      
+      if (selectedTool !== 'brush') {
+        setSelectedTool('brush');
+      }
+    }
+  }, [ui.activePencilScreenshot, ui.showPencilDropdown, ui.maximizedItem, maximizeScreenshot, selectedTool]);
+
+  const getLandlordName = () => app.tokenLandlordInfo?.landlordName || user?.landlordInfo?.landlordName || null;
+  
   const getLandlordLogo = () => {
-    if (tokenLandlordInfo?.landlordLogo && isValidImageUrl(tokenLandlordInfo.landlordLogo)) {
-      return tokenLandlordInfo.landlordLogo;
+    const isValidImageUrl = (url) => url && (url.startsWith('data:') || url.startsWith('http://') || url.startsWith('https://'));
+    
+    if (app.tokenLandlordInfo?.landlordLogo && isValidImageUrl(app.tokenLandlordInfo.landlordLogo)) {
+      return app.tokenLandlordInfo.landlordLogo;
     }
     if (user?.landlordInfo?.landlordLogo && isValidImageUrl(user.landlordInfo.landlordLogo)) {
       return user.landlordInfo.landlordLogo;
@@ -3907,25 +1791,44 @@ export default function Page({ params }) {
     return null;
   };
 
-  const getTotalRecordingsCount = () => {
-    return recordings.length;
+  const getTotalRecordingsCount = () => media.recordings.length;
+  const displayRecordingsCount = () => getTotalRecordingsCount() || null;
+
+  const getScreenshotSavedCount = () => {
+    let savedCount = media.existingScreenshots.length;
+    screenshots.forEach((screenshot, index) => {
+      const screenshotId = typeof screenshot === 'object' ? 
+        (screenshot.id || `screenshot-${index}-${Date.now()}`) : 
+        `screenshot-${index}-${Date.now()}`;
+      if (getScreenshotStatus(screenshotId) || screenshot.isSaved) {
+        savedCount++;
+      }
+    });
+    return savedCount;
   };
 
-  // Function to display recordings count in header
-  const displayRecordingsCount = () => {
-    const totalCount = getTotalRecordingsCount();
-    return totalCount > 0 ? totalCount : null;
+  const getScreenshotUnsavedCount = () => {
+    let unsavedCount = 0;
+    screenshots.forEach((screenshot, index) => {
+      const screenshotId = typeof screenshot === 'object' ? 
+        (screenshot.id || `screenshot-${index}-${Date.now()}`) : 
+        `screenshot-${index}-${Date.now()}`;
+      if (!getScreenshotStatus(screenshotId) && !screenshot.isSaved) {
+        unsavedCount++;
+      }
+    });
+    return unsavedCount;
   };
 
+  const getTotalScreenshotCount = () => media.existingScreenshots.length + screenshots.length;
 
-  // Helper function to get profile image (prioritize token info)
   const getProfileImage = () => {
-    // Check token info first
-    if (tokenLandlordInfo?.profileImage && isValidImageUrl(tokenLandlordInfo.profileImage)) {
-      return tokenLandlordInfo.profileImage;
+    const isValidImageUrl = (url) => url && (url.startsWith('data:') || url.startsWith('http://') || url.startsWith('https://'));
+    
+    if (app.tokenLandlordInfo?.profileImage && isValidImageUrl(app.tokenLandlordInfo.profileImage)) {
+      return app.tokenLandlordInfo.profileImage;
     }
 
-    // Fallback to current user info
     if (user?.landlordInfo?.useLandlordLogoAsProfile && user?.landlordInfo?.landlordLogo) {
       if (isValidImageUrl(user.landlordInfo.landlordLogo)) {
         return user.landlordInfo.landlordLogo;
@@ -3941,32 +1844,36 @@ export default function Page({ params }) {
     return null;
   };
 
-  // Helper function to check if image URL is valid
-  const isValidImageUrl = (url) => {
-    if (!url) return false;
-    return url.startsWith('data:') || url.startsWith('http://') || url.startsWith('https://');
+  // Helper function to get profile shape class
+  const getProfileShapeClass = () => {
+    const shape = user?.landlordInfo?.profileShape || app.tokenLandlordInfo?.profileShape;
+    if (shape === 'square') {
+      return 'rounded-lg';
+    } else if (shape === 'circle') {
+      return 'rounded-full';
+    }
+    return 'rounded-full'; // default
   };
 
-  // Helper function to get display name (prioritize token info)
+  // Helper function to get image object fit class based on shape
+  const getImageObjectFitClass = () => {
+    const shape = user?.landlordInfo?.profileShape || app.tokenLandlordInfo?.profileShape;
+    if (shape === 'square') {
+      return 'object-contain'; // For square, use contain to show full image
+    } else {
+      return 'object-cover'; // For circle, use cover to fill the circle
+    }
+  };
+
   const getDisplayName = () => {
-    // Use landlord name if available from token or user
     const landlordName = getLandlordName();
-    if (landlordName) {
-      return landlordName;
-    }
-
-    // Fallback to username from email
-    if (user?.email) {
-      return user.email.split('@')[0];
-    }
-
+    // if (landlordName) return landlordName;
+    if (user?.email) return user.email.split('@')[0];
     return 'User';
   };
 
-  // Helper function to get initials
   const getInitials = (name) => {
     if (!name) return 'U';
-
     const words = name.trim().split(' ').filter(word => word.length > 0);
     if (words.length === 1) {
       return words[0].charAt(0).toUpperCase();
@@ -3976,535 +1883,865 @@ export default function Page({ params }) {
     return name.charAt(0).toUpperCase();
   };
 
-  // Add function to create and show share link for current meeting
   const handleCreateShareLink = () => {
     if (!id) {
       toast.error("No meeting ID available");
       return;
     }
 
-    // Create a meeting object with current form data for sharing
     const meetingData = {
       meeting_id: id,
-      name: residentName,
-      address: residentAddress,
-      post_code: postCode,
-      repair_detail: repairDetails,
-      target_time: targetTime,
+      name: form.residentName,
+      address: form.residentAddress,
+      post_code: form.postCode,
+      repair_detail: form.repairDetails,
+      target_time: form.targetTime,
       createdAt: new Date().toISOString(),
-      recordings: recordings, // Using existing recordings array
-      screenshots: [...existingScreenshots, ...screenshots.map((screenshot, index) => ({ id: `new-${index}`, url: screenshot }))]
+      recordings: media.recordings,
+      screenshots: [...media.existingScreenshots, ...screenshots.map((screenshot, index) => ({ id: `new-${index}`, url: screenshot }))]
     };
 
-    // Open the share link dialog with meeting data
     setShareLinkOpen(true, meetingData);
   };
 
-  // NEW: Add cleanup effect to prevent memory leaks
   useEffect(() => {
     return () => {
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current);
-      }
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
       processedItemsRef.current.clear();
     };
   }, []);
 
-  // Enhanced loading guard to prevent hydration mismatch
-  if (!isClient || isLoadingMeetingData) {
+  if (!ui.isClient) {
     return (
-      <div>
+      <div style={{ width: '100vw', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f9fafb' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
+          <div style={{ width: '40px', height: '40px', border: '4px solid #e5e7eb', borderTop: '4px solid #3b82f6', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
+          <p style={{ color: '#6b7280', fontSize: '16px', fontWeight: '500' }}>Loading video session...</p>
+        </div>
+        <style dangerouslySetInnerHTML={{ __html: `@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }` }} />
+      </div>
+    );
+  }
+
+  if (!id) {
+    return (
+      <div style={{ width: '100vw', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f9fafb' }}>
+        <p style={{ color: '#ef4444', fontSize: '18px', fontWeight: '600' }}>Error: Invalid meeting ID</p>
       </div>
     );
   }
 
   return (
-    <div className="max-w-6xl mx-auto p-4 py-10 font-sans">
-      <button onClick={startPeerConnection}>Start</button>
-      {/* Maximized Item Modal */}
-      {maximizedItem && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-          <div className="relative w-full h-full flex items-center justify-center">
-            {/* Close button */}
-            <button
-              onClick={closeMaximized}
-              className="absolute top-4 right-4 z-10 p-2 bg-black bg-opacity-50 text-white rounded-full hover:bg-opacity-75"
-            >
-              <X className="w-6 h-6" />
-            </button>
-
-            {/* Maximized Video */}
-            {maximizedItem.type === 'video' && (
-              <video
-                src={maximizedItem.data.url}
-                controls={true}
-                autoPlay={false}
-                muted={false}
-                className="max-w-full max-h-full w-auto h-auto object-contain"
-                style={{
-                  maxWidth: '95vw',
-                  maxHeight: '95vh'
-                }}
-                onLoadedMetadata={(e) => {
-                  console.log('Video resolution:', e.target.videoWidth, 'x', e.target.videoHeight);
-                }}
-              />
-            )}
-
-            {/* Maximized Screenshot */}
-            {maximizedItem.type === 'screenshot' && (
-              <div className="relative w-full h-full flex items-center justify-center p-4">
-                <div
-                  className="relative flex items-center justify-center w-full h-full"
-                  style={{
-                    maxWidth: 'calc(100vw - 2rem)',
-                    maxHeight: 'calc(100vh - 2rem)',
-                    minWidth: '300px',
-                    minHeight: '300px'
-                  }}
-                >
-                  {/* Original Screenshot as Background */}
-                  <img
-                    id={`maximized-img-${maximizedItem.id}`}
-                    src={maximizedItem.isExisting ? maximizedItem.data.url : maximizedItem.data}
-                    alt="Maximized screenshot"
-                    className="w-full h-full object-contain"
-                    style={{
-                      maxWidth: '100%',
-                      maxHeight: '100%',
-                      width: 'auto',
-                      height: 'auto'
-                    }}
-                  />
-                </div>
-              </div>
-            )}
-
-          </div>
+    <>
+      {app.isEndingVideo && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: '#f9fafb', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 9999, gap: '1rem' }}>
+          <div style={{ width: '40px', height: '40px', border: '4px solid #e5e7eb', borderTop: '4px solid #3b82f6', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
+          <p style={{ color: '#6b7280', fontSize: '16px', fontWeight: '500' }}>Redirecting you to the Dashboard screen...</p>
         </div>
       )}
 
-      <div className="gap-6" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr' }}>
-        {/* Left Column */}
-        <div className="space-y-6 flex gap-5">
-          <div className="flex-1 relative">
-            {/* Logo and User */}
-            <div className="flex items-center gap-4 mb-6">
-              <div className="flex items-center">
-                <a href="/" className="text-2xl font-bold text-gray-900 flex items-center">
-                  <VideoIcon className="mr-2" />
-                  <span> Videodesk.co.uk</span>
-                </a>
-              </div>
-            </div>
-
-            {/* User Greeting */}
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-12 h-12 rounded-full overflow-hidden">
-                {getProfileImage() ? (
-                  <img
-                    src={getProfileImage()}
-                    alt="Profile Image"
-                    width={48}
-                    height={48}
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      e.target.style.display = 'none';
+      <div className="hide-scrollbar" style={{ width: '100vw', height: 'auto', minHeight: '100vh', margin: 0, padding: '1vh 1vw', fontFamily: 'sans-serif', overflow: 'auto', boxSizing: 'border-box' }}>
+        <style dangerouslySetInnerHTML={{ __html: `* { box-sizing: border-box; } .hide-scrollbar::-webkit-scrollbar { display: none; } .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; overflow-x: hidden; } body { overflow-x: hidden; } .responsive-column { padding: 1vh 1vw; height: auto; overflow-y: visible; overflow-x: hidden; } .responsive-content { width: 100%; height: auto; min-height: fit-content; }` }} />
+        
+        {ui.maximizedItem && (
+          <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0, 0, 0, 0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: '2vh 2vw' }}>
+            <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {ui.maximizedItem.type === 'video' && (
+                <>
+                  <button
+                    id="maximize-close-button-video"
+                    onClick={closeMaximized}
+                    style={{ position: 'absolute', top: '10%', right: '33.3%', zIndex: 100, padding: '8px', backgroundColor: 'rgba(0, 0, 0, 0.8)', color: 'white', borderRadius: '50%', border: '2px solid rgba(255, 255, 255, 0.4)', cursor: 'pointer', transition: 'all 0.3s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px', backdropFilter: 'blur(10px)', opacity: '1', visibility: 'visible' }}
+                  >
+                    <X style={{ width: '18px', height: '18px', strokeWidth: '3' }} />
+                  </button>
+                  
+                  <video
+                    src={ui.maximizedItem.data.url}
+                    controls={true}
+                    autoPlay={false}
+                    muted={false}
+                    style={{ maxWidth: '90vw', maxHeight: '90vh', width: 'auto', height: 'auto', objectFit: 'contain' }}
+                    onLoadedMetadata={(e) => {
+                      console.log('Video resolution:', e.target.videoWidth, 'x', e.target.videoHeight);
                     }}
                   />
+                </>
+              )}
+
+              {ui.maximizedItem.type === 'screenshot' && (() => {
+                const screenshotId = ui.maximizedItem.data.id;
+                const canvasId = `maximized-canvas-${screenshotId}`;
+                const mergedScreenshotKey = `merged-${screenshotId}`;
+                const mergedData = window.tempMergedScreenshots?.[mergedScreenshotKey];
+                let isSaved = getScreenshotStatus(screenshotId);
+                
+                let screenshotUrl = ui.maximizedItem.isExisting ? ui.maximizedItem.data.url : ui.maximizedItem.data.url;
+                if (mergedData && isSaved && mergedData.originalIndex === ui.maximizedItem.index) {
+                  screenshotUrl = mergedData.mergedData;
+                  console.log('Using merged screenshot data for display');
+                }
+                
+                const isActive = ui.activePencilScreenshot === screenshotId;
+                
+                console.log('Maximized screenshot data:', {
+                  isExisting: ui.maximizedItem.isExisting,
+                  data: ui.maximizedItem.data,
+                  screenshotUrl: screenshotUrl,
+                  screenshotId: screenshotId,
+                  isSaved: isSaved,
+                  hasMergedData: !!mergedData
+                });
+
+                if(isSaved) ui.maximizedItem.isExisting = true;
+                if(ui.maximizedItem.isExisting) isSaved = true;
+                
+                return (
+                  <div className="relative w-full h-full flex items-center justify-center p-4">
+                    <div className="relative flex items-center justify-center w-full h-full" style={{ maxWidth: 'calc(100vw - 2rem)', maxHeight: 'calc(100vh - 2rem)', minWidth: '300px', minHeight: '300px' }}>
+                      <div 
+                        id={`tools-panel-${screenshotId}`}
+                        style={{ position: 'absolute', top: '20px', right: '27%', zIndex: 30, display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'flex-start', backgroundColor: 'rgba(255, 255, 255, 0.95)', padding: '16px', borderRadius: '16px', border: '2px solid rgba(59, 130, 246, 0.3)', backdropFilter: 'blur(20px)', boxShadow: '0 10px 25px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(255, 255, 255, 0.05)', transition: 'all 0.3s ease' }}>
+                        
+                        {/* Close button positioned at top-right corner of tools panel */}
+                        <button
+                          id="maximize-close-button-screenshot"
+                          onClick={closeMaximized}
+                          style={{ position: 'absolute', top: '-15px', right: '-15px', zIndex: 100, padding: '6px', backgroundColor: 'rgba(220, 38, 38, 0.9)', color: 'white', borderRadius: '50%', border: '2px solid rgba(255, 255, 255, 0.8)', cursor: 'pointer', transition: 'all 0.3s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '28px', height: '28px', backdropFilter: 'blur(10px)', opacity: '1', visibility: 'visible', boxShadow: '0 2px 8px rgba(0,0,0,0.3)' }}
+                          onMouseEnter={(e) => {
+                            e.target.style.backgroundColor = 'rgba(220, 38, 38, 1)';
+                            e.target.style.transform = 'scale(1.1)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.target.style.backgroundColor = 'rgba(220, 38, 38, 0.9)';
+                            e.target.style.transform = 'scale(1)';
+                          }}
+                        >
+                          <X style={{ width: '14px', height: '14px', strokeWidth: '3' }} />
+                        </button>
+                        
+                        <div style={{ color: '#1f2937', fontSize: '12px', fontWeight: '700', marginBottom: '4px', textAlign: 'center', width: '100%', letterSpacing: '0.5px', textTransform: 'uppercase' }}>Tools</div>
+
+                        {(!isSaved || !ui.maximizedItem.isExisting) && (
+                          <button
+                            onClick={async () => {
+                              const screenshotData = ui.maximizedItem.data.url;
+                              const index = ui.maximizedItem.index;
+                              const screenshotId = ui.maximizedItem.data.id;
+                              console.log('Saving screenshot from maximized view:', { index, screenshotId });
+                              
+                              try {
+                                await saveIndividualScreenshot(screenshotData, index, screenshotId);
+                                setTimeout(() => {
+                                  closeMaximized();
+                                }, 500);
+                              } catch (error) {
+                                console.error('Error saving screenshot:', error);
+                              }
+                            }}
+                            className={`group relative p-3 rounded-xl transition-all duration-300 border-2 w-12 h-12 flex items-center justify-center shadow-lg ${app.savingScreenshotIds.has(ui.maximizedItem.data.id) 
+                              ? 'bg-gray-400 border-gray-300 text-white cursor-not-allowed' 
+                              : 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-200 text-green-600 hover:from-green-500 hover:to-emerald-500 hover:border-green-400 hover:text-white hover:transform hover:scale-105'
+                            }`}
+                            title={app.savingScreenshotIds.has(ui.maximizedItem.data.id) ? "Saving..." : "Save & Close"}
+                            disabled={app.savingScreenshotIds.has(ui.maximizedItem.data.id)}
+                          >
+                            {app.savingScreenshotIds.has(ui.maximizedItem.data.id) ? (
+                              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                              <Save className="w-5 h-5" />
+                            )}
+                            {!app.savingScreenshotIds.has(ui.maximizedItem.data.id) && (
+                              <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-green-400 to-emerald-400 opacity-0 group-hover:opacity-20 transition-opacity duration-300"></div>
+                            )}
+                          </button>
+                        )}
+
+                        <button
+                          data-tools-button="true"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const rect = e.target.getBoundingClientRect();
+                            updateUI({ clickPosition: { x: rect.left + (rect.width / 2), y: rect.top + (rect.height / 2) } });
+                            console.log('More tools clicked for maximized canvas:', canvasId);
+                            handlePencilClick(canvasId, screenshotId, null, null);
+                          }}
+                          className={`group relative p-3 rounded-xl transition-all duration-300 border-2 w-12 h-12 flex items-center justify-center shadow-lg ${isActive 
+                            ? 'bg-gradient-to-r from-blue-500 to-purple-600 border-blue-300 text-white transform scale-105' 
+                            : 'bg-gradient-to-r from-gray-50 to-gray-100 border-gray-200 text-gray-700 hover:from-blue-50 hover:to-purple-50 hover:border-blue-300 hover:text-blue-600 hover:transform hover:scale-105'
+                          }`}
+                          title="Activate Drawing Mode"
+                        >
+                          <Palette className="w-5 h-5" />
+                          {isActive && (
+                            <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full border-2 border-white"></div>
+                          )}
+                        </button>
+                        
+                        <button
+                          onClick={() => clearCanvas(canvasId)}
+                          className="group relative p-3 rounded-xl transition-all duration-300 border-2 w-12 h-12 flex items-center justify-center shadow-lg bg-gradient-to-r from-red-50 to-pink-50 border-red-200 text-red-600 hover:from-red-500 hover:to-pink-500 hover:border-red-400 hover:text-white hover:transform hover:scale-105"
+                          title="Clear All Drawings"
+                        >
+                          <Eraser className="w-5 h-5" />
+                          <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-red-400 to-pink-400 opacity-0 group-hover:opacity-20 transition-opacity duration-300"></div>
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            if (ui.maximizedItem.isExisting) {
+                              console.log('Deleting existing screenshot from maximized view:', ui.maximizedItem.data);
+                              deleteExistingScreenshot(ui.maximizedItem.data);
+                            } else {
+                              const index = ui.maximizedItem.index;
+                              const screenshotId = ui.maximizedItem.data.id;
+                              console.log('Deleting new screenshot from maximized view:', { index, screenshotId });
+                              deleteNewScreenshot(index, screenshotId);
+                            }
+                            closeMaximized();
+                          }}
+                          className="group relative p-3 rounded-xl transition-all duration-300 border-2 w-12 h-12 flex items-center justify-center shadow-lg bg-gradient-to-r from-red-50 to-orange-50 border-red-200 text-red-600 hover:from-red-500 hover:to-orange-500 hover:border-red-400 hover:text-white hover:transform hover:scale-105"
+                          title="Delete Screenshot"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                          <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-red-400 to-orange-400 opacity-0 group-hover:opacity-20 transition-opacity duration-300"></div>
+                        </button>
+                      </div>
+                      
+                      <div id={ui.maximizedItem.id}>
+                        <Loader2 className="text-green-500 text-4xl animate-spin" size={50}/>
+                      </div>
+                      
+                      <img
+                        id={`maximized-img-${ui.maximizedItem.id}`}
+                        src={screenshotUrl}
+                        alt="Maximized screenshot"
+                        className="w-full h-full object-contain hidden opacity-0 transition-opacity duration-300"
+                        style={{ maxWidth: '100%', maxHeight: '100%', width: 'auto', height: 'auto' }}
+                        onLoad={async (e) => {
+                          const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+                          await sleep(2000);
+                          
+                          if(window.document.getElementById(ui.maximizedItem.id)) window.document.getElementById(ui.maximizedItem.id).style.display = "none"
+                          e.target.style.opacity = '1';
+                          const img = e.target;
+                          console.log(`Image loaded: ${img.naturalWidth}x${img.naturalHeight} pixels`);
+                          console.log(`Display size: ${img.clientWidth}x${img.clientHeight} pixels`);
+                          
+                          img.style.maxWidth = '100%';
+                          img.style.maxHeight = '100%';
+                          img.style.width = 'auto';
+                          img.style.height = 'auto';
+                          img.style.objectFit = 'contain';
+                          img.style.display = 'block';
+                          
+                          const updateDropdownPosition = () => {
+                            const dropdown = document.querySelector(`[data-pencil-dropdown-id="${screenshotId}"]`);
+                            const toolsPanel = document.getElementById(`tools-panel-${screenshotId}`);
+                            
+                            if (dropdown && toolsPanel) {
+                              const toolsPanelRect = toolsPanel.getBoundingClientRect();
+                              dropdown.style.top = `${toolsPanelRect.top}px`;
+                              console.log(`Dropdown synced with tools panel at top: ${toolsPanelRect.top}px`);
+                            }
+                          };
+                          
+                          const positionToolsPanel = () => {
+                            const toolsPanel = document.getElementById(`tools-panel-${screenshotId}`);
+                            if (toolsPanel && img) {
+                              const imgRect = img.getBoundingClientRect();
+                              const containerRect = img.parentElement.getBoundingClientRect();
+                              
+                              const imageLeft = imgRect.left - containerRect.left;
+                              const imageTop = imgRect.top - containerRect.top;
+                              const imageRight = imgRect.right - containerRect.left;
+                              
+                              const toolsPanelLeft = imageRight + 20;
+                              const toolsPanelTop = imageTop;
+                              
+                              toolsPanel.style.left = `${toolsPanelLeft}px`;
+                              toolsPanel.style.top = `${toolsPanelTop}px`;
+                              toolsPanel.style.right = 'auto';
+                              toolsPanel.style.transform = 'none';
+                              
+                              const dropdown = document.querySelector(`[data-pencil-dropdown-id="${screenshotId}"]`);
+                              if (dropdown) {
+                                dropdown.style.top = `${toolsPanelTop + containerRect.top}px`;
+                                console.log(`Dropdown positioned at top: ${toolsPanelTop + containerRect.top}px`);
+                              }
+                              
+                              console.log(`Tools panel positioned: left=${toolsPanelLeft}px, top=${toolsPanelTop}px`);
+                              console.log(`Screenshot bounds: left=${imageLeft}px, top=${imageTop}px, right=${imageRight}px`);
+                              
+                              const viewportWidth = window.innerWidth;
+                              const toolsPanelWidth = toolsPanel.offsetWidth || 100;
+                              
+                              if (toolsPanelLeft + toolsPanelWidth > viewportWidth - 20) {
+                                const leftSidePosition = imageLeft - toolsPanelWidth - 20;
+                                if (leftSidePosition > 20) {
+                                  toolsPanel.style.left = `${leftSidePosition}px`;
+                                  console.log(`Tools panel repositioned to left: left=${leftSidePosition}px`);
+                                } else {
+                                  toolsPanel.style.left = `${imageLeft + 10}px`;
+                                  console.log(`Tools panel positioned inside screenshot: left=${imageLeft + 10}px`);
+                                }
+                              }
+                              
+                              setTimeout(updateDropdownPosition, 100);
+                            }
+                          };
+                          
+                          setTimeout(positionToolsPanel, 50);
+                          setTimeout(positionToolsPanel, 150);
+                          setTimeout(positionToolsPanel, 300);
+                          
+                          const handleResize = () => {
+                            positionToolsPanel();
+                            setTimeout(updateDropdownPosition, 50);
+                          };
+                          
+                          window.addEventListener('resize', handleResize);
+                          
+                          setTimeout(() => {
+                            window.removeEventListener('resize', handleResize);
+                          }, 30000);
+                          
+                          const attemptCanvasSync = (attempt = 1) => {
+                            const displayWidth = img.offsetWidth;
+                            const displayHeight = img.offsetHeight;
+                            const boundingRect = img.getBoundingClientRect();
+                            
+                            console.log(`Attempt ${attempt} - Natural: ${img.naturalWidth}x${img.naturalHeight}`);
+                            console.log(`Attempt ${attempt} - Offset: ${displayWidth}x${displayHeight}`);
+                            console.log(`Attempt ${attempt} - BoundingRect: ${boundingRect.width}x${boundingRect.height}`);
+                            
+                            const finalWidth = Math.round(boundingRect.width);
+                            const finalHeight = Math.round(boundingRect.height);
+                            
+                            if (finalWidth > 50 && finalHeight > 50) {
+                              const canvas = img.parentElement.querySelector(`canvas[data-canvas-id="${canvasId}"]`);
+                              if (canvas) {
+                                const imgRect = img.getBoundingClientRect();
+                                const containerRect = img.parentElement.getBoundingClientRect();
+                                
+                                canvas.width = finalWidth;
+                                canvas.height = finalHeight;
+                                canvas.style.width = finalWidth + 'px';
+                                canvas.style.height = finalHeight + 'px';
+                                canvas.style.position = 'absolute';
+                                canvas.style.top = (imgRect.top - containerRect.top) + 'px';
+                                canvas.style.left = (imgRect.left - containerRect.left) + 'px';
+                                canvas.style.zIndex = '15';
+                                
+                                console.log(`Canvas positioned and sized: ${finalWidth}x${finalHeight}`);
+                                console.log(`Canvas position: top=${imgRect.top - containerRect.top}px, left=${imgRect.left - containerRect.left}px`);
+                                
+                                setTimeout(positionToolsPanel, 100);
+                                initializeCanvas(canvas, screenshotUrl, canvasId);
+                                return true;
+                              }
+                            }
+                            
+                            if (attempt < 5) {
+                              setTimeout(() => attemptCanvasSync(attempt + 1), 100 * attempt);
+                            }
+      return false;
+    };
+    
+                          setTimeout(() => attemptCanvasSync(), 50);
+                        }}
+                        onError={(e) => {
+                          console.error('Error loading maximized screenshot:', e);
+                          e.target.style.opacity = '1';
+                        }}
+                      />
+
+                      <div className="absolute inset-0 flex items-center justify-center bg-gray-100 transition-opacity duration-300" style={{ opacity: screenshotUrl ? '0' : '1', pointerEvents: 'none' }}>
+                        <div className="text-center text-gray-500">
+                          <div className="w-8 h-8 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin mx-auto mb-2"></div>
+                          <div className="text-sm">Loading screenshot...</div>
+                        </div>
+                      </div>
+
+                      <canvas
+                        key={`maximized-canvas-${screenshotId}`}
+                        data-canvas-id={canvasId}
+                        data-screenshot-id={screenshotId}
+                        className={`transition-all ${isActive ? 'cursor-crosshair pointer-events-auto' : 'pointer-events-none'}`}
+                        style={{
+                          position: 'absolute',
+                          pointerEvents: isActive ? 'auto' : 'none',
+                          touchAction: isActive ? 'none' : 'auto',
+                          zIndex: ui.maximizedItem.isExisting ? 1 : (isActive ? 999 : 10),
+                          border: isActive ? '2px solid #3b82f6' : 'none',
+                          opacity: isActive ? 1 : 0.8,
+                          display: ui.maximizedItem.isExisting ? 'none' : 'block'
+                        }}
+                        onMouseDown={(e) => {
+                          if (isActive) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            console.log('Mouse down on maximized canvas:', canvasId);
+                            startDrawing(e);
+                          }
+                        }}
+                        onMouseMove={(e) => {
+                          if (isActive) {
+                            e.preventDefault();
+                            draw(e);
+                          }
+                        }}
+                        onMouseUp={(e) => {
+                          if (isActive) {
+                            e.preventDefault();
+                            stopDrawing(e);
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (isActive) {
+                            stopDrawing(e);
+                          }
+                        }}
+                      />
+
+                      {isActive && ui.showPencilDropdown === screenshotId && (
+                        <div 
+                          data-pencil-dropdown-id={screenshotId}
+                          style={{ position: 'fixed', left: `${Math.min(ui.clickPosition.x + 65, window.innerWidth - 280)}px`, zIndex: 1000, backgroundColor: 'white', borderRadius: '16px', border: '2px solid #e5e7eb', boxShadow: '0 20px 40px rgba(0, 0, 0, 0.15), 0 4px 12px rgba(0, 0, 0, 0.1)', padding: '20px', minWidth: '280px', maxWidth: '320px', maxHeight: '70vh', overflowY: 'auto', backdropFilter: 'blur(10px)', background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)' }}
+                          ref={(el) => {
+                            if (el) {
+                              setTimeout(() => {
+                                const toolsPanel = document.getElementById(`tools-panel-${screenshotId}`);
+                                if (toolsPanel) {
+                                  const toolsPanelRect = toolsPanel.getBoundingClientRect();
+                                  el.style.top = `${toolsPanelRect.top}px`;
+                                  console.log(`Dropdown auto-positioned at: ${toolsPanelRect.top}px`);
+                                }
+                              }, 100);
+                            }
+                          }}
+                        >
+                          <div className="space-y-4">
+                            <div>
+                              <p className="text-sm font-medium text-gray-700 mb-2">Tools:</p>
+                              <div className="grid grid-cols-5 gap-1">
+                                {tools.map((tool) => (
+                                  <button
+                                    key={tool.name}
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      console.log('Tool selected:', tool.name, 'for maximized canvas:', canvasId);
+                                      setSelectedTool(tool.name);
+                                    }}
+                                    className={`p-2 text-xs border rounded hover:scale-105 transition-all duration-200 flex flex-col items-center gap-1 ${selectedTool === tool.name ? 'bg-blue-100 text-blue-700 border-blue-300' : 'bg-gray-50 border-gray-300 hover:bg-gray-100'}`}
+                                    title={tool.title}
+                                  >
+                                    <span className="text-sm">{tool.icon}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+
+                            <div>
+                              <p className="text-sm font-medium text-gray-700 mb-2">Colors:</p>
+                              <div className="grid grid-cols-6 gap-1">
+                                {colors.map((color) => (
+                                  <button
+                                    key={color}
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      console.log('Color selected:', color, 'for maximized canvas:', canvasId);
+                                      setSelectedColor(color);
+                                    }}
+                                    className={`w-6 h-6 rounded border-2 transition-all duration-200 hover:scale-110 ${selectedColor === color ? 'border-gray-800 scale-110 ring-2 ring-gray-300' : 'border-gray-300 hover:border-gray-500'}`}
+                                    style={{ backgroundColor: color }}
+                                    title={`Select ${color}`}
+                                  />
+                                ))}
+                              </div>
+                            </div>
+
+                            <div>
+                              <p className="text-sm font-medium text-gray-700 mb-2">Size: {lineWidth}px</p>
+                              <input
+                                type="range"
+                                min="1"
+                                max="20"
+                                value={lineWidth}
+                                onChange={(e) => {
+                                  e.stopPropagation();
+                                  const newWidth = parseInt(e.target.value);
+                                  console.log('Line width changed:', newWidth, 'for maximized canvas:', canvasId);
+                                  setLineWidth(newWidth);
+                                }}
+                                className="w-full h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                                style={{ background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${(lineWidth / 20) * 100}%, #e5e7eb ${(lineWidth / 20) * 100}%, #e5e7eb 100%)` }}
+                              />
+                            </div>
+
+                            <div className="bg-gray-50 p-2 rounded border text-center">
+                              <p className="text-xs text-gray-600">
+                                <span className="font-medium text-gray-800">
+                                  {tools.find(t => t.name === selectedTool)?.icon} {selectedTool}
+                                </span>
+                                {selectedTool !== 'eraser' && (
+                                  <>
+                                    {' '}- <span className="inline-block w-3 h-3 rounded border align-middle mx-1" style={{ backgroundColor: selectedColor }}></span>
+                                    {lineWidth}px
+                                  </>
+                                )}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+        )}
+
+        <div className="hide-scrollbar" style={{ display: 'grid', gridTemplateColumns: 'minmax(250px, 1fr) minmax(400px, 2fr) minmax(250px, 1fr)', height: 'auto', minHeight: '95vh', width: '100%', maxWidth: '100vw', gap: 0, margin: 0, padding: 0, overflowY: 'visible', overflowX: 'hidden', boxSizing: 'border-box' }}>
+          <div className="responsive-column hide-scrollbar" style={{ borderRight: '1px solid #d1d5db', padding: '2vh 1.5vw 1vh 1.5vw', overflowY: 'visible', overflowX: 'hidden', minWidth: '250px', maxWidth: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2vh', padding: '1vh 0', width: '100%' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1vw' }}>
+                <div className={`w-12 h-12 overflow-hidden ${getProfileShapeClass()}`} style={{ width: '3vw', height: '6vh', minWidth: '48px', minHeight: '48px' }}>
+                  {getProfileImage() ? (
+                    <img 
+                      src={getProfileImage()} 
+                      alt="Profile Image" 
+                      className={`w-full h-full ${getImageObjectFitClass()}`}
+                      onError={(e) => { e.target.style.display = 'none'; }} 
+                    />
+                  ) : (
+                    <div className={`w-full h-full bg-gray-200 flex items-center justify-center text-gray-600 font-semibold ${getProfileShapeClass()}`} style={{ fontSize: '1.2vw' }}>
+                      {getInitials(getDisplayName())}
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <p style={{ fontSize: '0.8vw', color: '#6b7280', margin: 0, minFontSize: '12px' }}>Hello,</p>
+                  <p style={{ fontWeight: '600', margin: 0, fontSize: '1vw', minFontSize: '14px' }}>{getDisplayName()}</p>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center' }}>
+                {getLandlordLogo() ? (
+                  <img src={getLandlordLogo()} alt="Landlord Logo" style={{ maxHeight: '40px', maxWidth: '120px', objectFit: 'contain' }} onError={(e) => { console.error('Failed to load landlord logo:', e); e.target.style.display = 'none'; }} />
                 ) : (
-                  <div className="w-full h-full bg-gray-200 flex items-center justify-center text-gray-600 font-semibold text-lg rounded-full">
-                    {getInitials(getDisplayName())}
+                  <div style={{ backgroundColor: 'white', borderRadius: '8px', padding: '8px 12px', border: '2px solid black' }}>
+                    <span style={{ fontSize: '1.2vw', fontWeight: 'bold', color: 'black', minFontSize: '16px' }}>Logo</span>
                   </div>
                 )}
               </div>
-              <div>
-                <p className="text-sm text-gray-600">Hello,</p>
-                <p className="font-semibold">{getDisplayName()}</p>
-              </div>
             </div>
 
-            {/* Live Video */}
-            <div className="relative w-[270px]">
-              <div className="h-[480px] w-[270px] bg-gray-200 rounded-md overflow-hidden relative">
+            <div style={{ position: 'relative', width: '90%', marginBottom: '2vh', marginLeft: 'auto', marginRight: 'auto' }}>
+              <div style={{ backgroundColor: '#e5e7eb', borderRadius: '1.5vw', overflow: 'hidden', position: 'relative', width: '100%', height: 'auto', minHeight: '25vh', padding: 0, margin: 0, boxSizing: 'border-box' }}>
                 <video
                   id="live-video"
                   ref={videoRef}
                   autoPlay
                   playsInline
                   controls={false}
-                  className="w-full h-full object-contain absolute top-0 left-0 transition-transform duration-300 ease-out"
-                  style={{
-                    // Apply zoom and pan transformations
-                    transform: `scale(${zoomLevel}) translate(${videoPanX}px, ${videoPanY}px)`,
-                    transformOrigin: 'center center',
-                    // Hide all video controls and UI elements during recording
-                    ...(isRecording && {
-                      pointerEvents: 'none',
-                      outline: 'none',
-                      border: 'none'
-                    }),
-                    // Enable panning when zoomed in
-                    ...(zoomLevel > 1 && !isRecording && {
-                      cursor: 'grab'
-                    })
-                  }}
+                  style={{ width: 'calc(100% + 2px)', height: 'auto', objectFit: 'cover', position: 'relative', borderRadius: '1.5vw', transition: 'transform 0.3s ease-out', transform: `scale(${app.zoomLevel}) translate(${app.videoPanX}px, ${app.videoPanY}px)`, transformOrigin: 'center center', display: 'block', maxWidth: 'calc(100% + 2px)', padding: 0, margin: '-1px', border: 'none', outline: 'none', boxSizing: 'border-box', verticalAlign: 'top', ...(media.isRecording && { pointerEvents: 'none', outline: 'none', border: 'none' }), ...(app.zoomLevel > 1 && !media.isRecording && { cursor: 'grab' }) }}
                   onMouseMove={handleVideoPan}
-                  onMouseDown={(e) => {
-                    if (zoomLevel > 1) {
-                      e.currentTarget.style.cursor = 'grabbing';
-                    }
-                  }}
-                  onMouseUp={(e) => {
-                    if (zoomLevel > 1) {
-                      e.currentTarget.style.cursor = 'grab';
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (zoomLevel > 1) {
-                      e.currentTarget.style.cursor = 'grab';
-                    }
-                  }}
+                  onMouseDown={(e) => { if (app.zoomLevel > 1) e.currentTarget.style.cursor = 'grabbing'; }}
+                  onMouseUp={(e) => { if (app.zoomLevel > 1) e.currentTarget.style.cursor = 'grab'; }}
+                  onMouseLeave={(e) => { if (app.zoomLevel > 1) e.currentTarget.style.cursor = 'grab'; }}
                 />
               </div>
 
-              {/* Recording Timer Overlay - Shows during recording */}
-              {isRecording && (
-                <div className="absolute top-2 left-2 bg-red-600 text-white px-3 py-1 text-sm font-medium flex items-center gap-2 rounded-md">
-                  <span className="w-3 h-3 rounded-full bg-white animate-pulse"></span>
-                  <span>REC {formatRecordingTime(currentRecordingDuration)}</span>
+              <div style={{ position: 'absolute', top: '2vh', left: '1.5vw', zIndex: 10 }}>
+                {media.isRecording ? (
+                  <div style={{ backgroundColor: '#dc2626', color: 'white', padding: '0.8vh 1.2vw', fontSize: '0.9vw', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '0.5vw', borderRadius: '1.2vw', minFontSize: '14px', boxShadow: '0 2px 8px rgba(0,0,0,0.3)' }}>
+                    <span style={{ width: '0.8vw', height: '1.5vh', borderRadius: '50%', backgroundColor: 'white', animation: 'pulse 1s infinite', minWidth: '12px', minHeight: '12px' }}></span>
+                    <span>REC {formatRecordingTime(media.currentRecordingDuration)}</span>
+                  </div>
+                ) : (
+                  <div style={{ backgroundColor: '#dc2626', color: 'white', padding: '0.8vh 1.2vw', fontSize: '0.9vw', fontWeight: '600', borderRadius: '1.2vw', minFontSize: '14px', boxShadow: '0 2px 8px rgba(0,0,0,0.3)' }}>
+                    {isConnected ? "● Live" : "● Disconnected"}
+                  </div>
+                )}
+              </div>
+
+              {isConnected && (
+                <div style={{ position: 'absolute', top: '2vh', right: '1.5vw', zIndex: 10 }}>
+                  <button onClick={handleEndVideo} className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-medium transition-colors" style={{ fontSize: '0.9vw', minFontSize: '14px' }}>
+                    End Video
+                  </button>
                 </div>
               )}
 
-              <div
-                className="absolute top-2 left-2 bg-red-600 text-white px-3 py-1 text-sm font-medium"
-                style={{ display: isRecording ? 'none' : 'block' }}
-              >
-                {isConnected ? "Live" : "Disconnected"}
-              </div>
-
-              {
-                showVideoPlayError &&
-                <button
-                  className="w-[3rem] h-[3rem] bg-amber-500 text-white rounded-full absolute top-[50%] left-[50%] -translate-x-[50%] -translate-y-[50%] flex items-center justify-center cursor-pointer"
-                  title={`Play Video`}
-                  onClick={handleVideoPlay}
-                >
+              {showVideoPlayError && (
+                <button className="w-[3rem] h-[3rem] bg-amber-500 text-white rounded-full absolute top-[50%] left-[50%] -translate-x-[50%] -translate-y-[50%] flex items-center justify-center cursor-pointer" title="Play Video" onClick={handleVideoPlay}>
                   <Play />
                 </button>
-              }
+              )}
 
-              <div
-                className="absolute bottom-2 left-[50%] -translate-x-[50%] text-white px-3 py-1 text-sm font-medium flex items-center gap-3"
-                style={{ display: isRecording ? 'none' : 'flex' }}
-              >
+              <div className="absolute bottom-2 left-[50%] -translate-x-[50%] text-white px-3 py-1 text-sm font-medium flex items-center gap-3" style={{ display: media.isRecording ? 'none' : 'flex' }}>
                 <span className="w-4 h-4 rounded-full bg-red-600 block"></span>
-                <span className="text-white text-lg">{isConnected ? formatTime(callDuration) : "0:00"}</span>
+                <span className="text-white text-lg">{isConnected ? formatTime(app.callDuration) : "0:00"}</span>
               </div>
 
-              <div
-                className="absolute bottom-2 right-0 text-white px-3 py-1 text-sm font-medium flex items-center gap-3 flex-col"
-                style={{ display: isRecording ? 'none' : 'flex' }}
-              >
-                <button
-                  className="p-1 rounded text-white cursor-pointer hover:bg-black/20 transition-colors"
-                  onClick={handleZoomIn}
-                  disabled={zoomLevel >= 3}
-                  title={`Zoom In (${Math.round(zoomLevel * 100)}%)`}
-                >
-                  <ZoomIn className={`w-4 h-4 ${zoomLevel >= 3 ? 'opacity-50' : ''}`} />
+              <div className="absolute bottom-2 right-0 text-white px-3 py-1 text-sm font-medium flex items-center gap-3 flex-col" style={{ display: media.isRecording ? 'none' : 'flex' }}>
+                <button className="p-1 rounded text-white cursor-pointer hover:bg-black/20 transition-colors" onClick={() => handleZoom('in')} disabled={app.zoomLevel >= 3} title={`Zoom In (${Math.round(app.zoomLevel * 100)}%)`}>
+                  <ZoomIn className={`w-4 h-4 ${app.zoomLevel >= 3 ? 'opacity-50' : ''}`} />
                 </button>
 
-                {/* Zoom level indicator - clickable to reset */}
-                <button
-                  className="text-xs bg-black/30 px-2 py-1 rounded hover:bg-black/50 transition-colors"
-                  onClick={handleZoomReset}
-                  title="Click to reset zoom"
-                >
-                  {Math.round(zoomLevel * 100)}%
+                <button className="text-xs bg-black/30 px-2 py-1 rounded hover:bg-black/50 transition-colors" onClick={handleZoomReset} title="Click to reset zoom">
+                  {Math.round(app.zoomLevel * 100)}%
                 </button>
 
-                <button
-                  className="p-1 rounded text-white cursor-pointer hover:bg-black/20 transition-colors"
-                  onClick={handleZoomOut}
-                  disabled={zoomLevel <= 0.5}
-                  title={`Zoom Out (${Math.round(zoomLevel * 100)}%)`}
-                >
-                  <ZoomOut className={`w-4 h-4 ${zoomLevel <= 0.5 ? 'opacity-50' : ''}`} />
+                <button className="p-1 rounded text-white cursor-pointer hover:bg-black/20 transition-colors" onClick={() => handleZoom('out')} disabled={app.zoomLevel <= 0.5} title={`Zoom Out (${Math.round(app.zoomLevel * 100)}%)`}>
+                  <ZoomOut className={`w-4 h-4 ${app.zoomLevel <= 0.5 ? 'opacity-50' : ''}`} />
                 </button>
               </div>
             </div>
 
-            <div className="w-[270px] flex gap-2 mt-2">
-              <button
-                onClick={handleRecordingToggle}
-                disabled={!isConnected}
-                className={`disabled:opacity-50 flex items-center justify-center gap-2 font-medium py-4 rounded-md transition-colors flex-1 ${isRecording
-                  ? 'bg-red-500 hover:bg-red-600 text-white'
-                  : 'bg-green-500 hover:bg-green-600 text-white'
-                  }`}
-              >
-                <span className="w-6 h-6 bg-white rounded-full flex items-center justify-center">
-                  <span className={`w-3 h-3 rounded-full ${isRecording ? 'bg-red-500' : 'bg-green-500'}`}></span>
-                </span>
-                {isRecording ? `Stop (${formatRecordingTime(currentRecordingDuration)})` : 'Recording'}
-              </button>
+            <div style={{ width: '90%', marginLeft: 'auto', marginRight: 'auto' }}>
+              <div className="w-full flex gap-2 mt-2">
+                <button
+                  onClick={handleRecordingToggle}
+                  disabled={!isConnected}
+                  className={`disabled:opacity-50 flex flex-col items-center justify-center gap-2 font-medium py-3 rounded-md transition-colors flex-1 ${media.isRecording ? 'bg-red-600 hover:bg-red-700 text-white' : 'bg-red-500 hover:bg-red-600 text-white'}`}
+                >
+                  <div className="text-center leading-tight">
+                    {media.isRecording ? (
+                      <div>
+                        <div>Stop</div>
+                        <div className="text-sm">({formatRecordingTime(media.currentRecordingDuration)})</div>
+                      </div>
+                    ) : (
+                      <div>
+                        <div>Record</div>
+                        <div>Video</div>
+                      </div>
+                    )}
+                  </div>
+                </button>
 
-              <button onClick={takeScreenshot} disabled={!isConnected} className="disabled:opacity-50 flex items-center justify-center gap-2 bg-orange-400 hover:bg-orange-500 text-white font-medium py-4 rounded-md transition-colors flex-1">
-                <Maximize2 className="w-5 h-5" />
-                Screenshot
-              </button>
+                <button onClick={() => takeScreenshot(handleScreenshotTaken)} disabled={!isConnected || isCapturingScreenshot} className="disabled:opacity-50 flex flex-col items-center justify-center gap-2 bg-green-500 hover:bg-green-600 text-white font-medium py-3 rounded-md transition-colors flex-1">
+                  <div className="text-center leading-tight">
+                    {isCapturingScreenshot ? (
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mx-auto mb-1"></div>
+                    ) : (
+                      <>
+                        <div>Take</div>
+                        <div>Screenshot</div>
+                      </>
+                    )}
+                  </div>
+                </button>
+              </div>
             </div>
-
           </div>
 
-          <div className="flex-1 flex flex-col gap-10">
-            {/* Resident Name Section */}
-            <div className="">
-              <label htmlFor="residentName" className="block text-lg font-medium mb-5">
-                Resident Name :
-              </label>
-              <textarea
-                id="residentName"
-                value={residentName}
-                onChange={(e) => setResidentName(e.target.value)}
-                placeholder="Enter resident's name"
-                rows={1}
-                className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-300"
-              />
-            </div>
+          <div className="space-y-6 border-r border-gray-300 min-w-0 flex flex-col items-start justify-start hide-scrollbar" style={{ maxHeight: '100%', overflowY: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none', paddingTop: '3vh', paddingLeft: '1vw', paddingRight: '1vw', paddingBottom: '1vh' }}>
+            <div className="w-full px-4">
+              <h2 className="text-lg font-medium mb-3 text-left ml-3 mr-3">Video Recording(s): {displayRecordingsCount()}</h2>
+              <div className="overflow-y-visible min-h-[8rem]">
+                <div className="flex gap-3 overflow-x-auto pb-2 justify-start ml-3 mr-3" style={{ scrollbarWidth: 'thin' }}>
+                  {media.recordings.length === 0 && <h1>No recordings</h1>}
 
-            {/* Video Recording Section */}
-            <div>
-              <h2 className="text-lg font-medium mb-3">Video Recording(s): {displayRecordingsCount()}</h2>
-              <div className="grid grid-cols-2 gap-3 h-[20rem] overflow-y-auto">
-                {recordings.length === 0 && (
-                  <h1>No recordings</h1>
-                )}
+                  {media.recordings.map((recording) => (
+                    <div key={recording.id} className="relative group flex-shrink-0 w-[15vw] min-w-[180px]">
+                      <img src="/icons/ci_label.svg" className="mb-2" />
+                      <div
+                        data-recording-id={recording.id}
+                        className="aspect-[9/16] bg-gray-200 rounded-md overflow-hidden relative cursor-pointer"
+                        onClick={(e) => {
+                          const video = e.currentTarget.querySelector('video');
+                          if (video.paused) {
+                            video.play();
+                          } else {
+                            video.pause();
+                          }
+                        }}>
 
-                {recordings.map((recording) => (
-                  <div key={recording.id} className="relative group">
-                    <img src="/icons/ci_label.svg" className="mb-2" />
-                    <div
-                      data-recording-id={recording.id}
-                      className="aspect-[9/16] bg-gray-200 rounded-md overflow-hidden relative cursor-pointer"
-                      onClick={(e) => {
-                        const video = e.currentTarget.querySelector('video');
-                        if (video.paused) {
-                          video.play();
-                        } else {
-                          video.pause();
-                        }
-                      }}>
+                        <video
+                          src={recording.url}
+                          controls={true}
+                          muted={false}
+                          className="w-full h-full object-cover"
+                          onPlay={() => updateMedia({ playingVideos: new Set(media.playingVideos).add(recording.id) })}
+                          onPause={() => updateMedia({ playingVideos: new Set([...media.playingVideos].filter(id => id !== recording.id)) })}
+                        />
 
-                      <video
-                        src={recording.url}
-                        controls={true}
-                        muted={false}
-                        className="w-full h-full object-cover"
-                        onPlay={() => setPlayingVideos(prev => new Set(prev).add(recording.id))}
-                        onPause={() => setPlayingVideos(prev => {
-                          const newSet = new Set(prev);
-                          newSet.delete(recording.id);
-                          return newSet;
-                        })}
-                      />
+                        <div className="absolute top-2 left-2 flex flex-col gap-1 z-10">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              saveIndividualRecording(recording);
+                            }}
+                            className={`p-1 hover:bg-black/20 rounded text-white ${recording.isExisting || app.savingRecordingId === recording.id ? 'opacity-50' : ''}`}
+                            title={recording.isExisting ? "Already saved" : "Save recording"}
+                            disabled={recording.isExisting || app.savingRecordingId === recording.id}
+                          >
+                            {app.savingRecordingId === recording.id ? (
+                              <div className="w-4 h-4 flex items-center justify-center">
+                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                              </div>
+                            ) : (
+                              <Save className="w-4 h-4" />
+                            )}
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteRecording(recording);
+                            }}
+                            className="p-1 hover:bg-black/20 rounded text-white"
+                            title="Delete"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
 
-                      {/* Action icons moved to top left corner, vertical alignment */}
-                      <div className="absolute top-2 left-2 flex flex-col gap-1 z-10">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            saveIndividualRecording(recording);
-                          }}
-                          className={`p-1 hover:bg-black/20 rounded text-white ${recording.isExisting || savingRecordingId === recording.id ? 'opacity-50' : ''}`}
-                          title={recording.isExisting ? "Already saved" : "Save recording"}
-                          disabled={recording.isExisting || savingRecordingId === recording.id}
-                        >
-                          {savingRecordingId === recording.id ? (
-                            <div className="w-4 h-4 flex items-center justify-center">
-                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                            </div>
-                          ) : (
-                            <Save className="w-4 h-4" />
-                          )}
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            deleteRecording(recording);
-                          }}
-                          className="p-1 hover:bg-black/20 rounded text-white"
-                          title="Delete"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-
-                      {/* Minimize/Maximize icons at top right corner, horizontal alignment */}
-                      <div className="absolute top-2 right-2 flex flex-row gap-1 z-10">
-                        <button
-                          className="p-1 hover:bg-black/20 rounded text-white"
-                          title="Minimize"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <Minimize2 className="w-4 h-4" />
-                        </button>
-                        <button
-                          className="p-1 hover:bg-black/20 rounded text-white"
-                          title="Maximize"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            maximizeVideo(recording);
-                          }}
-                        >
-                          <Expand className="w-4 h-4" />
-                        </button>
+                        <div className="absolute top-2 right-2 flex flex-row gap-1 z-10">
+                          <button
+                            className="p-1 hover:bg-black/20 rounded text-white"
+                            title="Minimize"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Minimize2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            className="p-1 hover:bg-black/20 rounded text-white"
+                            title="Maximize"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              maximizeVideo(recording);
+                            }}
+                          >
+                            <Expand className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             </div>
 
-            {/* Image Screenshot Section */}
-            <div>
-              <h2 className="text-lg font-medium mb-3">Image Screenshot(s): {(existingScreenshots?.length + screenshots?.length) != 0 && (existingScreenshots?.length + screenshots?.length)}</h2>
+            <div className="w-full px-4">
+              <h2 className="text-lg font-medium mb-3 text-left">Screenshot(s): {getTotalScreenshotCount() > 0 && getTotalScreenshotCount()}</h2>
+              <div className="overflow-y-visible min-h-[8rem]">
+                <div className="flex gap-3 overflow-x-auto pb-2 justify-start" style={{ scrollbarWidth: 'thin' }}>
+                  {(media.existingScreenshots.length === 0 && screenshots.length === 0) && <h1>No screenshots</h1>}
 
-              {/* Grid with overflow-visible to allow dropdown to show */}
-              <div className="h-[20rem] overflow-y-auto">
-
-
-                <div className="grid grid-cols-2 gap-3 overflow-x-visible">
-                  {(existingScreenshots.length === 0 && screenshots.length === 0) && (
-                    <h1>No screenshots</h1>
-                  )}
-
-                  {/* Sort existing screenshots to ensure chronological order (oldest first) */}
-                  {existingScreenshots
-                    .sort((a, b) => {
-                      // Convert timestamp strings to Date objects for proper comparison
-                      const dateA = new Date(a.timestamp);
-                      const dateB = new Date(b.timestamp);
-                      return dateA - dateB; // Ascending order (oldest first)
-                    })
+                  {media.existingScreenshots
+                    .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
                     .map((screenshot, index) => (
-                      <div key={`existing-${screenshot.id}`}>
+                      <div key={`existing-${screenshot.id}`} className="flex-shrink-0 w-[15vw] min-w-[180px]">
                         <img src="/icons/ci_label.svg" className="mb-2" />
-                        <div className="aspect-[9/16] bg-gray-200 rounded-md overflow-hidden flex items-center justify-center relative">
-                          <div className="absolute top-2 right-2 flex flex-row gap-1 z-10">
-                            <button className="p-1 hover:bg-black/20 rounded text-white">
-                              <Minimize2 className="w-4 h-4" />
-                            </button>
-                            <button
-                              className="p-1 hover:bg-black/20 rounded text-white"
-                              onClick={() => maximizeScreenshot(screenshot, index, true)}
-                            >
-                              <Expand className="w-4 h-4" />
-                            </button>
+                        <div className="aspect-square bg-gradient-to-br from-green-50 to-green-100 border-2 border-green-200 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 ease-in-out transform hover:scale-105 flex items-center justify-center relative cursor-pointer group"
+                             onClick={() => maximizeScreenshot(screenshot, index, true)}>
+                          <div className="text-center text-green-700 p-6 transition-all duration-300 group-hover:text-green-800">
+                            <div className="w-12 h-12 mx-auto mb-3 bg-green-200 rounded-full flex items-center justify-center group-hover:bg-green-300 transition-colors duration-300">
+                              <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                              </svg>
+                            </div>
+                            <div className="text-sm font-semibold mb-1">Click to view</div>
+                            <div className="text-xs font-medium opacity-80">
+                              Screenshot {index + 1}<br />
+                              Saved
+                            </div>
                           </div>
-
-                          {/* Action icons for existing screenshots */}
-                          <div className="absolute bottom-2 right-2 flex flex-col gap-1 z-10">
-                            <button className="p-1 hover:bg-black/20 rounded text-white opacity-50" disabled>
-                              <Pencil className="w-4 h-4" />
-                            </button>
-                            <button className="p-1 hover:bg-black/20 rounded text-white opacity-50" disabled title="Already saved">
-                              <Save className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => deleteExistingScreenshot(screenshot)}
-                              className="p-1 hover:bg-black/20 rounded text-white"
-                              title="Delete screenshot"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-
-                          {/* Existing Screenshot Image */}
-                          <img
-                            src={screenshot.url}
-                            alt="existing screenshot"
-                            className="w-full h-full object-fill absolute top-0 left-0 z-0 rounded-md"
-                          />
+                          <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-green-400 to-emerald-400 opacity-0 group-hover:opacity-20 transition-opacity duration-300"></div>
                         </div>
                       </div>
                     ))}
 
-                  {/* Render new screenshots in chronological order (as they were taken) */}
                   {[...screenshots].map((screenshot, index) => {
-                    // ENHANCED: Handle both object and string screenshot formats
                     const screenshotData = typeof screenshot === 'object' ? screenshot.data : screenshot;
-                    // FIXED: Use more reliable unique ID for each screenshot
                     const screenshotId = typeof screenshot === 'object' ?
                       (screenshot.id || `screenshot-${screenshot.timestamp || Date.now()}-${Math.random()}`) :
                       `screenshot-${index}-${Date.now()}-${Math.random()}`;
-                    const screenshotUniqueId = typeof screenshot === 'object' ? screenshot.uniqueId : `${index}`;
 
-                    // FIXED: Use screenshot ID as canvasId to keep drawings attached to the correct screenshot
+                    const isSaved = getScreenshotStatus(screenshotId) || screenshot.isSaved;
+                    const backendId = screenshot.backendId;
                     const canvasId = screenshotId;
-                    const isActive = activePencilScreenshot === canvasId;
-                    const shouldShowDropdown = showPencilDropdown === canvasId;
-
-                    // FIXED: Use clean screenshot URL without excessive unique identifiers
+                    const isActive = ui.activePencilScreenshot === canvasId;
                     const cleanScreenshotUrl = screenshotData.split('#')[0];
 
-                    console.log(`🖼️ Rendering screenshot ${index}:`, { canvasId, screenshotId });
-
+                    console.log(`Rendering screenshot ${index}:`, { 
+                      canvasId, 
+                      screenshotId, 
+                      isSaved, 
+                      backendId,
+                      hasBackendId: !!backendId,
+                      isSavedProperty: screenshot.isSaved,
+                      savedStatus: getScreenshotStatus(screenshotId),
+                      fullScreenshot: screenshot
+                    });
+                    
                     return (
-                      <div key={`screenshot-container-${screenshotId}`} className="relative pencil-dropdown-container">
+                      <div key={`screenshot-container-${screenshotId}`} className="relative pencil-dropdown-container flex-shrink-0 w-[15vw] min-w-[180px]">
                         <img src="/icons/ci_label.svg" className="mb-2" />
-                        <div className="aspect-[9/16] bg-gray-200 rounded-md overflow-visible flex items-center justify-center relative">
-                          {/* Minimize/Maximize icons */}
-                          <div className="absolute top-2 right-2 flex flex-row gap-1 z-20">
-                            <button className="p-1 hover:bg-black/20 rounded text-white">
-                              <Minimize2 className="w-4 h-4" />
-                            </button>
-                            <button
-                              className="p-1 hover:bg-black/20 rounded text-white"
-                              onClick={() => {
-                                console.log('🔍 Maximizing screenshot:', { index, cleanScreenshotUrl });
-                                maximizeScreenshot(cleanScreenshotUrl, index, false);
-                              }}
-                            >
-                              <Expand className="w-4 h-4" />
-                            </button>
+                        <div className={`aspect-square bg-gradient-to-br ${
+                          isSaved 
+                            ? 'from-green-50 to-green-100 border-green-200' 
+                            : 'from-blue-50 to-blue-100 border-blue-200'
+                        } border-2 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 ease-in-out transform hover:scale-105 flex items-center justify-center relative cursor-pointer group`}
+                             onClick={() => {
+                               console.log('Maximizing screenshot:', { index, cleanScreenshotUrl, backendId });
+                               maximizeScreenshot({...screenshot, id: screenshotId}, index, false);
+                             }}>
+                          <div className={`text-center ${
+                            isSaved ? 'text-green-700' : 'text-blue-700'
+                          } p-6 transition-all duration-300 ${
+                            isSaved ? 'group-hover:text-green-800' : 'group-hover:text-blue-800'
+                          }`}>
+                            <div className={`w-12 h-12 mx-auto mb-3 ${
+                              isSaved ? 'bg-green-200' : 'bg-blue-200'
+                            } rounded-full flex items-center justify-center ${
+                              isSaved ? 'group-hover:bg-green-300' : 'group-hover:bg-blue-300'
+                            } transition-colors duration-300`}>
+                              {isSaved ? (
+                                <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                </svg>
+                              ) : (
+                                <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                </svg>
+                              )}
+                            </div>
+                            <div className="text-sm font-semibold mb-1">Click to view</div>
+                            <div className="text-xs font-medium opacity-80">
+                              Screenshot {media.existingScreenshots.length + index + 1}
+                              {isSaved && <><br />Saved</>}
+                            </div>
                           </div>
 
-                          {/* Action icons */}
-                          <div className="absolute bottom-2 right-2 flex flex-col gap-1 z-20">
+                          <div className={`absolute inset-0 rounded-xl ${
+                            isSaved 
+                              ? 'bg-gradient-to-r from-green-400 to-emerald-400' 
+                              : 'bg-gradient-to-r from-blue-400 to-purple-400'
+                          } opacity-0 group-hover:opacity-20 transition-opacity duration-300`}></div>
+
+                          <div className="absolute top-2 left-2 flex flex-col gap-1 z-10">
                             <button
                               onClick={(e) => {
-                                e.preventDefault();
                                 e.stopPropagation();
-                                const rect = e.currentTarget.getBoundingClientRect();
-                                setClickPosition({
-                                  x: rect.right,
-                                  y: rect.top + (rect.height / 2)
-                                });
-                                console.log('🖋️ Pencil clicked for canvas:', canvasId);
-                                handlePencilClick(canvasId, screenshotId);
+                                if (!isSaved && !app.savingScreenshotIds.has(screenshotId)) {
+                                  saveIndividualScreenshot(cleanScreenshotUrl, index, screenshotId);
+                                }
                               }}
-                              className={`p-1 hover:bg-black/20 rounded text-white transition-colors border-2 ${isActive ? 'bg-blue-500 border-blue-300' : 'bg-black/10 border-transparent'
-                                }`}
-                              title="Drawing tools"
+                              className={`p-1 hover:bg-black/20 rounded text-white ${
+                                isSaved || app.savingScreenshotIds.has(screenshotId) ? 'opacity-50' : ''
+                              }`}
+                              title={isSaved ? "Already saved" : "Save screenshot"}
+                              disabled={isSaved || app.savingScreenshotIds.has(screenshotId)}
                             >
-                              <Pencil className="w-4 h-4" />
-                            </button>
-
-                            <button
-                              onClick={() => {
-                                console.log('💾 Saving individual screenshot:', { index, cleanScreenshotUrl, id: screenshotId });
-                                saveIndividualScreenshot(cleanScreenshotUrl, index, screenshotId);
-                              }}
-                              className={`p-1 hover:bg-black/20 rounded text-white transition-all duration-200 ${savingScreenshotIds.has(screenshotId) || savingScreenshotIndex === index
-                                ? 'opacity-80 cursor-not-allowed bg-gray-600'
-                                : 'hover:scale-105'
-                                }`}
-                              title={savingScreenshotIds.has(screenshotId) || savingScreenshotIndex === index ? "Saving..." : "Save screenshot"}
-                              disabled={savingScreenshotIds.has(screenshotId) || savingScreenshotIndex === index}
-                            >
-                              {(savingScreenshotIds.has(screenshotId) || savingScreenshotIndex === index) ? (
+                              {app.savingScreenshotIds.has(screenshotId) ? (
                                 <div className="w-4 h-4 flex items-center justify-center">
                                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                                 </div>
@@ -4513,1056 +2750,323 @@ export default function Page({ params }) {
                               )}
                             </button>
                             <button
-                              onClick={() => {
-                                console.log('🗑️ Deleting screenshot:', { index, id: screenshotId });
-                                deleteNewScreenshot(index, screenshotId);
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (backendId) {
+                                  // If it has a backend ID, delete from backend
+                                  console.log(`🗑️ Deleting screenshot with backend ID: ${backendId}`);
+                                  deleteExistingScreenshot({ id: backendId });
+                                } else {
+                                  // If no backend ID, delete locally
+                                  console.log(`🗑️ Deleting local screenshot: ${screenshotId}`);
+                                  deleteNewScreenshot(index, screenshotId);
+                                }
                               }}
                               className="p-1 hover:bg-black/20 rounded text-white"
-                              title="Delete screenshot"
+                              title={backendId ? "Delete from server" : "Delete locally"}
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
                           </div>
-
-                          {/* FIXED: Screenshot Image with stable loading and NO LOOPS */}
-                          <img
-                            key={`screenshot-img-${screenshotId}`}
-                            src={cleanScreenshotUrl}
-                            alt={`screenshot ${index + 1}`}
-                            className="w-full h-full object-fill absolute top-0 left-0 z-0 rounded-md"
-                            onLoad={(e) => {
-                              console.log(`📸 Screenshot ${index + 1} loaded successfully`);
-
-                              // CRITICAL: Only initialize canvas ONCE per screenshot
-                              const canvas = e.target.parentElement.querySelector(`canvas[data-canvas-id="${canvasId}"]`);
-                              if (canvas) {
-                                console.log(`🎨 Found canvas for initialization: ${canvasId}`);
-                                // FIXED: Only initialize if not already initialized
-                                initializeCanvas(canvas, cleanScreenshotUrl, canvasId);
-                              } else {
-                                console.warn(`❌ Canvas not found for canvasId: ${canvasId}`);
-                              }
-                            }}
-                            onError={(e) => {
-                              console.error(`❌ Error loading screenshot ${index + 1}:`, e);
-                            }}
-                            data-screenshot-id={screenshotId} // Store ID on the element
-                          />
-
-                          {/* FIXED: Canvas for drawings with STABLE event handling */}
-                          <canvas
-                            key={`canvas-${screenshotId}`}
-                            data-canvas-id={canvasId}
-                            data-screenshot-id={screenshotId}
-                            data-screenshot-index={index}
-                            className={`absolute top-0 left-0 w-full h-full z-10 rounded-md transition-all ${isActive
-                              ? 'cursor-crosshair pointer-events-auto'
-                              : 'pointer-events-none'
-                              }`}
-                            style={{
-                              pointerEvents: isActive ? 'auto' : 'none',
-                              touchAction: isActive ? 'none' : 'auto',
-                              zIndex: isActive ? 15 : 10,
-                              border: isActive ? '2px solid #3b82f6' : 'none'
-                            }}
-                            onMouseDown={(e) => {
-                              if (isActive) {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                console.log('🖱️ Mouse down on canvas:', canvasId);
-                                startDrawing(e);
-                              }
-                            }}
-                            onMouseMove={(e) => {
-                              if (isActive) {
-                                e.preventDefault();
-                                draw(e);
-                              }
-                            }}
-                            onMouseUp={(e) => {
-                              if (isActive) {
-                                e.preventDefault();
-                                console.log('🖱️ Mouse up on canvas:', canvasId);
-                                stopDrawing(e);
-                              }
-                            }}
-                            onMouseLeave={(e) => {
-                              if (isActive) {
-                                e.preventDefault();
-                                stopDrawing(e);
-                              }
-                            }}
-                            onTouchStart={(e) => {
-                              if (isActive) {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                console.log('👆 Touch start on canvas:', canvasId);
-                                const touch = e.touches[0];
-                                const mouseEvent = {
-                                  ...e,
-                                  clientX: touch.clientX,
-                                  clientY: touch.clientY,
-                                  target: e.target,
-                                  currentTarget: e.currentTarget
-                                };
-                                startDrawing(mouseEvent);
-                              }
-                            }}
-                            onTouchMove={(e) => {
-                              if (isActive) {
-                                e.preventDefault();
-                                const touch = e.touches[0];
-                                const mouseEvent = {
-                                  ...e,
-                                  clientX: touch.clientX,
-                                  clientY: touch.clientY,
-                                  target: e.target,
-                                  currentTarget: e.currentTarget
-                                };
-                                draw(mouseEvent);
-                              }
-                            }}
-                            onTouchEnd={(e) => {
-                              if (isActive) {
-                                e.preventDefault();
-                                console.log('👆 Touch end on canvas:', canvasId);
-                                stopDrawing(e);
-                              }
-                            }}
-                          />
-
-                          {/* Drawing Tools Dropdown Modal */}
-                          {shouldShowDropdown && (
-                            <div
-                              className="fixed bg-white border border-gray-300 rounded-lg shadow-xl p-3 min-w-[240px] z-50 max-h-[400px] overflow-y-auto"
-                              style={{
-                                left: `${clickPosition.x}px`,
-                                top: `${clickPosition.y - 60}px`,
-                                transform: 'translate(20px, -50%)'
-                              }}
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <div className="space-y-3">
-                                <div className="flex items-center justify-between pb-2 border-b border-gray-200">
-                                  <h3 className="text-sm font-semibold text-gray-800">
-                                    Drawing Tools
-                                    <span className="text-xs text-gray-500 block">Canvas: {canvasId.substring(0, 10)}...</span>
-                                  </h3>
-                                  <div className="flex items-center gap-1">
-                                    <button
-                                      onClick={(e) => {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        console.log('🧹 Clearing canvas:', canvasId);
-                                        clearCanvas(canvasId);
-                                      }}
-                                      className="p-1 hover:bg-red-50 rounded text-red-600 transition-colors"
-                                      title="Clear Canvas"
-                                    >
-                                      🗑️
-                                    </button>
-                                    <button
-                                      onClick={(e) => {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        console.log('❌ Closing dropdown for:', canvasId);
-                                        setShowPencilDropdown(null);
-                                        setActivePencilScreenshot(null);
-                                      }}
-                                      className="p-1 hover:bg-gray-100 rounded transition-colors"
-                                      title="Close"
-                                    >
-                                      <X className="w-4 h-4 text-gray-600" />
-                                    </button>
-                                  </div>
-                                </div>
-
-                                {/* Tools Section */}
-                                <div>
-                                  <p className="text-xs font-medium text-gray-700 mb-2">Tools:</p>
-                                  <div className="grid grid-cols-5 gap-1">
-                                    {tools.map((tool) => (
-                                      <button
-                                        key={tool.name}
-                                        onClick={(e) => {
-                                          e.preventDefault();
-                                          e.stopPropagation();
-                                          console.log('🔧 Tool selected:', tool.name, 'for canvas:', canvasId);
-                                          setSelectedTool(tool.name);
-                                        }}
-                                        className={`p-2 text-xs border rounded hover:scale-105 transition-all duration-200 flex flex-col items-center gap-1 ${selectedTool === tool.name
-                                          ? 'bg-blue-100 text-blue-700 border-blue-300'
-                                          : 'bg-gray-50 border-gray-300 hover:bg-gray-100'
-                                          }`}
-                                        title={tool.title}
-                                      >
-                                        <span className="text-sm">{tool.icon}</span>
-                                      </button>
-                                    ))}
-                                  </div>
-                                </div>
-
-                                {/* Colors Section */}
-                                <div>
-                                  <p className="text-xs font-medium text-gray-700 mb-2">Colors:</p>
-                                  <div className="grid grid-cols-6 gap-1">
-                                    {colors.map((color) => (
-                                      <button
-                                        key={color}
-                                        onClick={(e) => {
-                                          e.preventDefault();
-                                          e.stopPropagation();
-                                          console.log('🎨 Color selected:', color, 'for canvas:', canvasId);
-                                          setSelectedColor(color);
-                                        }}
-                                        className={`w-6 h-6 rounded border-2 transition-all duration-200 hover:scale-110 ${selectedColor === color
-                                          ? 'border-gray-800 scale-110 ring-2 ring-gray-300'
-                                          : 'border-gray-300 hover:border-gray-500'
-                                          }`}
-                                        style={{ backgroundColor: color }}
-                                        title={`Select ${color}`}
-                                      />
-                                    ))}
-                                  </div>
-                                </div>
-
-                                {/* Line Width Section */}
-                                <div>
-                                  <p className="text-xs font-medium text-gray-700 mb-2">Size: {lineWidth}px</p>
-                                  <input
-                                    type="range"
-                                    min="1"
-                                    max="20"
-                                    value={lineWidth}
-                                    onChange={(e) => {
-                                      e.stopPropagation();
-                                      const newWidth = parseInt(e.target.value);
-                                      console.log('📏 Line width changed:', newWidth, 'for canvas:', canvasId);
-                                      setLineWidth(newWidth);
-                                    }}
-                                    className="w-full h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-                                    style={{
-                                      background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${(lineWidth / 20) * 100}%, #e5e7eb ${(lineWidth / 20) * 100}%, #e5e7eb 100%)`
-                                    }}
-                                  />
-                                </div>
-
-                                {/* Current Settings Display */}
-                                <div className="bg-gray-50 p-2 rounded border text-center">
-                                  <p className="text-xs text-gray-600">
-                                    <span className="font-medium text-gray-800">
-                                      {tools.find(t => t.name === selectedTool)?.icon} {selectedTool}
-                                    </span>
-                                    {selectedTool !== 'eraser' && (
-                                      <>
-                                        {' '}- <span
-                                          className="inline-block w-3 h-3 rounded border align-middle mx-1"
-                                          style={{ backgroundColor: selectedColor }}
-                                        ></span>
-                                        {lineWidth}px
-                                      </>
-                                    )}
-                                  </p>
-                                </div>
-                              </div>
-                            </div>
-                          )}
-
                         </div>
                       </div>
                     );
                   })}
                 </div>
-
               </div>
             </div>
-          </div>
-        </div>
 
-        {/* Right Column - MOVED OUTSIDE LEFT COLUMN */}
-        <div className="space-y-6">
-          {/* Resident Information */}
-          <div>
-            <div className="flex flex-col md:flex-row md:justify-between gap-4 mb-6">
-              <div className="flex-1">
-                <div className="flex items-center justify-between mb-3">
+            <button
+              onClick={handleCreateShareLink}
+              className="w-full bg-orange-400 hover:bg-orange-500 text-white font-medium py-4 rounded-md transition-colors mt-8 mb-2 flex flex-col gap-1 items-center justify-center"
+            >
+              <span>Create Share Link</span>
+              <span className="text-xs font-normal">(Copy and paste link to your job ticket or any system)</span>
+            </button>
 
-                  <label htmlFor="residentAddress" className="block text-lg font-medium mb-2">
-                    Resident Address :
-                  </label>
-
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button className={"bg-amber-500 text-white rounded-3xl flex items-center gap-2 text-xl"}>Actions <img src="/icons/arrow-down.svg" /></Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent className={'bg-white border-none shadow-sm'}>
-                      <DropdownMenuItem>
-                        <button className='bg-none border-none cursor-pointer' onClick={handleLogout}>Logout</button>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem>
-                        <button className='bg-none border-none cursor-pointer' onClick={handleDashboard}>Dashboard</button>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem>
-                        <button className='bg-none border-none cursor-pointer' onClick={() => setTickerOpen(true)}>Raise Support Ticket</button>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem><button className='bg-none border-none cursor-pointer' onClick={() => setResetOpen(true)}>Reset Password</button></DropdownMenuItem>
-                      <DropdownMenuItem > <button className='bg-none border-none cursor-pointer' onClick={() => setInviteOpen(true)}>Invite Coworkers</button></DropdownMenuItem>
-                      <DropdownMenuItem><button className='bg-none border-none cursor-pointer' onClick={() => setMessageOpen(true)}>Amend Message</button></DropdownMenuItem>
-                      <DropdownMenuItem> <button className='bg-none border-none cursor-pointer text-left' onClick={() => setLandlordDialogOpen(true)}>Add Landlord Name/Logo/ <br />Profile Image </button></DropdownMenuItem>
-                      <DropdownMenuItem > <button className='bg-none border-none cursor-pointer' onClick={() => setFaqOpen(true)}>FAQ's</button></DropdownMenuItem>
-                      <DropdownMenuItem > <button className='bg-none border-none cursor-pointer' onClick={() => setFeedbackOpen(true)}>Give Feedback</button></DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-
-                </div>
-                <textarea
-                  id="residentAddress"
-                  value={residentAddress}
-                  onChange={(e) => setResidentAddress(e.target.value)}
-                  placeholder="Enter resident's address"
-                  rows={1}
-                  className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-300"
-                />
-              </div>
-            </div>
-            <div className="mb-6">
-              <textarea
-                placeholder="Post code:"
-                value={actualPostCode}
-                onChange={(e) => setActualPostCode(e.target.value)}
-                className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-300"
-                rows={1}
-              />
-            </div>
-            <div className="mb-6">
-              <textarea
-                id="postCode"
-                value={postCode}
-                onChange={(e) => setPostCode(e.target.value)}
-                placeholder="Ref:"
-                rows={1}
-                className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-300"
-              />
-            </div>
-          </div>
-
-          {/* Repair Details */}
-          <div>
-            <label htmlFor="repairDetails" className="block text-lg font-medium mb-2">
-              Repair details :
-            </label>
-            <textarea
-              id="repairDetails"
-              value={repairDetails}
-              onChange={(e) => setRepairDetails(e.target.value)}
-              placeholder="Description of repair"
-              rows={5}
-              className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-300"
-            />
-          </div>
-
-          {/* Target Time */}
-          <div className="relative">
-            <label htmlFor="targetTime" className="block text-lg font-medium mb-2">
-              Target time :
-            </label>
-            <div className="flex items-start gap-2">
-              <div className="relative flex-1">
-                <button
-                  type="button"
-                  onClick={() => setShowDropdown(!showDropdown)}
-                  className="w-full flex items-center justify-between p-3 bg-orange-100 rounded-md text-left"
-                >
-                  <span>{targetTime}</span>
-                  <svg
-                    className={`w-4 h-4 transition-transform ${showDropdown ? "rotate-180" : ""}`}
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
-                </button>
-
-                {showDropdown && (
-                  <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg">
-                    <ul>
-                      <li
-                        className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
-                        onClick={() => {
-                          setTargetTime("Emergency 24 Hours")
-                          setShowDropdown(false)
-                        }}
-                      >
-                        Emergency 24 Hours
-                      </li>
-                      <li
-                        className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
-                        onClick={() => {
-                          setTargetTime("Urgent (7 Days)")
-                          setShowDropdown(false)
-                        }}
-                      >
-                        Urgent (7 Days)
-                      </li>
-                      <li
-                        className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
-                        onClick={() => {
-                          setTargetTime("Routine (28 Days)")
-                          setShowDropdown(false)
-                        }}
-                      >
-                        Routine (28 Days)
-                      </li>
-                      <li
-                        className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
-                        onClick={() => {
-                          setTargetTime("Follow Up Work")
-                          setShowDropdown(false)
-                        }}
-                      >
-                        Follow Up Work
-                      </li>
-                      <li
-                        className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
-                        onClick={() => {
-                          setTargetTime("Other")
-                          setShowDropdown(false)
-                        }}
-                      >
-                        Other
-                      </li>
-                    </ul>
+            <div className="w-full flex items-center gap-4 mt-6">
+              <button 
+                onClick={() => handleSaveAndRedirect(null)} 
+                disabled={!isConnected || app.isEndingVideo} 
+                className={`${app.isEndingVideo ? 'bg-red-400' : 'bg-red-500 hover:bg-red-600'} disabled:opacity-50 text-white font-medium py-4 rounded-md transition-colors flex-1 whitespace-pre`}
+              >
+                {app.isEndingVideo ? (
+                  <div className="flex flex-col items-center gap-1">
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mb-1" />
+                    <span className="text-xs">Ending...</span>
+                  </div>
+                ) : (
+                  <>End Video Recording<br /> Without Saving</>
+                )}
+              </button>
+              <button
+                onClick={() => handleSaveAndRedirect(() => performSave({ disconnectVideo: false }))}
+                disabled={isSaveDisabled() || app.isEndingVideo}
+                className={`${app.isEndingVideo ? 'bg-green-400' : 'bg-green-500 hover:bg-green-600'} disabled:opacity-50 text-white font-medium py-4 rounded-md transition-colors flex-1 whitespace-pre`}
+              >
+                {app.isEndingVideo ? (
+                  <div className="flex flex-col items-center gap-1">
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mb-1" />
+                    <span className="text-xs">Saving & Ending...</span>
+                  </div>
+                ) : (
+                  <div className="text-center">
+                    Save Images and <br />
+                    Form Data
                   </div>
                 )}
-              </div>
-              <div className="flex flex-col gap-2 items-end">
-
-                <button
-                  type="button"
-                  onClick={handleSave}
-                  disabled={isSaveDisabled()}
-                  className="w-full flex items-center justify-center p-3 bg-green-500 hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-md transition-colors"
-                >
-                  {isSaving ? (
-                    <div className="flex items-center gap-2">
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      <span>Saving...</span>
-                    </div>
-                  ) : (
-                    'Save repair'
-                  )}
-                </button>
-                <button className="p-2 bg-gray-100 rounded-md hover:bg-gray-200">
-                  <Plus className="w-6 h-6" />
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Generate Link Button */}
-          <button
-            onClick={handleCreateShareLink}
-            className="w-full bg-orange-400 hover:bg-orange-500 text-white font-medium py-4 rounded-md transition-colors mt-8 mb-2 flex flex-col gap-1 items-center justify-center"
-          >
-            <span>Create Share Link</span>
-            <span className="text-xs font-normal">to send to Contractor/Supplier or Co-workers</span>
-          </button>
-          <p className="text-center text-gray-600 mt-0 text-sm">(Copy and paste link to your job ticket or any system)</p>
-
-          <div className="w-full flex items-center gap-4">
-            <button onClick={handleDisconnect} disabled={!isConnected} className="bg-red-500 disabled:opacity-50 hover:bg-red-600 text-white font-medium py-4 rounded-md transition-colors flex-1 whitespace-pre">
-              End Video <br /> (Without Saving)
-            </button>
-            <button
-              onClick={handleEndVideoAndSave}
-              disabled={isSaveDisabled()}
-              className="bg-green-500 disabled:opacity-50 hover:bg-green-600 text-white font-medium py-4 rounded-md transition-colors flex-1 whitespace-pre"
-            >
-              {isEndingSave ? (
-                <div className="flex flex-col items-center gap-1">
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mb-1" />
-                  <span className="text-xs">Ending & Saving...</span>
-                </div>
-              ) : (
-                <>
-                  End Video and <br />
-                  Save Images
-                </>
-              )}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Footer with token info indicator */}
-      <div className="flex items-center justify-between mt-5">
-        <p className="text-xs">
-          User : {getDisplayName()} {isClient ? new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' }) : ''}, {isClient ? new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: true }).toLowerCase() : ''}
-        </p>
-        {tokenLandlordInfo && (
-          <p className="text-xs text-green-600">✓ Using profile info from video link</p>
-        )}
-      </div>
-    </div>
-  )
-}
-
-
-"use client"
-import { useState, useRef, useEffect } from "react"
-import { Button } from "@/components/ui/button"
-import { Loader2, XIcon, Move } from "lucide-react"
-import { toast } from "sonner"
-import axios from "axios"
-import Link from "next/link"
-import Image from "next/image"
-import { io } from "socket.io-client"
-import { useUser } from "@/provider/UserProvider"
-import { useDialog } from "@/provider/DilogsProvider"
-import CustomDialog from "@/components/dialogs/CustomDialog"
-
-export default function VideoLinkSender({ isOpen, onClose, onSuccess }) {
-  const { user, isAuth } = useUser();
-  const { getUserMessageSettings, messageSettingsLoaded, loadMessageSettings } = useDialog();
-  const [phone, setPhone] = useState('');
-  const [email, setEmail] = useState('');
-  const [contactMethod, setContactMethod] = useState('email');
-  const [token, setToken] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [lastTypingTime, setLastTypingTime] = useState(0);
-  const [isTyping, setIsTyping] = useState(false);
-  const [isManualSelection, setIsManualSelection] = useState(false);
-  const [linkAccepted, setLinkAccepted] = useState(false);
-  const [socketConnected, setSocketConnected] = useState(false);
-
-  // Drag and drop states
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
-  const [modalPosition, setModalPosition] = useState({ x: 0, y: 0 });
-
-  const phoneInputRef = useRef(null);
-  const emailInputRef = useRef(null);
-  const typingTimerRef = useRef(null);
-  const socketRef = useRef(null);
-  const modalRef = useRef(null);
-  const dragHandleRef = useRef(null);
-
-  // Socket connection for real-time updates
-  useEffect(() => {
-    if (dialogOpen && token) {
-      const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-      const socketUrl = backendUrl.replace('/api/v1', '');
-      
-      socketRef.current = io(socketUrl, {
-        reconnectionAttempts: 5,
-        timeout: 10000,
-        transports: ['websocket'],
-      });
-
-      socketRef.current.on('connect', () => {
-        console.log('📡 VideoLinkSender connected to socket');
-        setSocketConnected(true);
-        socketRef.current.emit('admin-waiting', token);
-      });
-
-      socketRef.current.on('user-joined-room', (roomToken) => {
-        console.log('✅ User opened the link:', roomToken);
-        if (roomToken === token) {
-          setLinkAccepted(true);
-          toast.success("User has opened the video link!");
-        }
-      });
-
-      socketRef.current.on('disconnect', () => {
-        console.log('📡 VideoLinkSender disconnected from socket');
-        setSocketConnected(false);
-      });
-
-      return () => {
-        if (socketRef.current) {
-          socketRef.current.disconnect();
-        }
-      };
-    }
-  }, [dialogOpen, token]);
-
-  // Cleanup socket on component unmount
-  useEffect(() => {
-    return () => {
-      if (socketRef.current) {
-        socketRef.current.disconnect();
-      }
-    };
-  }, []);
-
-  // Auto-focus switching logic
-  useEffect(() => {
-    let focusTimer;
-
-    if (isOpen && !isManualSelection) {
-      focusTimer = setInterval(() => {
-        const currentTime = Date.now();
-        if (!isTyping && currentTime - lastTypingTime > 3000) {
-          if (contactMethod === 'phone') {
-            emailInputRef.current?.focus();
-            setContactMethod('email');
-          } else {
-            phoneInputRef.current?.focus();
-            setContactMethod('phone');
-          }
-        }
-      }, 3000);
-    }
-
-    return () => {
-      clearInterval(focusTimer);
-      if (typingTimerRef.current) {
-        clearTimeout(typingTimerRef.current);
-      }
-    };
-  }, [isOpen, isTyping, lastTypingTime, contactMethod, isManualSelection]);
-
-  // Reset modal position when modal opens
-  useEffect(() => {
-    if (isOpen) {
-      setModalPosition({ x: 0, y: 0 });
-    }
-  }, [isOpen]);
-
-  // Drag functionality
-  const handleMouseDown = (e) => {
-    if (!modalRef.current) return;
-    
-    setIsDragging(true);
-    const modalRect = modalRef.current.getBoundingClientRect();
-    const viewport = {
-      width: window.innerWidth,
-      height: window.innerHeight
-    };
-    
-    // Calculate offset from modal's top-left corner
-    setDragOffset({
-      x: e.clientX - modalRect.left,
-      y: e.clientY - modalRect.top
-    });
-    
-    // Prevent text selection while dragging
-    document.body.style.userSelect = 'none';
-    e.preventDefault();
-  };
-
-  // Handle mouse move for dragging
-  useEffect(() => {
-    const handleMouseMove = (e) => {
-      if (!isDragging || !modalRef.current) return;
-
-      const viewport = {
-        width: window.innerWidth,
-        height: window.innerHeight
-      };
-
-      // Calculate new position relative to center
-      let newX = e.clientX - viewport.width / 2 - dragOffset.x + modalRef.current.offsetWidth / 2;
-      let newY = e.clientY - viewport.height / 2 - dragOffset.y + modalRef.current.offsetHeight / 2;
-
-      // Boundary constraints - keep modal visible
-      const modalWidth = modalRef.current.offsetWidth;
-      const modalHeight = modalRef.current.offsetHeight;
-      
-      const maxX = viewport.width / 2 - 100; // Keep at least 100px visible
-      const minX = -viewport.width / 2 + 100;
-      const maxY = viewport.height / 2 - 100;
-      const minY = -viewport.height / 2 + 100;
-
-      newX = Math.max(minX, Math.min(maxX, newX));
-      newY = Math.max(minY, Math.min(maxY, newY));
-
-      setModalPosition({ x: newX, y: newY });
-    };
-
-    const handleMouseUp = () => {
-      setIsDragging(false);
-      document.body.style.userSelect = '';
-    };
-
-    if (isDragging) {
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
-    }
-
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [isDragging, dragOffset]);
-
-  const handleInputChange = (value, type) => {
-    setIsTyping(true);
-    setLastTypingTime(Date.now());
-    
-    if (type === 'phone') {
-      setPhone(value);
-      setContactMethod('phone');
-    } else {
-      setEmail(value);
-      setContactMethod('email');
-    }
-
-    if (typingTimerRef.current) {
-      clearTimeout(typingTimerRef.current);
-    }
-    typingTimerRef.current = setTimeout(() => {
-      setIsTyping(false);
-    }, 1000);
-  };
-
-  // Helper functions for user data
-  const isValidImageUrl = (url) => {
-    if (!url) return false;
-    return url.startsWith('data:') || url.startsWith('http://') || url.startsWith('https://');
-  };
-
-  const getProfileImage = () => {
-    if (user?.landlordInfo?.useLandlordLogoAsProfile && user?.landlordInfo?.landlordLogo) {
-      if (isValidImageUrl(user.landlordInfo.landlordLogo)) {
-        return user.landlordInfo.landlordLogo;
-      }
-    }
-    
-    if (user?.landlordInfo?.officerImage) {
-      if (isValidImageUrl(user.landlordInfo.officerImage)) {
-        return user.landlordInfo.officerImage;
-      }
-    }
-    
-    return null;
-  };
-
-  const getLandlordLogo = () => {
-    if (user?.landlordInfo?.landlordLogo && isValidImageUrl(user.landlordInfo.landlordLogo)) {
-      return user.landlordInfo.landlordLogo;
-    }
-    return null;
-  };
-  // Normalize phone number to E.164 (UK default)
-  const normalizePhoneNumber = (number) => {
-    let cleaned = number.replace(/[\s\-()]/g, '');
-    if (cleaned.startsWith('+')) {
-      return cleaned;
-    }
-    if (cleaned.startsWith('0')) {
-      // 07123456789 => +447123456789
-      return '+44' + cleaned.slice(1);
-    }
-    if (cleaned.length === 10 && cleaned.startsWith('7')) {
-      // 7123456789 => +447123456789
-      return '+44' + cleaned;
-    }
-    // fallback: just return as is
-    return cleaned;
-  };
-
-  const validatePhoneNumber = (number) => {
-    // Accepts numbers starting with + and 10-15 digits, or UK local formats
-    const cleaned = number.replace(/[\s\-()]/g, '');
-    if (/^\+[1-9]\d{9,14}$/.test(cleaned)) return true;
-    if (/^0[1-9]\d{8,12}$/.test(cleaned)) return true; // UK local with 0
-    if (/^7\d{9}$/.test(cleaned)) return true; // UK local without 0
-    return false;
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    
-    if (!phone && !email) {
-      toast.error("Please enter either phone number or email address");
-      return;
-    }
-    // Phone validation for international and UK local numbers
-    if (phone && !validatePhoneNumber(phone)) {
-      toast.error("Please enter a valid phone number (e.g. +447123456789 or 07123456789)");
-      return;
-    }
-
-    if (isAuth == false) {
-      toast("Please Login First");
-      return
-    }
-
-    setIsLoading(true);
-
-    try {
-      // Ensure message settings are loaded before sending
-      if (!messageSettingsLoaded && isAuth) {
-        console.log('📥 Loading message settings before sending video link...');
-        await loadMessageSettings();
-      }
-
-      const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-      
-      const profileData = {
-        number: phone ? normalizePhoneNumber(phone) : '',
-        email: email
-      };
-      
-      if (user?.landlordInfo?.landlordName) {
-        profileData.landlordName = user.landlordInfo.landlordName;
-      }
-      
-      const landlordLogoUrl = getLandlordLogo();
-      if (landlordLogoUrl) {
-        profileData.landlordLogo = landlordLogoUrl;
-      }
-      
-      const profileImageUrl = getProfileImage();
-      if (profileImageUrl) {
-        profileData.profileImage = profileImageUrl;
-      }
-      
-      // Add redirect URL logic
-      let redirectUrl = ''; // Empty means use current frontend URL
-      let isDefaultRedirectUrl = false;
-      
-      if (user?.landlordInfo?.redirectUrlTailored && user?.landlordInfo?.redirectUrlTailored.trim() !== 'www.') {
-        redirectUrl = user.landlordInfo.redirectUrlTailored;
-        isDefaultRedirectUrl = false;
-        console.log('🔗 Using tailored redirect URL:', redirectUrl);
-      } else if (user?.landlordInfo?.redirectUrlDefault && user?.landlordInfo?.redirectUrlDefault.trim() !== '') {
-        redirectUrl = user.landlordInfo.redirectUrlDefault;
-        isDefaultRedirectUrl = true;
-        console.log('🔗 Using custom default redirect URL:', redirectUrl);
-      } else {
-        // Use current frontend URL as default
-        redirectUrl = window.location.origin;
-        isDefaultRedirectUrl = true;
-        console.log('🔗 Using current frontend URL as default:', redirectUrl);
-      }
-        profileData.tokenLandlordInfo = {
-        landlordName: user?.landlordInfo?.landlordName || null,
-        landlordLogo: landlordLogoUrl,
-        profileImage: profileImageUrl,
-        useLandlordLogoAsProfile: user?.landlordInfo?.useLandlordLogoAsProfile || false,
-        profileShape: user?.landlordInfo?.profileShape || 'circle',
-        redirectUrl: redirectUrl,
-        isDefaultRedirectUrl: isDefaultRedirectUrl
-      };      // Get current message settings (either from context or user object)
-      const currentMessageSettings = getUserMessageSettings();
-      const messageSettings = {
-        messageOption: currentMessageSettings?.messageOption || user?.messageSettings?.messageOption || '',
-        tailoredMessage: currentMessageSettings?.tailoredMessage || user?.messageSettings?.tailoredMessage || '',
-        defaultTextSize: currentMessageSettings?.defaultTextSize || user?.messageSettings?.defaultTextSize || '14px',
-        tailoredTextSize: currentMessageSettings?.tailoredTextSize || user?.messageSettings?.tailoredTextSize || '14px',
-        selectedButtonColor: currentMessageSettings?.selectedButtonColor || user?.messageSettings?.selectedButtonColor || 'bg-green-800'
-      };
-
-      console.log('📝 Using message settings for video link:', messageSettings);
-      console.log('🎨 Button color being sent:', messageSettings.selectedButtonColor);
-      
-      const queryParams = new URLSearchParams();
-      
-      if (profileData.number) queryParams.append('number', profileData.number);
-      if (profileData.email) queryParams.append('email', profileData.email);
-      if (profileData.landlordName) queryParams.append('landlordName', profileData.landlordName);
-      if (profileData.landlordLogo) queryParams.append('landlordLogo', profileData.landlordLogo);
-      if (profileData.profileImage) queryParams.append('profileImage', profileData.profileImage);
-      if (redirectUrl) queryParams.append('redirectUrl', redirectUrl);
-      if (profileData.tokenLandlordInfo) {
-        queryParams.append('tokenLandlordInfo', JSON.stringify(profileData.tokenLandlordInfo));
-      }
-      // Add message settings to query params
-      queryParams.append('messageSettings', JSON.stringify(messageSettings));
-      
-      console.log('🚀 Sending video link with redirect URL:', redirectUrl);
-      
-      const res = await axios.get(`${backendUrl}/send-token?${queryParams.toString()}`);
-      
-      setToken(res.data.token);
-      setDialogOpen(true);
-      setLinkAccepted(false);
-      
-      toast.success("Video link sent successfully");
-      
-      // Close only the form modal (clear form data and reset position)
-      setPhone('');
-      setEmail('');
-      setIsManualSelection(false);
-      setModalPosition({ x: 0, y: 0 });
-      // Don't call onClose() here - we want to keep the component open for the success dialog
-      
-      // Call success callback if provided
-      if (onSuccess) {
-        onSuccess(res.data.token);
-      }
-    } catch (error) {
-      console.error('Error sending token:', error);
-      toast.error("Failed to send video link. Please try again.");
-    } finally {
-      setIsLoading(false);
-      setIsManualSelection(false);
-    }
-  };
-
-  const handleClose = () => {
-    setPhone('');
-    setEmail('');
-    setIsManualSelection(false);
-    setModalPosition({ x: 0, y: 0 });
-    onClose();
-  };
-
-  const handleDialogClose = () => {
-    setDialogOpen(false);
-    setToken('');
-    setLinkAccepted(false);
-    if (socketRef.current) {
-      socketRef.current.disconnect();
-    }
-  };
-
-  if (!isOpen) return null;
-
-  return (
-    <>
-      {/* Form Modal - only show when dialog is not open */}
-      {!dialogOpen && (
-        <div className="fixed inset-0 bg-black/10 flex items-center justify-center z-[9999] px-4">
-          <div 
-            ref={modalRef}
-            className={`bg-white rounded-xl shadow-lg p-8 relative overflow-hidden transition-shadow duration-200 max-w-4xl w-full ${
-              isDragging ? 'shadow-2xl cursor-grabbing' : 'cursor-default'
-            }`}
-            style={{
-              position: 'fixed',
-              left: '50%',
-              top: '50%',
-              transform: `translate(calc(-50% + ${modalPosition.x}px), calc(-50% + ${modalPosition.y}px))`,
-              transition: isDragging ? 'none' : 'transform 0.2s ease-out',
-              zIndex: 10000
-            }}
-          >
-          {/* Drag Handle Header */}
-          <div 
-            className="absolute top-0 left-0 right-0 h-12 bg-white rounded-t-xl flex items-center justify-between px-4"
-          >
-            <div 
-              ref={dragHandleRef}
-              className={`flex items-center gap-1 bg-purple-600 text-white px-2 py-0.5 rounded-md ${
-                isDragging ? 'cursor-grabbing' : 'cursor-grab'
-              }`}
-              onMouseDown={handleMouseDown}
-            >
-              <Move className="w-3 h-3" />
-              <span className="text-xs p-1 font-medium">Drag to move</span>
-            </div>
-            <button
-              onClick={handleClose}
-              aria-label="Close"
-              className="text-gray-600 hover:text-gray-800 cursor-pointer transition-colors"
-            >
-              <XIcon className="w-4 h-4" />
-            </button>
-          </div>
-
-          {/* Modal Content */}
-          <div className="pt-8">
-            <h3 className="text-xl font-semibold mb-6 text-center">
-              Enter your customer's mobile number or email address below to send an instant video link
-            </h3>
-
-            <form onSubmit={handleSubmit} className="flex flex-col md:flex-row items-center gap-4">
-              <div className="flex-1 w-full">
-                <input
-                  ref={phoneInputRef}
-                  type="text"
-                  placeholder="Enter customer mobile number"
-                  className={`w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-400 ${contactMethod === 'phone' ? 'bg-white' : 'bg-gray-100'}`}
-                  value={phone}
-                  onChange={(e) => handleInputChange(e.target.value, 'phone')}
-                  onClick={() => {
-                    setContactMethod('phone');
-                    setIsManualSelection(true);
-                  }}
-                />
-              </div>
-
-              <div className="self-center">
-                <span className="text-gray-500">or</span>
-              </div>
-
-              <div className="flex-1 w-full">
-                <input
-                  ref={emailInputRef}
-                  type="email"
-                  placeholder="Enter customer email address"
-                  className={`w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-400 ${contactMethod === 'email' ? 'bg-white' : 'bg-gray-100'}`}
-                  value={email}
-                  onChange={(e) => handleInputChange(e.target.value, 'email')}
-                  onClick={() => {
-                    setContactMethod('email');
-                    setIsManualSelection(true);
-                  }}
-                />
-              </div>
-
-              <button
-                type="submit"
-                className="bg-green-500 hover:bg-green-600 text-white font-medium py-2 px-4 rounded-md transition-colors"
-                disabled={isDragging}
-              >
-                {isLoading ? <Loader2 className='w-4 h-4 animate-spin' /> : <>Send<br />video link</>}
               </button>
-            </form>
+            </div>
+          </div>
+
+          <div className="space-y-6 hide-scrollbar" style={{ maxHeight: 'none', overflowY: 'visible', overflowX: 'hidden', scrollbarWidth: 'none', msOverflowStyle: 'none', paddingTop: '2vh', paddingLeft: '1.5vw', paddingRight: '1.5vw', paddingBottom: '1vh', minWidth: '250px', maxWidth: '100%' }}>
+            <div>
+              <input
+                type="text"
+                id="residentName"
+                value={form.residentName}
+                onChange={(e) => updateForm({ residentName: e.target.value })}
+                placeholder="Resident Name"
+                className="w-full p-3 bg-gray-50 border border-black rounded-lg focus:outline-none focus:border-transparent focus:ring-2 focus:ring-orange-300"
+                style={{ borderWidth: '3px' }}
+              />
+            </div>
+
+            <div>
+              <div className="flex flex-col md:flex-row md:justify-between gap-4 mb-3">
+                <div className="flex-1">
+                  <label htmlFor="residentAddress" className="block text-lg font-medium mb-2">Resident Address :</label>
+                  
+                  <div className="mb-3">
+                    <textarea
+                      placeholder="Address line 1"
+                      value={form.addressLine1}
+                      onChange={(e) => updateForm({ addressLine1: e.target.value })}
+                      rows={1}
+                      className="w-full p-3 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-300"
+                    />
+                  </div>
+
+                  <div className="mb-3">
+                    <textarea
+                      placeholder="Address line 2"
+                      value={form.addressLine2}
+                      onChange={(e) => updateForm({ addressLine2: e.target.value })}
+                      rows={1}
+                      className="w-full p-3 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-300"
+                    />
+                  </div>
+
+                  <div className="mb-3">
+                    <textarea
+                      placeholder="Address line 3"
+                      value={form.addressLine3}
+                      onChange={(e) => updateForm({ addressLine3: e.target.value })}
+                      rows={1}
+                      className="w-full p-3 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-300"
+                    />
+                  </div>
+
+                  {form.addressLines.map((line, index) => (
+                    <div key={index} className="mb-3">
+                      <textarea
+                        placeholder={`Address line ${index + 4}`}
+                        value={line}
+                        onChange={(e) => updateAddressLine(index, e.target.value)}
+                        rows={1}
+                        className="w-full p-3 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-300"
+                      />
+                    </div>
+                  ))}
+
+                  <div className="flex justify-end mt-2">
+                    <span
+                      onClick={addAddressLine}
+                      className="text-gray-600 cursor-pointer hover:text-gray-800 text-sm"
+                      title="Add address line"
+                    >
+                      Address line +
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mb-3 -mt-[26px]">
+                <div className="w-[62.5%]">
+                  <textarea
+                    placeholder="Postcode:"
+                    value={form.actualPostCode}
+                    onChange={(e) => updateForm({ actualPostCode: e.target.value })}
+                    className="w-full p-3 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-300"
+                    rows={1}
+                  />
+                </div>
+              </div>
+              
+              <div className="mb-3">
+                <textarea
+                  placeholder="Phone no:"
+                  value={form.phoneNumber}
+                  onChange={(e) => updateForm({ phoneNumber: e.target.value })}
+                  className="w-full p-3 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-300"
+                  rows={1}
+                />
+              </div>
+
+              <div className="mb-3">
+                <textarea
+                  id="postCode"
+                  value={form.postCode}
+                  onChange={(e) => updateForm({ postCode: e.target.value })}
+                  placeholder="Ref:"
+                  rows={1}
+                  className="w-full p-3 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-300"
+                />
+              </div>
+            </div>
+
+            <div>
+              <div className="flex items-center gap-3 mb-2 flex-nowrap">
+                <label className="block text-lg font-medium whitespace-nowrap">Repair/Work Details:</label>
+                <Plus
+                  className="w-5 h-5 text-gray-600 cursor-pointer hover:text-gray-800 flex-shrink-0"
+                  strokeWidth={3}
+                  title="Add work detail"
+                  onClick={addWorkDetail}
+                />
+                <button
+                  className="px-3 py-1 mr-4 bg-gray-200 text-gray-700 rounded-full hover:bg-gray-300 transition-colors mt-1 flex-shrink-0 shadow-lg"
+                  title="Target Time"
+                >
+                  <span className="text-xs font-medium whitespace-nowrap">Target Time</span>
+                </button>
+              </div>
+
+              {[
+                { value: form.workDetail1, setter: (val) => updateForm({ workDetail1: val }), field: 'field1', placeholder: 'Work detail 1' },
+                { value: form.workDetail2, setter: (val) => updateForm({ workDetail2: val }), field: 'field2', placeholder: 'Work detail 2' },
+                { value: form.workDetail3, setter: (val) => updateForm({ workDetail3: val }), field: 'field3', placeholder: 'Work detail 3' }
+              ].map((detail, idx) => (
+                <div key={idx} className="mb-3 flex items-center gap-2 relative">
+                  <textarea
+                    placeholder={detail.placeholder}
+                    value={detail.value}
+                    onChange={(e) => detail.setter(e.target.value)}
+                    rows={1}
+                    className="flex-1 p-3 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-300"
+                  />
+                  <div className="relative" data-dropdown-id={detail.field}>
+                    <button
+                      onClick={() => handleTTDropdownToggle(detail.field)}
+                      className="p-3 bg-gray-50 text-black border border-gray-300 rounded-full flex items-center gap-1 hover:bg-gray-100 transition-colors"
+                      title="Target Time Dropdown"
+                    >
+                      <span className="text-sm font-medium">{getTTDisplayText(detail.field)}</span>
+                      <ChevronDown className="w-4 h-4" />
+                    </button>
+
+                    {ui.showTTDropdown === detail.field && (
+                      <div className="absolute top-full right-0 mt-1 w-48 bg-white border border-gray-300 rounded-lg shadow-lg z-50">
+                        {ttOptions.map((option, index) => (
+                          <button
+                            key={index}
+                            onClick={() => handleTTOptionSelect(detail.field, option)}
+                            className={`w-full text-left px-4 py-2 text-sm first:rounded-t-lg last:rounded-b-lg transition-colors duration-200 ${
+                              form.selectedTTValues[detail.field] === option 
+                                ? 'bg-orange-300 text-white' 
+                                : 'hover:bg-orange-200 hover:bg-opacity-30'
+                            }`}
+                          >
+                            {option}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+
+              {form.workDetails.map((detail, index) => (
+                <div key={index} className="flex items-center gap-2 mb-3 relative">
+                  <textarea
+                    placeholder={`Work detail ${index + 4}`}
+                    value={detail}
+                    onChange={(e) => updateWorkDetail(index, e.target.value)}
+                    rows={1}
+                    className="flex-1 p-3 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-300"
+                  />
+                  <div className="relative" data-dropdown-id={`workDetail${index}`}>
+                    <button
+                      onClick={() => handleTTDropdownToggle(`workDetail${index}`)}
+                      className="p-3 bg-gray-50 text-black border border-gray-300 rounded-full flex items-center gap-1 hover:bg-gray-100 transition-colors"
+                      title="Target Time Dropdown"
+                    >
+                      <span className="text-sm font-medium">{getTTDisplayText(`workDetail${index}`)}</span>
+                      <ChevronDown className="w-4 h-4" />
+                    </button>
+
+                    {ui.showTTDropdown === `workDetail${index}` && (
+                      <div className="absolute top-full right-0 mt-1 w-48 bg-white border border-gray-300 rounded-lg shadow-lg z-50">
+                        {ttOptions.map((option, optionIndex) => (
+                          <button
+                            key={optionIndex}
+                            onClick={() => handleTTOptionSelect(`workDetail${index}`, option)}
+                            className={`w-full text-left px-4 py-2 text-sm first:rounded-t-lg last:rounded-b-lg transition-colors duration-200 ${
+                              form.selectedTTValues[`workDetail${index}`] === option 
+                                ? 'bg-orange-300 text-white' 
+                                : 'hover:bg-orange-200 hover:bg-opacity-30'
+                            }`}
+                          >
+                            {option}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-6">
+              <div className="flex items-center gap-3 mb-2">
+                <label className="block text-lg font-medium">Special Notes:</label>
+                <div className="flex bg-gray-200 rounded-full p-1">
+                  <button
+                    onClick={() => updateUI({ showSpecialNotes: true })}
+                    className={`px-3 py-1 rounded-full transition-colors text-sm font-medium ${ui.showSpecialNotes
+                        ? 'bg-gray-600 text-white shadow-sm'
+                        : 'bg-transparent text-gray-600 hover:bg-gray-300'
+                      }`}
+                    title="Show Special Notes"
+                  >
+                    Show
+                  </button>
+                  <button
+                    onClick={() => updateUI({ showSpecialNotes: false })}
+                    className={`px-3 py-1 rounded-full transition-colors text-sm font-medium ${!ui.showSpecialNotes
+                        ? 'bg-gray-600 text-white shadow-sm'
+                        : 'bg-transparent text-gray-600 hover:bg-gray-300'
+                      }`}
+                    title="Hide Special Notes"
+                  >
+                    Hide
+                  </button>
+                </div>
+              </div>
+
+              <div className={`transition-all duration-300 ease-in-out overflow-hidden ${ui.showSpecialNotes ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'}`}>
+                <textarea
+                  value={form.specialNotes}
+                  onChange={(e) => updateForm({ specialNotes: e.target.value })}
+                  rows={5}
+                  placeholder="Enter any special notes or additional information..."
+                  className="w-full p-4 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-300 resize-vertical"
+                />
+              </div>
+            </div>
           </div>
         </div>
       </div>
-      )}
-
-      {/* Success Dialog */}
-      <CustomDialog open={dialogOpen} setOpen={handleDialogClose} heading={"Link sent successfully"}>
-        <div className="h-[33rem] p-16 flex flex-col items-center justify-center">
-          <Image src="/paper-plane.svg" alt="video-link-dialog-bg" className='object-contain' width={200} height={200} />
-          <div className='mt-5'>
-            <div className='flex items-start gap-2'>
-              <img className='w-8 h-8' src='/icons/single-check.svg' />
-              <div className='flex flex-col gap-0 mb-1'>
-                <h2 className="text-2xl font-bold text-left">
-                  Link sent successfully
-                </h2>
-                <p>Please wait a second for user to open and accept link...</p>
-              </div>
-            </div>
-            
-            <div className={`flex items-start gap-2 mt-5 transition-opacity duration-500 ${linkAccepted ? 'opacity-100' : 'opacity-30'}`}>
-              <img 
-                className={`w-8 h-8 transition-all duration-500 ${linkAccepted ? 'filter-none' : 'grayscale'}`} 
-                src='/icons/double-check.svg' 
-              />
-              <div className='flex flex-col gap-0 mb-1'>
-                <h2 className={`text-2xl font-bold text-left transition-colors duration-500 ${linkAccepted ? 'text-green-600' : 'text-gray-400'}`}>
-                  {linkAccepted ? 'Link accepted by user' : 'Waiting for user to open link...'}
-                </h2>
-              </div>
-            </div>
-
-            <Link 
-              href={`/room/admin/${token}`} 
-              className="bg-green-600 hover:bg-green-700 text-white font-medium py-2 cursor-pointer h-12 rounded-3xl mt-10 text-2xl block w-full text-center transition-all duration-300"
-            >
-              Join Video Session
-            </Link>
-
-            <div className='flex items-start mt-4 justify-center'>
-              <p className='text-center'>
-                <strong className='text-red-400 whitespace-pre'>Tip - </strong> 
-                Ask the user to check their spam folder for the email link, if they can't see it!
-              </p>
-            </div>
-          </div>
-        </div>
-      </CustomDialog>
     </>
   );
 }
