@@ -3,6 +3,7 @@ const router = express.Router();
 import {changePassword, loadme, login, logout, register, updateUser,forgotPassword,resetPassword, verify, sendFriendLink, resetPasswordFromDashboard, sendFeedback, raiseSupportTicket, updateUserLogo, updateLandlordInfo, bookDemoMeeting, requestCallback, updateMessageSettings, getMessageSettings} from './controllers/authController.js';
 import {isAuthenticate} from "./middlewares/auth.js"
 import { create, getAllMeetings, getMeetingById, updateMeeting, deleteMeeting, getMeetingForShare, getMeetingByMeetingId, deleteRecording, deleteScreenshot, archiveMeeting, unarchiveMeeting, getArchivedCount, recordVisitorAccess } from './controllers/meetingController.js';
+import { getUserRoomInfo } from './controllers/userRoomInfoController.js';
 
 // auth routes
 router.route('/register').post(register);
@@ -78,5 +79,7 @@ router.route('/get-token-info/:token').get((req, res) => {
         });
     }
 });
+
+router.get('/room-user-info', getUserRoomInfo);
 
 export default router;

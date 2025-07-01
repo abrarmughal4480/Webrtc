@@ -436,7 +436,9 @@ const handleLogout = async () => {
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Avatar className="cursor-pointer">
-                        {/* <AvatarImage src="https://github.com/shadcn.png" alt="@shadcn" /> */}
+                        {user?.landlordInfo?.landlordLogo ? (
+                          <AvatarImage src={user.landlordInfo.officerImage} alt="Landlord Logo" />
+                        ) : null}
                         <AvatarFallback className={'bg-gray-200 text-black rounded-md'}>{user?.email?.slice(0, 2)}</AvatarFallback>
                       </Avatar>
                     </DropdownMenuTrigger>

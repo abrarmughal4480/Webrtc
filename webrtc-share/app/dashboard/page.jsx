@@ -573,9 +573,9 @@ export default function Page() {
   return (
     <>
       <div className="min-h-screen bg-white p-2">
-        <div className="max-w-6xl mx-auto space-y-4">
+        <div className="container mx-auto space-y-4 px-4 sm:px-6 lg:px-8">
           {/* Header */}
-          <div className="flex items-center justify-between p-4 relative min-h-[140px]">
+          <div className="flex items-center justify-between p-3 sm:p-4 relative min-h-[120px] sm:min-h-[140px]">
             <div className="flex items-center gap-4">
               {/* Home Icon */}
               <Button
@@ -615,8 +615,8 @@ export default function Page() {
 
             {/* Center positioned dashboard and image - fixed position */}
             <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 flex items-center flex-col z-10">
-              <h1 className="text-4xl font-bold">Dashboard</h1>
-              <img src="/devices.svg" alt="Videodesk" className="mt-2 w-60" />
+              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold">Dashboard</h1>
+              <img src="/devices.svg" alt="Videodesk" className="mt-2 w-40 sm:w-48 lg:w-60" />
             </div>
 
             <div className="flex items-center gap-4">              {/* Archive Icon Button */}
@@ -665,7 +665,7 @@ export default function Page() {
 
           {/* User Profile and Launch Button */}
           <div className="flex items-center">
-            <div className="flex items-start gap-2 bg-white p-4 flex-col">
+            <div className="flex items-start gap-2 bg-white p-3 sm:p-4 flex-col">
               <div className="flex items-center gap-3 mb-6">
                 {userLoading ? (
                   <>
@@ -739,7 +739,7 @@ export default function Page() {
               </div>
 
               <Button
-                className="bg-amber-500 hover:bg-amber-600 text-white px-8 py-4 rounded-lg font-medium cursor-pointer mt-4 text-lg"
+                className="bg-amber-500 hover:bg-amber-600 text-white px-6 sm:px-8 py-3 sm:py-4 rounded-lg font-medium cursor-pointer mt-4 text-base sm:text-lg"
                 onClick={() => setShowVideoLinkSender(true)}
                 disabled={userLoading}
               >
@@ -753,8 +753,9 @@ export default function Page() {
                 )}
               </Button>
             </div>
-          </div>          <div className="bg-white p-5 rounded-xl shadow-md overflow-x-auto">
-            {/* Gmail-style Header with Actions */}            <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-200">
+          </div>          <div className="bg-white p-4 sm:p-5 rounded-xl shadow-md overflow-x-auto">
+            {/* Gmail-style Header with Actions - Fixed height to prevent layout shift */}
+            <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-200 h-12">
               <div className="flex items-center gap-3">
                 <input
                   type="checkbox"
@@ -804,7 +805,7 @@ export default function Page() {
               </div>
             </div>
 
-            <table className="min-w-full text-left text-sm">
+            <table className="min-w-full text-left text-xs sm:text-sm">
               <thead className="sticky top-0 bg-white">
                 <tr>
                   <th className="px-4 py-2 font-semibold text-black text-left w-1/3">Resident name and address</th>

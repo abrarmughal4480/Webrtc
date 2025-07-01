@@ -10,6 +10,8 @@ import { connectDB } from "./utils/database.js";
 import ErrorMiddleware from "./middlewares/error.js";
 import router from "./route.js";
 import cookieParser from "cookie-parser"
+import { encryptUserId } from "./utils/sendToken.js";
+import User from "./models/user.js";
 
 console.log('🚀 Starting server initialization...');
 
@@ -173,199 +175,107 @@ const getLogoSvg = () => {
 
 app.get('/send-token', async (req, res) => {
     try {
-        const { number, email, landlordName, profileImage, landlordLogo, tokenLandlordInfo, redirectUrl, messageSettings } = req.query;
-        console.log('📞 Received token request:', { 
-            number, 
-            email, 
-            landlordName, 
-            hasProfileImage: !!profileImage,
-            hasLandlordLogo: !!landlordLogo,
-            hasTokenLandlordInfo: !!tokenLandlordInfo,
-            redirectUrl,
-            hasMessageSettings: !!messageSettings
-        });
+        const { number, email, senderId } = req.query;
+        console.log('📞 Received token request:', { number, email, senderId });
+        // Log the original senderId (user's real MongoDB _id)
+        console.log('[send-token] Original senderId (user _id):', senderId);
         
         if (!number && !email) {
             return res.status(400).json({ error: 'Either phone number or email is required' });
         }
-        
+        if (!senderId) {
+            return res.status(400).json({ error: 'Sender ID is required' });
+        }
         const token = uuidv4();
         console.log('🎫 Generated meeting token:', token);
-        
-        // Parse tokenLandlordInfo if provided
-        let parsedTokenLandlordInfo = null;
-        if (tokenLandlordInfo) {
-            try {
-                parsedTokenLandlordInfo = JSON.parse(tokenLandlordInfo);
-            } catch (e) {
-                console.warn('⚠️ Failed to parse tokenLandlordInfo:', e);
-            }
-        }
 
-        // Parse message settings if provided
-        let parsedMessageSettings = null;
-        if (messageSettings) {
-            try {
-                parsedMessageSettings = JSON.parse(messageSettings);
-                console.log('📝 Parsed message settings:', parsedMessageSettings);
-            } catch (e) {
-                console.warn('⚠️ Failed to parse messageSettings:', e);
-            }
-        }
-        
-        // Build URL with profile data - using /room/{token} instead of /room/[token]
-        let url = `${process.env.FRONTEND_URL}/room/${token}`;
-        const urlParams = new URLSearchParams();
-        
-        if (landlordName) {
-            urlParams.append('landlordName', landlordName);
-        }
-        if (profileImage) {
-            urlParams.append('profileImage', profileImage);
-        }
-        if (landlordLogo) {
-            urlParams.append('landlordLogo', landlordLogo);
-        }
-        if (redirectUrl) {
-            urlParams.append('redirectUrl', redirectUrl);
-            console.log('🔗 Adding redirect URL to video link:', redirectUrl);
-        }
-        if (parsedTokenLandlordInfo) {
-            urlParams.append('tokenLandlordInfo', JSON.stringify(parsedTokenLandlordInfo));
-        }
-        // Add message settings to URL params for room page
-        if (parsedMessageSettings) {
-            urlParams.append('messageSettings', JSON.stringify(parsedMessageSettings));
-        }
-        
-        if (urlParams.toString()) {
-            url += `?${urlParams.toString()}`;
-        }
-        console.log('🔗 Generated URL with profile data, redirect URL, and message settings');
-        
-        // Get button colors from message settings
-        const buttonColors = getButtonColorFromTailwind(
-            parsedMessageSettings?.selectedButtonColor || 'bg-green-800'
-        );
-        
-        console.log(`🎨 Final button colors for email:`, {
-            requestedColor: parsedMessageSettings?.selectedButtonColor || 'bg-green-800',
-            finalColors: buttonColors,
-            messageSettings: parsedMessageSettings
-        });
-        
-        // Get the logo SVG
-        const logoSvg = getLogoSvg();
-        
-        // Create enhanced HTML email template
-        const displayLandlordName = parsedTokenLandlordInfo?.landlordName || landlordName || 'Your Landlord';
-        
-        // Check if landlord name matches "Videodesk" (case insensitive)
-        const isVideodeskLandlord = displayLandlordName.toLowerCase().includes('videodesk');
-        
-        // Create different messages based on landlord name
-        let landlordInvitationMessage;
-        if (isVideodeskLandlord) {
-            landlordInvitationMessage = 'Hello! Your <strong>Landlord</strong> has invited you to a video call.';
-        } else {
-            landlordInvitationMessage = `Hello! <strong>${displayLandlordName}</strong> has invited you to a video call.`;
-        }
-        
-        const customMessage = parsedMessageSettings?.messageOption === 'tailored' && parsedMessageSettings?.tailoredMessage 
-            ? parsedMessageSettings.tailoredMessage 
-            : 'Please click the button below to join the video call with your landlord.';
+        // Encrypt senderId
+        const encryptedSenderId = encryptUserId(senderId);
+        // Build minimal URL: /room/{token}?sid={encryptedSenderId}
+        let url = `${process.env.FRONTEND_URL}/room/${token}?sid=${encodeURIComponent(encryptedSenderId)}`;
 
-        const htmlMessage = `
-            <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
-                <div style="background: linear-gradient(135deg, #9452FF 0%, #8a42fc 100%); color: white; padding: 30px 20px; text-align: center;">
-                    <div style="margin-bottom: 15px;">
-                        ${logoSvg}
-                    </div>
-                    <p style="margin: 5px auto; display: inline-block; background-color: white; color: #9452FF; padding: 5px 15px; border-radius: 50px; font-size: 16px; letter-spacing: 1px; font-weight: 500;">videodesk.co.uk</p>
-                </div>                
-                <div style="padding: 40px 30px; background-color: #ffffff;">
-                    <h2 style="color: #333; margin-bottom: 25px; font-weight: 600; font-size: 24px; text-align: center;">🎥 Video Call Invitation</h2>
-                    <p style="color: #555; line-height: 1.6; font-size: 16px; margin-bottom: 25px; text-align: center;">${landlordInvitationMessage}</p>
-                    <div style="background: linear-gradient(135deg, #f7f4ff 0%, #f0f0ff 100%); padding: 25px; border-radius: 15px; margin: 30px 0; box-shadow: 0 3px 10px rgba(148,82,255,0.1);">
-                        <div style="text-align: center; margin-bottom: 8px;">
-                            <span style="background: #9452FF; color: white; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; letter-spacing: 0.5px;">MESSAGE</span>
-                        </div>
-                        <p style="margin: 0; color: #333; font-size: 17px; line-height: 1.6; text-align: center; font-weight: 500;">${customMessage}</p>
-                    </div>
-                    
-                    <div style="text-align: center; margin: 35px 0;">
-                        <a href="${url}" style="background: ${buttonColors.bg}; color: white; padding: 18px 40px; text-decoration: none; border-radius: 50px; display: inline-block; font-weight: bold; font-size: 18px; box-shadow: 0 6px 20px rgba(0,0,0,0.25); transition: all 0.3s; border: none; letter-spacing: 0.5px;" onmouseover="this.style.backgroundColor='${buttonColors.hover}'; this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 25px rgba(0,0,0,0.3)';" onmouseout="this.style.backgroundColor='${buttonColors.bg}'; this.style.transform='translateY(0px)'; this.style.boxShadow='0 6px 20px rgba(0,0,0,0.25)';">Join Video Session</a>
-                    </div>
-                    
-                    <div style="text-align: center; margin-top: 30px; padding: 20px; background-color: #f8f9fa; border-radius: 10px;">
-                        <p style="color: #777; font-size: 14px; margin: 0; line-height: 1.5;">
-                            <strong>📱 Ready to connect?</strong><br>
-                            Click the button above to join your video session instantly.
-                        </p>
-                    </div>
-                </div>
-                <div style="background-color: #f8f9fa; padding: 20px; text-align: center; border-top: 1px solid #eaeaea;">
-                    <p style="margin: 0; color: #777; font-size: 13px;">© 2024 Videodesk. All rights reserved.</p>
-                </div>
-            </div>
-        `;
-        
-        // Send SMS with dynamic message based on messageSettings
+        // Send SMS
         if (number) {
             console.log('📱 Sending SMS to:', number);
-            const textMessage = `Please click on the link below to connect with your landlord: ${url}`;
-            const smsResult = await sendMessage(
-                number, 
-                textMessage, // Empty text since we'll create it dynamically
-                parsedMessageSettings, // Pass message settings
-                url, // Pass URL
-                displayLandlordName // Pass landlord name
-            );
-            
-            if (!smsResult.success) {
-                console.log(`⚠️ SMS failed: ${smsResult.reason} - ${smsResult.message}`);
-            }
+            const textMessage = `Please click on the link below to connect: ${url}`;
+            await sendMessage(number, textMessage);
         }
-        
-        // Send email with same message logic
+        // Send Email with previous HTML template and branding
         if (email) {
             console.log('📧 Sending enhanced HTML email to:', email);
             const subject = "Video Call from Your Landlord";
-            
-            // Create simple text message for email fallback (same logic as SMS)
-            let emailTextMessage = '';
-            if (parsedMessageSettings && parsedMessageSettings.messageOption === 'tailored' && parsedMessageSettings.tailoredMessage) {
-                emailTextMessage = `${parsedMessageSettings.tailoredMessage}\n\nVideo Link: ${url}`;
-                console.log('📧 Using tailored email text message');
+            // Fetch user and button color
+            let buttonColor = getButtonColorFromTailwind('bg-green-800'); // default
+            let landlordDisplay = 'Landlord';
+            let senderUser; // <-- declare here
+            try {
+                senderUser = await User.findById(senderId).select('messageSettings landlordInfo');
+                if (senderUser && senderUser.messageSettings && senderUser.messageSettings.selectedButtonColor) {
+                    buttonColor = getButtonColorFromTailwind(senderUser.messageSettings.selectedButtonColor);
+                }
+                if (senderUser && senderUser.landlordInfo && senderUser.landlordInfo.landlordName && senderUser.landlordInfo.landlordName !== 'Videodesk') {
+                    landlordDisplay = senderUser.landlordInfo.landlordName;
+                }
+            } catch (err) {
+                console.error('Error fetching sender user for button color or landlord name:', err);
+            }
+            // Set invitation message
+            let invitationMsg = '';
+            let tailoredMsg = '';
+            let useTailored = false;
+            if (senderUser && senderUser.messageSettings) {
+                if (senderUser.messageSettings.messageOption === 'tailored' && senderUser.messageSettings.tailoredMessage) {
+                    tailoredMsg = senderUser.messageSettings.tailoredMessage;
+                    useTailored = true;
+                }
+            }
+            if (useTailored) {
+                invitationMsg = tailoredMsg;
+            } else if (landlordDisplay === 'Landlord') {
+                invitationMsg = 'Hello! Your <strong>Landlord</strong> has invited you to a video call.';
             } else {
-                emailTextMessage = `Please click on the link below to connect with your landlord: ${url}`;
-                console.log('📧 Using default email text message');
+                invitationMsg = `Hello! <strong>${landlordDisplay}</strong> has invited you to a video call.`;
             }
-            
-            
-            await sendMail(email, subject, emailTextMessage, htmlMessage);
+            // Use the same HTML template as before, but update the link only
+            const htmlMessage = `
+                <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
+                    <div style="background: linear-gradient(135deg, #9452FF 0%, #8a42fc 100%); color: white; padding: 30px 20px; text-align: center;">
+                        <div style="margin-bottom: 15px;">
+                            <img src='https://res.cloudinary.com/dvpjxumzr/image/upload/v1748924204/logo_kawbyh.png' alt='Videodesk Logo' style='width: 180px; height: auto;' />
+                        </div>
+                        <p style="margin: 5px auto; display: inline-block; background-color: white; color: #9452FF; padding: 5px 15px; border-radius: 50px; font-size: 16px; letter-spacing: 1px; font-weight: 500;">videodesk.co.uk</p>
+                    </div>                
+                    <div style="padding: 40px 30px; background-color: #ffffff;">
+                        <h2 style="color: #333; margin-bottom: 25px; font-weight: 600; font-size: 24px; text-align: center;">🎥 Video Call Invitation</h2>
+                        <p style="color: #555; line-height: 1.6; font-size: 16px; margin-bottom: 25px; text-align: center;">${invitationMsg}</p>
+                        <div style="background: linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%); padding: 25px; border-radius: 15px; margin: 30px 0; box-shadow: 0 3px 10px rgba(148,82,255,0.1);">
+                            <div style="text-align: center; margin-bottom: 8px;">
+                                <span style="background:rgb(177, 150, 221); color: white; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; letter-spacing: 0.5px;">MESSAGE</span>
+                            </div>
+                            <p style="margin: 0; color: #333; font-size: 17px; line-height: 1.6; text-align: center; font-weight: 500;">${useTailored ? tailoredMsg : `Please click the button below to join the video call${landlordDisplay !== 'Landlord' ? ` with <strong>${landlordDisplay}</strong>` : ' with <strong>your landlord</strong>'}.`}</p>
+                        </div>
+                        <div style="text-align: center; margin: 35px 0;">
+                            <a href="${url}" style="background: #16a34a; color: white; padding: 18px 40px; text-decoration: none; border-radius: 50px; display: inline-block; font-weight: bold; font-size: 18px; box-shadow: 0 6px 20px rgba(0,0,0,0.25); transition: all 0.3s; border: none; letter-spacing: 0.5px;">Join Video Session</a>
+                        </div>
+                        <div style="text-align: center; margin-top: 30px; padding: 20px; background-color: #f8f9fa; border-radius: 10px;">
+                            <p style="color: #777; font-size: 14px; margin: 0; line-height: 1.5;">
+                                <strong>📱 Ready to connect?</strong><br>
+                                Click the button above to join your video session instantly.
+                            </p>
+                        </div>
+                    </div>
+                    <div style="background-color: #f8f9fa; padding: 20px; text-align: center; border-top: 1px solid #eaeaea;">
+                        <p style="margin: 0; color: #777; font-size: 13px;">© 2024 Videodesk. All rights reserved.</p>
+                    </div>
+                </div>
+            `;
+            const emailTextMessage = `Please click on the link below to connect: ${url}`;
+            await sendMail(email, subject, emailTextMessage, htmlMessage, buttonColor);
         }
-
-
-        
-        res.json({ 
-            token,
-            url,
-            profileData: {
-                landlordName,
-                profileImage,
-                landlordLogo,
-                redirectUrl,
-                tokenLandlordInfo: parsedTokenLandlordInfo,
-                messageSettings: parsedMessageSettings
-            }
-        });
+        res.json({ token, url });
     } catch (error) {
         console.error('❌ Error in send-token:', error);
-        res.status(500).json({ 
-            error: 'Internal server error',
-            message: error.message 
-        });
+        res.status(500).json({ error: 'Internal server error', message: error.message });
     }
 });
 

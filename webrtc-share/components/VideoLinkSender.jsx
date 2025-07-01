@@ -283,104 +283,20 @@ export default function VideoLinkSender({ isOpen, onClose, onSuccess }) {
     setIsLoading(true);
 
     try {
-      // Ensure message settings are loaded before sending
-      if (!messageSettingsLoaded && isAuth) {
-        console.log('📥 Loading message settings before sending video link...');
-        await loadMessageSettings();
-      }
-
       const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-      
-      const profileData = {
-        number: phone ? normalizePhoneNumber(phone) : '',
-        email: email
-      };
-      
-      if (user?.landlordInfo?.landlordName) {
-        profileData.landlordName = user.landlordInfo.landlordName;
-      }
-      
-      const landlordLogoUrl = getLandlordLogo();
-      if (landlordLogoUrl) {
-        profileData.landlordLogo = landlordLogoUrl;
-      }
-      
-      const profileImageUrl = getProfileImage();
-      if (profileImageUrl) {
-        profileData.profileImage = profileImageUrl;
-      }
-      
-      // Add redirect URL logic
-      let redirectUrl = ''; // Empty means use current frontend URL
-      let isDefaultRedirectUrl = false;
-      
-      if (user?.landlordInfo?.redirectUrlTailored && user?.landlordInfo?.redirectUrlTailored.trim() !== 'www.') {
-        redirectUrl = user.landlordInfo.redirectUrlTailored;
-        isDefaultRedirectUrl = false;
-        console.log('🔗 Using tailored redirect URL:', redirectUrl);
-      } else if (user?.landlordInfo?.redirectUrlDefault && user?.landlordInfo?.redirectUrlDefault.trim() !== '') {
-        redirectUrl = user.landlordInfo.redirectUrlDefault;
-        isDefaultRedirectUrl = true;
-        console.log('🔗 Using custom default redirect URL:', redirectUrl);
-      } else {
-        // Use current frontend URL as default
-        redirectUrl = window.location.origin;
-        isDefaultRedirectUrl = true;
-        console.log('🔗 Using current frontend URL as default:', redirectUrl);
-      }
-        profileData.tokenLandlordInfo = {
-        landlordName: user?.landlordInfo?.landlordName || null,
-        landlordLogo: landlordLogoUrl,
-        profileImage: profileImageUrl,
-        useLandlordLogoAsProfile: user?.landlordInfo?.useLandlordLogoAsProfile || false,
-        profileShape: user?.landlordInfo?.profileShape || 'circle',
-        redirectUrl: redirectUrl,
-        isDefaultRedirectUrl: isDefaultRedirectUrl
-      };      // Get current message settings (either from context or user object)
-      const currentMessageSettings = getUserMessageSettings();
-      const messageSettings = {
-        messageOption: currentMessageSettings?.messageOption || user?.messageSettings?.messageOption || '',
-        tailoredMessage: currentMessageSettings?.tailoredMessage || user?.messageSettings?.tailoredMessage || '',
-        defaultTextSize: currentMessageSettings?.defaultTextSize || user?.messageSettings?.defaultTextSize || '14px',
-        tailoredTextSize: currentMessageSettings?.tailoredTextSize || user?.messageSettings?.tailoredTextSize || '14px',
-        selectedButtonColor: currentMessageSettings?.selectedButtonColor || user?.messageSettings?.selectedButtonColor || 'bg-green-800'
-      };
-
-      console.log('📝 Using message settings for video link:', messageSettings);
-      console.log('🎨 Button color being sent:', messageSettings.selectedButtonColor);
-      
       const queryParams = new URLSearchParams();
-      
-      if (profileData.number) queryParams.append('number', profileData.number);
-      if (profileData.email) queryParams.append('email', profileData.email);
-      if (profileData.landlordName) queryParams.append('landlordName', profileData.landlordName);
-      if (profileData.landlordLogo) queryParams.append('landlordLogo', profileData.landlordLogo);
-      if (profileData.profileImage) queryParams.append('profileImage', profileData.profileImage);
-      if (redirectUrl) queryParams.append('redirectUrl', redirectUrl);
-      if (profileData.tokenLandlordInfo) {
-        queryParams.append('tokenLandlordInfo', JSON.stringify(profileData.tokenLandlordInfo));
-      }
-      // Add message settings to query params
-      queryParams.append('messageSettings', JSON.stringify(messageSettings));
-      
-      console.log('🚀 Sending video link with redirect URL:', redirectUrl);
-      
+      if (phone) queryParams.append('number', normalizePhoneNumber(phone));
+      if (email) queryParams.append('email', email);
+      if (user?._id) queryParams.append('senderId', user._id);
       const res = await axios.get(`${backendUrl}/send-token?${queryParams.toString()}`);
-      
       setToken(res.data.token);
       setDialogOpen(true);
       setLinkAccepted(false);
-      
       toast.success("Video link sent successfully");
-      
-      // Close only the form modal (clear form data and reset position)
       setPhone('');
       setEmail('');
       setIsManualSelection(false);
       setModalPosition({ x: 0, y: 0 });
-      // Don't call onClose() here - we want to keep the component open for the success dialog
-      
-      // Call success callback if provided
       if (onSuccess) {
         onSuccess(res.data.token);
       }
