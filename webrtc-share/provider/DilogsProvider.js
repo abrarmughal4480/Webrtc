@@ -108,7 +108,8 @@ export const DialogProvider = ({ children }) => {
   const [visitorName, setVisitorName] = useState('');
   const [visitorEmail, setVisitorEmail] = useState('');
   const [visitorLoading, setVisitorLoading] = useState(false);
-  const [visitorAccessCallback, setVisitorAccessCallback] = useState(null);
+  // Replace visitorAccessCallback state with a ref
+  const visitorAccessCallbackRef = useRef(null);
 
   // Add new state for history modal
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -1790,7 +1791,7 @@ ${senderName}`;
     }
   };
 
-  // Add visitor access handler with localStorage
+  // Remove visitor access handler with localStorage
   const handleVisitorAccess = async (e) => {
     e.preventDefault();
 
@@ -1819,33 +1820,23 @@ ${senderName}`;
     setVisitorLoading(true);
 
     try {
-      // Call the callback function with visitor data
-      if (visitorAccessCallback) {
-        await visitorAccessCallback({
+      if (visitorAccessCallbackRef.current) {
+        console.log("Calling visitorAccessCallback from modal (useRef)", visitorName, visitorEmail);
+        await visitorAccessCallbackRef.current({
           visitor_name: visitorName.trim(),
           visitor_email: visitorEmail.trim().toLowerCase()
         });
+      } else {
+        console.log("visitorAccessCallback is NOT set! (useRef)");
       }
-
-      // Save visitor access token to localStorage with 1 hour expiry
-      const visitorToken = {
-        name: visitorName.trim(),
-        email: visitorEmail.trim().toLowerCase(),
-        timestamp: Date.now(),
-        expiresAt: Date.now() + (60 * 60 * 1000) // 1 hour from now
-      };
-
-      localStorage.setItem('visitorAccessToken', JSON.stringify(visitorToken));
-
       toast("Access Granted", {
         description: "Your information has been recorded successfully"
       });
-
       // Reset form and close modal
       setVisitorName('');
       setVisitorEmail('');
       setVisitorAccessOpen(false);
-
+      visitorAccessCallbackRef.current = null; // Clear after close
     } catch (error) {
       toast("Failed to Record Access", {
         description: error.message || "Please try again"
@@ -1855,70 +1846,13 @@ ${senderName}`;
     }
   };
 
-  // Function to check if visitor has valid access token
-  const checkVisitorAccess = () => {
-    try {
-      const storedToken = localStorage.getItem('visitorAccessToken');
-
-      if (!storedToken) {
-        return false;
-      }
-
-      const visitorToken = JSON.parse(storedToken);
-      const currentTime = Date.now();
-
-      // Check if token is expired
-      if (currentTime > visitorToken.expiresAt) {
-        // Remove expired token
-        localStorage.removeItem('visitorAccessToken');
-        return false;
-      }
-
-      // Token is valid
-      console.log('🎫 Valid visitor access token found:', {
-        name: visitorToken.name,
-        email: visitorToken.email,
-        expiresAt: new Date(visitorToken.expiresAt).toLocaleString()
-      });
-
-      return true;
-
-    } catch (error) {
-      console.error('❌ Error checking visitor access:', error);
-      // Remove corrupted token
-      localStorage.removeItem('visitorAccessToken');
-      return false;
-    }
-  };
-
-  // Function to open visitor access modal with localStorage check
+  // Function to open visitor access modal (always opens, no localStorage check)
   const openVisitorAccessModal = (callback) => {
-    // Check if user already has valid access
-    if (checkVisitorAccess()) {
-      console.log('✅ Visitor already has valid access, skipping modal');
-      // Call the callback directly without showing modal
-      const storedToken = JSON.parse(localStorage.getItem('visitorAccessToken'));
-      callback({
-        visitor_name: storedToken.name,
-        visitor_email: storedToken.email,
-        from_storage: true
-      });
-      return;
-    }
-
-    console.log('🔓 No valid visitor access found, showing modal');
-    setVisitorAccessCallback(() => callback);
+    visitorAccessCallbackRef.current = callback;
     setVisitorAccessOpen(true);
   };
 
-  // Function to manually clear visitor access (for logout or testing)
-  const clearVisitorAccess = () => {
-    localStorage.removeItem('visitorAccessToken');
-    console.log('🗑️ Visitor access token cleared');
-    toast("Access cleared", {
-      description: "You will need to provide your information again"
-    });
-  };
+  // Remove function to manually clear visitor access
 
   // Helper function to format date for history
   const formatHistoryDate = (dateString) => {
@@ -2111,8 +2045,7 @@ ${senderName}`;
     openVisitorAccessModal,
     visitorAccessOpen,
     setVisitorAccessOpen,
-    clearVisitorAccess, // Add this for manual clearing if needed
-    checkVisitorAccess, // Add this for external checks if needed
+    checkVisitorAccess: () => true, // Add this for external checks if needed
     setHistoryOpen: openHistoryModal,
     historyOpen,
     selectedMeetingForHistory,
@@ -2256,7 +2189,7 @@ ${senderName}`;
     if (!visitorAccessOpen) {
       setVisitorName('');
       setVisitorEmail('');
-      setVisitorAccessCallback(null);
+      visitorAccessCallbackRef.current = null; // Clear after close
     }
   }, [visitorAccessOpen]);
 
@@ -3637,16 +3570,16 @@ ${senderName}`;
                   </div>
                 </div>
 
-                {/* Access History List - Only Unique Visitors */}
+                {/* Access History List - Show ALL accesses, not just unique */}
                 <div>
-                  <h4 className="font-semibold mb-3">Unique Visitor Access Log</h4>
+                  <h4 className="font-semibold mb-3">Visitor Access Log</h4>
                   {(() => {
-                    const uniqueVisitors = getUniqueVisitors(selectedMeetingForHistory.access_history);
+                    const allAccesses = (selectedMeetingForHistory.access_history || []).slice().sort((a, b) => new Date(b.access_time) - new Date(a.access_time));
 
-                    if (uniqueVisitors.length > 0) {
+                    if (allAccesses.length > 0) {
                       return (
                         <div className="space-y-3 max-h-60 overflow-y-auto">
-                          {uniqueVisitors.map((access, index) => (
+                          {allAccesses.map((access, index) => (
                             <div key={index} className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50">
                               <div className="flex items-center gap-3">
                                 <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
@@ -3667,7 +3600,7 @@ ${senderName}`;
                                     #{index + 1}
                                   </div>
                                   <div className="text-xs text-gray-500">
-                                    Latest: {formatHistoryDate(access.access_time)}
+                                    {formatHistoryDate(access.access_time)}
                                   </div>
                                 </div>
                               </div>

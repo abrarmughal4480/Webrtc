@@ -55,30 +55,15 @@ export default function SharePage({ params }) {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Function to handle visitor access - PREVENT DUPLICATE COUNTS ON REFRESH
+  // Function to handle visitor access - always grant access after submission
   const handleVisitorAccess = async (visitorData) => {
     try {
-      const sessionKey = `meeting_access_${id}`;
-      const hasAlreadyAccessed = sessionStorage.getItem(sessionKey);
-      
-      if (hasAlreadyAccessed) {
-        console.log(`🔄 Session already recorded for meeting: ${id}, skipping access count`);
-        setAccessGranted(true);
-        await fetchMeetingData();
-        return;
-      }
-      
       console.log(`🔐 Recording visitor access for meeting: ${id}`);
       const response = await recordVisitorAccessRequest(id, visitorData);
-      
+
       if (response.success) {
         setAccessGranted(true);
         console.log(`✅ Visitor access recorded successfully for meeting: ${id}`);
-        
-        // Mark this session as having accessed the meeting
-        sessionStorage.setItem(sessionKey, 'true');
-        
-        // Now fetch meeting data
         await fetchMeetingData();
       } else {
         throw new Error(response.message || 'Failed to record access');
@@ -216,9 +201,11 @@ export default function SharePage({ params }) {
       
       console.log('🔍 Extracted landlord info from URL:', extractedInfo);
       setLandlordInfo(extractedInfo);
+      setIsLoadingProfile(false);
     } catch (error) {
       console.error('❌ Failed to extract landlord info from URL:', error);
       toast.error("Unable to fetch landlord information from link");
+      setIsLoadingProfile(false);
     }
   };
 
@@ -303,12 +290,10 @@ export default function SharePage({ params }) {
     
     // ============ NO CACHE - ALWAYS SHOW MODAL ============
     console.log(`🔐 Always showing visitor access modal for meeting ${id}...`);
-    openVisitorAccessModal(handleVisitorAccess);
-    
-    // Simulate profile loading
-    setTimeout(() => {
-      setIsLoadingProfile(false);
-    }, 1500);
+    const timeout = setTimeout(() => {
+      openVisitorAccessModal(handleVisitorAccess);
+    }, 100); // 100ms delay to ensure provider is mounted
+    return () => clearTimeout(timeout);
   }, [id]);
 
   // Show loading while waiting for access or loading data

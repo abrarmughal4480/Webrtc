@@ -154,6 +154,8 @@ export const LaunchLinkSection = () => {
         queryParams.append('tokenLandlordInfo', JSON.stringify(profileData.tokenLandlordInfo));
       }
       
+      if (user?._id) queryParams.append('senderId', user._id);
+      
       const res = await axios.get(`${backendUrl}/send-token?${queryParams.toString()}`);
       
       setToken(res.data.token);
