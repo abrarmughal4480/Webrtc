@@ -27,6 +27,7 @@ const page = ({params}) => {
   const [minSkeletonTimePassed, setMinSkeletonTimePassed] = useState(false);
   const [isDefaultRedirectUrlFromUser, setIsDefaultRedirectUrlFromUser] = useState(true);
   const [redirectUrlFromUser, setRedirectUrlFromUser] = useState('');
+  const [showDefaultLeader, setShowDefaultLeader] = useState(false);
   
   // Helper function to get hover color based on button color
   const getHoverColor = (bgColor) => {
@@ -251,6 +252,21 @@ const page = ({params}) => {
     return () => clearTimeout(timer);
   }, [open, searchParams.get('sid')]);
   
+  // 5-second fallback to default leader if roomUserInfo not loaded
+  useEffect(() => {
+    if (roomUserInfo) {
+      setShowDefaultLeader(false); // If loaded, don't show default
+      return;
+    }
+    setShowDefaultLeader(false); // Reset on new load
+    const fallbackTimer = setTimeout(() => {
+      if (!roomUserInfo) {
+        setShowDefaultLeader(true);
+      }
+    }, 5000);
+    return () => clearTimeout(fallbackTimer);
+  }, [roomUserInfo, open, searchParams.get('sid')]);
+  
   const handleStrt = () => {
     try {
       setOpen(false);
@@ -317,7 +333,7 @@ const page = ({params}) => {
         <div className={`max-h-[90vh] w-[350px] p-6 flex flex-col items-center justify-center gap-3 overflow-y-auto min-h-[400px] ${!(roomUserInfo?.landlordInfo?.landlordName || roomUserInfo?.landlordInfo?.landlordLogo) && !profileData.landlordName && !profileData.landlordLogo ? 'pb-12' : ''}`}>
           
           {/* Skeleton Loader */}
-          {(pageLoading || !roomUserInfo || !minSkeletonTimePassed) ? (
+          {(pageLoading || (!roomUserInfo && !showDefaultLeader) || !minSkeletonTimePassed) ? (
             <div className="flex flex-col items-center gap-4 animate-pulse w-full">
               <div className="bg-gray-200 rounded-full h-24 w-24 mb-4" />
               <div className="bg-gray-200 h-6 w-40 rounded mb-2" />
@@ -333,7 +349,7 @@ const page = ({params}) => {
             </div>
 
             {/* Landlord Logo - Show below paper plane if available */}
-            {(roomUserInfo?.landlordInfo?.landlordLogo) && (
+            {(!showDefaultLeader && roomUserInfo?.landlordInfo?.landlordLogo) && (
               <div className="flex justify-center -mt-2 pt-3">
                 <img 
                   src={roomUserInfo?.landlordInfo?.landlordLogo} 
@@ -353,7 +369,7 @@ const page = ({params}) => {
             {/* Landlord Name or Videodesk Default */}
             <div className="flex justify-center">
               <h2 className="text-xl font-bold mt-2 text-center pb-3">
-                {(roomUserInfo?.landlordInfo?.landlordName) && (roomUserInfo?.landlordInfo?.landlordName) !== "Videodesk" ? (
+                {(!showDefaultLeader && roomUserInfo?.landlordInfo?.landlordName) && (roomUserInfo?.landlordInfo?.landlordName) !== "Videodesk" ? (
                   <span className="text-xl font-bold">{roomUserInfo?.landlordInfo?.landlordName}</span>
                 ) : (
                   <div className="flex items-center justify-center gap-2">
@@ -389,7 +405,7 @@ const page = ({params}) => {
             </div>
 
             {/* Videodesk Heading - show only if landlord name or logo exists and name is not "Videodesk" */}
-            {(roomUserInfo?.landlordInfo?.landlordName && roomUserInfo?.landlordInfo?.landlordName !== "Videodesk") || roomUserInfo?.landlordInfo?.landlordLogo ? (
+            {((!showDefaultLeader && roomUserInfo?.landlordInfo?.landlordName && roomUserInfo?.landlordInfo?.landlordName !== "Videodesk") || (!showDefaultLeader && roomUserInfo?.landlordInfo?.landlordLogo)) ? (
               <div className="flex justify-center">
                 <h3 className="text-2xl font-bold text-black pt-6 pb-6">Videodesk</h3>
               </div>

@@ -49,7 +49,7 @@ export default function Page() {
   const [selectAll, setSelectAll] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const { setResetOpen, setMessageOpen, setLandlordDialogOpen, setTickerOpen, setInviteOpen, setFeedbackOpen, setFaqOpen, setExportOpen, setHistoryOpen } = useDialog();
+  const { setResetOpen, setMessageOpen, setLandlordDialogOpen, setTickerOpen, setFeedbackOpen, setFaqOpen, setExportOpen, setHistoryOpen } = useDialog();
 
   useEffect(() => {
     fetchMeetings();
@@ -619,17 +619,31 @@ export default function Page() {
               <img src="/devices.svg" alt="Videodesk" className="mt-2 w-40 sm:w-48 lg:w-60" />
             </div>
 
-            <div className="flex items-center gap-4">              {/* Archive Icon Button */}
+            <div className="flex items-center gap-4">              {/* Trash Button */}
+              <Button
+                className={`${viewMode === 'trash' ? 'bg-red-600 hover:bg-red-700' : 'bg-red-500 hover:bg-red-600'} text-white rounded-full px-4 py-2 flex items-center gap-2 shadow transition-all duration-200`}
+                onClick={() => {
+                  if (viewMode === 'trash') {
+                    setViewMode('active');
+                  } else {
+                    setViewMode('trash');
+                  }
+                }}
+                title={viewMode === 'trash' ? 'View Active Meetings' : 'View Trashed Meetings'}
+              >
+                <img src="/icons/trash-red.svg" className="w-4 h-4 filter brightness-0 invert" />
+                <span className="text-sm font-medium">
+                  {viewMode === 'trash' ? 'Exit Trash' : 'View Trash'}
+                </span>
+              </Button>
+              {/* Archive Icon Button */}
               <Button
                 className={`${viewMode === 'archived' ? 'bg-red-500 hover:bg-red-600' : 'bg-blue-500 hover:bg-blue-600'} text-white rounded-full px-4 py-2 flex items-center gap-2`}
                 onClick={() => {
-                  console.log('🔄 Current viewMode:', viewMode);
                   if (viewMode === 'archived') {
-                    console.log('🔄 Switching to active meetings');
-                    setViewMode('active'); // Switch back to active meetings
+                    setViewMode('active');
                   } else {
-                    console.log('🔄 Switching to archived meetings');
-                    setViewMode('archived'); // Show archived meetings
+                    setViewMode('archived');
                   }
                 }}
                 title={viewMode === 'archived' ? 'View Active Meetings' : 'View Archived Meetings'}
