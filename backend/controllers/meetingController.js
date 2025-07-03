@@ -1107,6 +1107,7 @@ export const deleteMeeting = catchAsyncError(async (req, res, next) => {
 
     // Soft delete: set deleted to true
     meeting.deleted = true;
+    meeting.deletedAt = new Date();
     await meeting.save();
 
     console.log(`🗑️ Meeting moved to trash: ${meeting._id}`);
@@ -1258,6 +1259,7 @@ export const restoreMeeting = catchAsyncError(async (req, res, next) => {
     }
 
     meeting.deleted = false;
+    meeting.deletedAt = null;
     await meeting.save();
 
     res.status(200).json({
