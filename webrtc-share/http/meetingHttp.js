@@ -1,33 +1,28 @@
 import { api } from ".";
 
 export const createRequest = async (formData) => await api.post("/meetings/create", formData);
-export const getAllMeetings = async (archived = null) => {
-    try {
-        let url = "/meetings/all";
-        
-        // Add archived parameter if specified
-        if (archived !== null) {
-            url += `?archived=${archived}`;
-        }
-        
-        console.log('🌐 Making request to:', url);
-        const response = await api.get(url);
-        
-        console.log('📊 Meetings response:', {
-            total: response.data.meetings?.length || 0,
-            archived: archived,
-            meetings: response.data.meetings?.map(m => ({ 
-                id: m._id, 
-                name: m.name, 
-                archived: m.archived 
-            })) || []
-        });
-        
-        return response;
-    } catch (error) {
-        console.error('❌ Error in getAllMeetings:', error);
-        throw error;
-    }
+export const getAllMeetings = async (archived = null, deleted = null) => {
+    let url = "/meetings/all";
+    const params = [];
+    if (archived !== null) params.push(`archived=${archived}`);
+    if (deleted !== null) params.push(`deleted=${deleted}`);
+    if (params.length > 0) url += `?${params.join("&")}`;
+    console.log('🌐 Making request to:', url);
+    const response = await api.get(url);
+    
+    console.log('📊 Meetings response:', {
+        total: response.data.meetings?.length || 0,
+        archived: archived,
+        deleted: deleted,
+        meetings: response.data.meetings?.map(m => ({ 
+            id: m._id, 
+            name: m.name, 
+            archived: m.archived,
+            deleted: m.deleted
+        })) || []
+    });
+    
+    return response;
 };
 export const getMeetingById = async (id) => await api.get(`/meetings/${id}`);
 export const updateMeeting = async (id, formData) => await api.put(`/meetings/${id}`, formData);
@@ -196,4 +191,12 @@ export const recordVisitorAccessRequest = async (meetingId, visitorData) => {
         console.error('Error recording visitor access:', error);
         throw error;
     }
+};
+
+export const restoreMeeting = async (id) => {
+    return await api.put(`/meetings/restore/${id}`);
+};
+
+export const permanentDeleteMeeting = async (id) => {
+    return await api.delete(`/meetings/permanent/${id}`);
 };

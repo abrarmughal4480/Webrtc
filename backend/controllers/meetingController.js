@@ -760,9 +760,9 @@ const updateMeetingWithNewMediaOnly = async (meeting, data, res, next, user_id, 
 
 export const getAllMeetings = catchAsyncError(async (req, res, next) => {
     const user_id = req.user._id;
-    const { archived } = req.query;
+    const { archived, deleted } = req.query;
 
-    console.log(`📋 Fetching meetings for user: ${user_id}, archived: ${archived}`);
+    console.log(`📋 Fetching meetings for user: ${user_id}, archived: ${archived}, deleted: ${deleted}`);
 
     const filter = {
         $or: [
@@ -771,6 +771,12 @@ export const getAllMeetings = catchAsyncError(async (req, res, next) => {
             { created_by: user_id }
         ]
     };
+
+    if (deleted === 'true') {
+        filter.deleted = true;
+    } else {
+        filter.deleted = { $ne: true };
+    }
 
     if (archived === 'true') {
         filter.archived = true;
@@ -783,7 +789,7 @@ export const getAllMeetings = catchAsyncError(async (req, res, next) => {
         .populate('last_updated_by', 'email')
         .populate('archivedBy', 'email');
 
-    console.log(`✅ Found ${meetings.length} meetings for user ${user_id} (archived: ${archived})`);
+    console.log(`✅ Found ${meetings.length} meetings for user ${user_id} (archived: ${archived}, deleted: ${deleted})`);
 
     res.status(200).json({
         success: true,
@@ -1099,52 +1105,14 @@ export const deleteMeeting = catchAsyncError(async (req, res, next) => {
         return next(new ErrorHandler("Meeting not found", 404));
     }
 
-    console.log(`🗑️ Deleting meeting: ${meeting._id} (${meeting.recordings.length} recordings, ${meeting.screenshots.length} screenshots)`);
+    // Soft delete: set deleted to true
+    meeting.deleted = true;
+    await meeting.save();
 
-    let deletedRecordings = 0;
-    let deletedScreenshots = 0;
+    console.log(`🗑️ Meeting moved to trash: ${meeting._id}`);
 
-    if (meeting.recordings && meeting.recordings.length > 0) {
-        const recordingPromises = meeting.recordings.map(async (recording, index) => {
-            if (recording.cloudinary_id || recording.s3_key) {
-                const fileKey = recording.s3_key || recording.cloudinary_id;
-                const deleteResult = await deleteFromS3WithRetry(fileKey);
-                
-                if (deleteResult.deleted) {
-                    deletedRecordings++;
-                }
-            }
-        });
-
-        await Promise.all(recordingPromises);
-    }
-
-    if (meeting.screenshots && meeting.screenshots.length > 0) {
-        const screenshotPromises = meeting.screenshots.map(async (screenshot, index) => {
-            if (screenshot.cloudinary_id || screenshot.s3_key) {
-                const fileKey = screenshot.s3_key || screenshot.cloudinary_id;
-                const deleteResult = await deleteFromS3WithRetry(fileKey);
-                
-                if (deleteResult.deleted) {
-                    deletedScreenshots++;
-                }
-            }
-        });
-
-        await Promise.all(screenshotPromises);
-    }
-
-    await meeting.deleteOne();
-
-    console.log(`✅ Meeting deleted successfully`);
-    console.log(`📊 S3 files deleted - Recordings: ${deletedRecordings}/${meeting.recordings.length}, Screenshots: ${deletedScreenshots}/${meeting.screenshots.length}`);
-
-    sendResponse(true, 200, "Meeting deleted successfully", res, {
-        meeting_id: meeting.meeting_id,
-        recordings_deleted: deletedRecordings,
-        screenshots_deleted: deletedScreenshots,
-        total_recordings: meeting.recordings.length,
-        total_screenshots: meeting.screenshots.length,
+    sendResponse(true, 200, "Meeting moved to trash", res, {
+        meeting_id: meeting.meeting_id
     });
 });
 
@@ -1268,6 +1236,79 @@ export const deleteScreenshot = catchAsyncError(async (req, res, next) => {
         success: true,
         message: "Screenshot deleted successfully",
         timeout: false
+    });
+});
+
+export const restoreMeeting = catchAsyncError(async (req, res, next) => {
+    const meeting = await MeetingModel.findOne({
+        _id: req.params.id,
+        $or: [
+            { owner: req.user._id },
+            { userId: req.user._id },
+            { created_by: req.user._id }
+        ]
+    });
+
+    if (!meeting) {
+        return next(new ErrorHandler("Meeting not found", 404));
+    }
+
+    if (!meeting.deleted) {
+        return next(new ErrorHandler("Meeting is not in trash", 400));
+    }
+
+    meeting.deleted = false;
+    await meeting.save();
+
+    res.status(200).json({
+        success: true,
+        message: "Meeting restored successfully",
+        meeting
+    });
+});
+
+export const permanentDeleteMeeting = catchAsyncError(async (req, res, next) => {
+    const meeting = await MeetingModel.findOne({
+        _id: req.params.id,
+        $or: [
+            { owner: req.user._id },
+            { userId: req.user._id },
+            { created_by: req.user._id }
+        ]
+    });
+
+    if (!meeting) {
+        return next(new ErrorHandler("Meeting not found", 404));
+    }
+
+    // Collect all S3 file keys from recordings and screenshots
+    const s3Files = [];
+    if (Array.isArray(meeting.recordings)) {
+        for (const rec of meeting.recordings) {
+            if (rec.s3_key || rec.cloudinary_id) {
+                s3Files.push({ public_id: rec.s3_key || rec.cloudinary_id });
+            }
+        }
+    }
+    if (Array.isArray(meeting.screenshots)) {
+        for (const shot of meeting.screenshots) {
+            if (shot.s3_key || shot.cloudinary_id) {
+                s3Files.push({ public_id: shot.s3_key || shot.cloudinary_id });
+            }
+        }
+    }
+
+    // Delete all S3 files
+    if (s3Files.length > 0) {
+        await cleanupS3Files(s3Files);
+    }
+
+    // Actually delete the meeting from the database
+    await meeting.deleteOne();
+
+    res.status(200).json({
+        success: true,
+        message: "Meeting permanently deleted (including S3 files)"
     });
 });
 

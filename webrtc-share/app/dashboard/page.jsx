@@ -1,6 +1,6 @@
 "use client"
 import { Button } from "@/components/ui/button"
-import { FileText, Archive, Trash2, Monitor, Smartphone, Save, History, ArchiveRestore, ExternalLink, FileSearch, MailIcon, Loader2, Maximize2, Home } from "lucide-react"
+import { FileText, Archive, Trash2, Monitor, Smartphone, Save, History, ArchiveRestore, ExternalLink, FileSearch, MailIcon, Loader2, Maximize2, Home, RotateCcw, XCircle, Undo2 } from "lucide-react"
 import Image from "next/image"
 import {
   DropdownMenu,
@@ -9,7 +9,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { logoutRequest } from "@/http/authHttp"
-import { getAllMeetings, deleteMeeting, archiveMeeting, unarchiveMeeting, getArchivedCount } from "@/http/meetingHttp"
+import { getAllMeetings, deleteMeeting, archiveMeeting, unarchiveMeeting, getArchivedCount, restoreMeeting, permanentDeleteMeeting } from "@/http/meetingHttp"
 import { useUser } from "@/provider/UserProvider"
 import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
@@ -36,6 +36,7 @@ export default function Page() {
   // Remove video link related state variables
   const [meetings, setMeetings] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isActionLoading, setIsActionLoading] = useState(false);
   const [userLoading, setUserLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
@@ -51,6 +52,13 @@ export default function Page() {
 
   const { setResetOpen, setMessageOpen, setLandlordDialogOpen, setTickerOpen, setFeedbackOpen, setFaqOpen, setExportOpen, setHistoryOpen } = useDialog();
 
+  // Add state for permanent delete dialog
+  const [showPermanentDeleteDialog, setShowPermanentDeleteDialog] = useState(false);
+  const [meetingToDelete, setMeetingToDelete] = useState(null);
+  const [multipleDeleteMode, setMultipleDeleteMode] = useState(false);
+
+  const skeletonMinTimeRef = useRef(null);
+
   useEffect(() => {
     fetchMeetings();
     fetchArchivedCount();
@@ -63,33 +71,47 @@ export default function Page() {
     }
   }, [user]);
 
-  const fetchMeetings = async () => {
+  const fetchMeetings = async (showSkeleton = true) => {
     try {
-      setLoading(true);
-      // Fix the archived parameter logic
-      let archivedParam = null;
-      if (viewMode === 'archived') {
-        archivedParam = true; // Only get archived meetings
-      } else if (viewMode === 'active') {
-        archivedParam = false; // Only get non-archived meetings
+      let minTimePromise;
+      if (showSkeleton) {
+        setLoading(true);
+        if (skeletonMinTimeRef.current) clearTimeout(skeletonMinTimeRef.current);
+        minTimePromise = new Promise(resolve => {
+          skeletonMinTimeRef.current = setTimeout(() => {
+            resolve();
+          }, 2000);
+        });
+      } else {
+        setIsActionLoading(true);
       }
-      // If viewMode is 'all', archivedParam stays null to get all meetings
 
-      console.log('📋 Fetching meetings with archived param:', archivedParam, 'viewMode:', viewMode);
-      const response = await getAllMeetings(archivedParam);
-      
-      // Sort meetings by createdAt date in descending order (newest first)
-      const sortedMeetings = (response.data.meetings || []).sort((a, b) => {
-        return new Date(b.createdAt) - new Date(a.createdAt);
-      });
-      
-      setMeetings(sortedMeetings);
-      console.log('📋 Fetched meetings:', sortedMeetings.length || 0, 'meetings');
+      // Fetch and filter logic (shared)
+      let archivedParam = null;
+      let deletedParam = null;
+      if (viewMode === 'archived') archivedParam = true;
+      else if (viewMode === 'active') archivedParam = false;
+      if (viewMode === 'trash') deletedParam = true;
+
+      const response = await getAllMeetings(archivedParam, deletedParam);
+      const sortedMeetings = (response.data.meetings || []).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      let filteredMeetings = sortedMeetings;
+      if (viewMode === 'trash') filteredMeetings = sortedMeetings.filter(m => m.deleted);
+      else filteredMeetings = sortedMeetings.filter(m => !m.deleted);
+
+      setMeetings(filteredMeetings);
+
+      if (showSkeleton) {
+        await minTimePromise;
+        setLoading(false);
+      } else {
+        setIsActionLoading(false);
+      }
     } catch (error) {
+      setLoading(false);
+      setIsActionLoading(false);
       console.error('Error fetching meetings:', error);
       toast(error?.response?.data?.message || error.message);
-    } finally {
-      setLoading(false);
     }
   };
   
@@ -106,7 +128,7 @@ export default function Page() {
     try {
       await archiveMeeting(id);
       toast.success(`"${meetingName || 'Meeting'}" archived successfully`);
-      fetchMeetings();
+      fetchMeetings(false);
       fetchArchivedCount();
     } catch (error) {
       toast.error("Failed to archive meeting", {
@@ -119,7 +141,7 @@ export default function Page() {
     try {
       await unarchiveMeeting(id);
       toast.success(`"${meetingName || 'Meeting'}" unarchived successfully`);
-      fetchMeetings();
+      fetchMeetings(false);
       fetchArchivedCount();
     } catch (error) {
       toast.error("Failed to unarchive meeting", {
@@ -128,30 +150,21 @@ export default function Page() {
     }
   };
   const handleDeleteMeeting = async (id, meetingName) => {
-    // Confirm deletion
-    const confirmed = window.confirm(
-      `Are you sure you want to delete "${meetingName || 'this meeting'}"?\n\nThis will permanently delete:\n• The meeting document\n• All recordings\n• All screenshots\n• All associated media files\n\nThis action cannot be undone.`
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
     try {
-      console.log(`🗑️ Starting complete meeting deletion for: ${meetingName || id}`);
-      const response = await deleteMeeting(id);
-
-      // Show detailed success message
-      if (response.data.deletion_summary) {
-        const summary = response.data.deletion_summary;
-        toast.success("Meeting deleted successfully", {
-          description: `Deleted ${summary.recordings_total} recordings and ${summary.screenshots_total} screenshots${summary.failed_cloudinary_deletions > 0 ? `, with ${summary.failed_cloudinary_deletions} cloud storage issues` : ''}`
-        });
+      if (viewMode === 'trash') {
+        // In trash view, permanently delete
+        await permanentDeleteMeeting(id);
+        toast.success("Meeting permanently deleted");
       } else {
-        toast.success("Meeting deleted successfully");
+        // In other views, soft delete (move to trash)
+        const response = await deleteMeeting(id);
+        if (response.data && response.data.message === 'Meeting moved to trash') {
+          toast.success("Meeting moved to trash");
+        } else {
+          toast.success("Meeting deleted successfully");
+        }
       }
-
-      fetchMeetings(); // Refresh the list
+      fetchMeetings(false); // Refresh the list
     } catch (error) {
       console.error('❌ Meeting deletion failed:', error);
       toast.error("Failed to delete meeting", {
@@ -170,23 +183,31 @@ export default function Page() {
     const selectedMeetingDetails = meetings.filter(meeting => selectedMeetings.includes(meeting._id));
     const meetingNames = selectedMeetingDetails.map(meeting => meeting.name || 'Unknown').join(', ');
 
-    const confirmed = window.confirm(
-      `Are you sure you want to delete ${selectedMeetings.length} meeting(s)?\n\nMeetings: ${meetingNames}\n\nThis will permanently delete:\n• The meeting documents\n• All recordings\n• All screenshots\n• All associated media files\n\nThis action cannot be undone.`
-    );
-
-    if (!confirmed) {
+    if (viewMode === 'trash') {
+      // Show permanent delete dialog for multiple
+      setMultipleDeleteMode(true);
+      setShowPermanentDeleteDialog(true);
       return;
+    } else {
+      // No confirmation, just move to trash
+      await proceedMultipleDelete();
     }
+  };
 
+  // Helper for actual multiple delete logic
+  const proceedMultipleDelete = async () => {
     setIsDeleting(true);
     let successCount = 0;
     let failureCount = 0;
 
     try {
-      // Delete meetings one by one
       for (const meetingId of selectedMeetings) {
         try {
-          await deleteMeeting(meetingId);
+          if (viewMode === 'trash') {
+            await permanentDeleteMeeting(meetingId);
+          } else {
+            await deleteMeeting(meetingId);
+          }
           successCount++;
         } catch (error) {
           console.error(`Failed to delete meeting ${meetingId}:`, error);
@@ -194,21 +215,22 @@ export default function Page() {
         }
       }
 
-      // Show results
       if (successCount > 0) {
-        toast.success(`Successfully deleted ${successCount} meeting(s)`, {
-          description: failureCount > 0 ? `${failureCount} deletion(s) failed` : undefined
-        });
+        toast.success(
+          viewMode === 'trash'
+            ? `Permanently deleted ${successCount} meeting(s)`
+            : `Successfully moved ${successCount} meeting(s) to trash`,
+          {
+            description: failureCount > 0 ? `${failureCount} deletion(s) failed` : undefined
+          }
+        );
       }
-
       if (failureCount > 0 && successCount === 0) {
         toast.error(`Failed to delete ${failureCount} meeting(s)`);
       }
-
-      // Clear selection and refresh
       setSelectedMeetings([]);
       setSelectAll(false);
-      fetchMeetings();
+      fetchMeetings(false);
     } catch (error) {
       toast.error("Error during bulk deletion");
     } finally {
@@ -271,7 +293,7 @@ export default function Page() {
   // Handler for video link success
   const handleVideoLinkSuccess = (token) => {
     // Refresh meetings list when a new link is created
-    fetchMeetings();
+    fetchMeetings(false);
   };
 
   // Helper function to get initials from name
@@ -615,8 +637,16 @@ export default function Page() {
 
             {/* Center positioned dashboard and image - fixed position */}
             <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 flex items-center flex-col z-10">
-              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold">Dashboard</h1>
-              <img src="/devices.svg" alt="Videodesk" className="mt-2 w-40 sm:w-48 lg:w-60" />
+              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold mt-8 sm:mt-12">Dashboard</h1>
+              <div className="mt-0 flex items-center justify-center" style={{ minHeight: '7rem', height: '7rem' }}>
+                {viewMode === 'archived' ? (
+                  <span className="text-3xl font-bold text-blue-600 flex items-center justify-center h-full">Archive</span>
+                ) : viewMode === 'trash' ? (
+                  <span className="text-3xl font-bold text-red-600 flex items-center justify-center h-full">Trash</span>
+                ) : (
+                  <img src="/devices.svg" alt="Videodesk" className="w-40 sm:w-48 lg:w-60 h-full object-contain" />
+                )}
+              </div>
             </div>
 
             <div className="flex items-center gap-4">              {/* Trash Button */}
@@ -767,7 +797,7 @@ export default function Page() {
                 )}
               </Button>
             </div>
-          </div>          <div className="bg-white p-4 sm:p-5 rounded-xl shadow-md overflow-x-auto">
+          </div>          <div className="bg-white p-4 sm:p-5 rounded-xl shadow-md overflow-x-auto mt-6">
             {/* Gmail-style Header with Actions - Fixed height to prevent layout shift */}
             <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-200 h-12">
               <div className="flex items-center gap-3">
@@ -821,55 +851,73 @@ export default function Page() {
 
             <table className="min-w-full text-left text-xs sm:text-sm">
               <thead className="sticky top-0 bg-white">
-                <tr>
-                  <th className="px-4 py-2 font-semibold text-black text-left w-1/3">Resident name and address</th>
-                  <th className="px-4 py-2 font-semibold text-black text-left w-1/3">Video Link</th>
-                  <th className="px-4 py-2 font-semibold text-black text-left w-1/6">Time and Date</th>
-                  <th className="px-4 py-2 font-semibold text-black text-left w-1/6">
+                <tr className="h-14 align-middle">
+                  <th className="px-4 py-2 font-semibold text-black text-left w-1/3 h-14 align-middle">Resident name and address</th>
+                  <th className="px-4 py-2 font-semibold text-black text-left w-1/3 h-14 align-middle">Video Link</th>
+                  <th className="px-4 py-2 font-semibold text-black text-left w-1/6 h-14 align-middle">Time and Date</th>
+                  <th className="px-4 py-2 font-semibold text-black text-left w-1/6 h-14 align-middle">
                     <div>
-                      <span className="block">{viewMode === 'archived' ? 'Discard/Unarchive/' : 'Discard/Archive/'}</span>
-                      <span className="block">Export/History</span>
+                      {viewMode === 'trash' ? (
+                        <span className="block">Restore/Delete Permanently</span>
+                      ) : (
+                        <>
+                          <span className="block">{viewMode === 'archived' ? 'Discard/Unarchive/' : 'Discard/Archive/'}</span>
+                          <span className="block">Export/History</span>
+                        </>
+                      )}
                     </div>
                   </th>
                 </tr>
               </thead>
               <tbody>
-                {loading ? (
+                {loading && !isActionLoading ? (
                   // Skeleton loading rows
                   Array.from({ length: 3 }).map((_, index) => (
                     <tr key={`skeleton-${index}`} className="border-b">
-                      <td className="px-4 py-3 w-2/5">
-                        <div className="flex items-center gap-2">
-                          <div className="w-4 h-4 bg-gray-200 rounded animate-pulse"></div>
-                          <div className="space-y-2 flex-1">
+                      <td className="px-4 py-3 w-1/3">
+                        <div className="flex items-start gap-2">
+                          <div className="w-4 h-4 bg-gray-200 rounded animate-pulse mt-1"></div>
+                          <span className="flex-shrink-0">{index + 1}.</span>
+                          <div className="flex-1 space-y-2">
                             <div className="h-4 bg-gray-200 rounded animate-pulse w-3/4"></div>
                             <div className="h-3 bg-gray-200 rounded animate-pulse w-1/2"></div>
                           </div>
                         </div>
                       </td>
-                      <td className="px-4 py-3 w-1/4">
+                      <td className="px-4 py-3 w-1/3">
                         <div className="h-4 bg-gray-200 rounded animate-pulse w-full"></div>
                       </td>
                       <td className="px-4 py-3 w-1/6">
-                        <div className="space-y-1">
-                          <div className="h-4 bg-gray-200 rounded animate-pulse w-20"></div>
-                          <div className="h-3 bg-gray-200 rounded animate-pulse w-16"></div>
+                        <div className="flex items-center space-x-2">
+                          <div className="h-4 bg-gray-200 rounded animate-pulse w-12"></div>
+                          <div className="h-3 bg-gray-200 rounded animate-pulse w-10"></div>
                         </div>
                       </td>
                       <td className="px-4 py-3 w-1/6">
-                        <div className="flex justify-start gap-3">
-                          <div className="w-4 h-4 bg-gray-200 rounded animate-pulse"></div>
-                          <div className="w-4 h-4 bg-gray-200 rounded animate-pulse"></div>
-                          <div className="w-5 h-5 bg-gray-200 rounded animate-pulse"></div>
-                          <div className="w-5 h-5 bg-gray-200 rounded animate-pulse"></div>
-                        </div>
+                        {viewMode === 'trash' ? (
+                          <div className="flex justify-start gap-3">
+                            <div className="p-1 rounded w-7 h-7 flex items-center justify-center bg-orange-100 animate-pulse"></div>
+                            <div className="p-1 rounded w-7 h-7 flex items-center justify-center bg-orange-100 animate-pulse"></div>
+                          </div>
+                        ) : (
+                          <div className="flex justify-start gap-3">
+                            <div className="w-4 h-4 bg-gray-200 rounded animate-pulse"></div>
+                            <div className="w-4 h-4 bg-gray-200 rounded animate-pulse"></div>
+                            <div className="w-5 h-5 bg-gray-200 rounded animate-pulse"></div>
+                            <div className="w-5 h-5 bg-gray-200 rounded animate-pulse"></div>
+                          </div>
+                        )}
                       </td>
                     </tr>
                   ))
                 ) : meetings.length === 0 ? (
                   <tr>
-                    <td colSpan="4" className="text-center py-8 text-gray-500">
-                      {viewMode === 'archived' ? 'No archived meetings found.' : 'No meetings found. Create your first video link to get started!'}
+                    <td colSpan="4" className="text-center py-8 text-gray-500 align-middle" style={{ height: '72px' }}>
+                      {viewMode === 'archived'
+                        ? 'No archived meetings found.'
+                        : viewMode === 'trash'
+                          ? 'No trashed meetings found.'
+                          : 'No meetings found. Create your first video link to get started!'}
                     </td>
                   </tr>
                 ) : (
@@ -904,13 +952,22 @@ export default function Page() {
                           </div>
                         </td>
                         <td className="px-4 py-3 w-1/3">
-                          <button
-                            onClick={() => openShareUrl(meeting.meeting_id)}
-                            className="text-blue-600 underline hover:text-blue-800 cursor-pointer text-left"
-                            title="Click to open share link in new tab"
-                          >
-                            www.Videodesk.co.uk/share/{meeting.meeting_id.substring(0, 8)}...
-                          </button>
+                          {meeting.deleted ? (
+                            <span
+                              className="text-gray-400 line-through cursor-not-allowed text-left"
+                              title="Link disabled for trashed meetings"
+                            >
+                              www.Videodesk.co.uk/share/{meeting.meeting_id.substring(0, 8)}...
+                            </span>
+                          ) : (
+                            <button
+                              onClick={() => openShareUrl(meeting.meeting_id)}
+                              className="text-blue-600 underline hover:text-blue-800 cursor-pointer text-left"
+                              title="Click to open share link in new tab"
+                            >
+                              www.Videodesk.co.uk/share/{meeting.meeting_id.substring(0, 8)}...
+                            </button>
+                          )}
                         </td>
                         <td className="px-4 py-3 w-1/6">
                           <div className="flex items-center">
@@ -921,47 +978,79 @@ export default function Page() {
                         </td>
                         <td className="px-4 py-3 w-1/6">
                           <div className="flex justify-start gap-3">
-                            <button
-                              title="Discard"
-                              onClick={() => handleDeleteMeeting(meeting._id, meeting.name)}
-                              className="hover:bg-red-50 p-1 rounded"
-                            >
-                              <img src="/icons/trash-red.svg" className="w-4 h-4" />
-                            </button>
-
-                            {/* Show appropriate archive/unarchive button based on meeting status */}
-                            {isArchived ? (
-                              <button
-                                title="Unarchive"
-                                onClick={() => handleUnarchiveMeeting(meeting._id, meeting.name)}
-                                className="hover:bg-green-50 p-1 rounded"
-                              >
-                                <ArchiveRestore className="w-4 h-4 text-green-600" />
-                              </button>
+                            {viewMode === 'trash' ? (
+                              <>
+                                <button
+                                  title="Restore"
+                                  onClick={async () => {
+                                    try {
+                                      await restoreMeeting(meeting._id);
+                                      toast.success("Meeting restored successfully");
+                                      fetchMeetings(false);
+                                    } catch (error) {
+                                      toast.error("Failed to restore meeting", { description: error?.response?.data?.message || error.message });
+                                    }
+                                  }}
+                                  className="hover:bg-green-50 p-1 rounded"
+                                >
+                                  <Undo2 className="w-5 h-5 text-green-600" />
+                                </button>
+                                <button
+                                  title="Permanently Delete"
+                                  onClick={() => {
+                                    setMeetingToDelete(meeting);
+                                    setShowPermanentDeleteDialog(true);
+                                  }}
+                                  className="hover:bg-red-50 p-1 rounded"
+                                >
+                                  <Trash2 className="w-5 h-5 text-red-600" />
+                                </button>
+                              </>
                             ) : (
-                              <button
-                                title="Archive"
-                                onClick={() => handleArchiveMeeting(meeting._id, meeting.name)}
-                                className="hover:bg-gray-50 p-1 rounded"
-                              >
-                                <img src="/icons/download.svg" className="w-4 h-4" />
-                              </button>
-                            )}
+                              <>
+                                <button
+                                  title="Discard"
+                                  onClick={() => handleDeleteMeeting(meeting._id, meeting.name)}
+                                  className="hover:bg-red-50 p-1 rounded"
+                                >
+                                  <img src="/icons/trash-red.svg" className="w-4 h-4" />
+                                </button>
 
-                            <button
-                              title="Export"
-                              onClick={() => setExportOpen(true, meeting)}
-                              className="hover:bg-gray-50 p-1 rounded"
-                            >
-                              <img src="/icons/icon-park_share.svg" className="w-5 h-5" />
-                            </button>
-                            <button
-                              title="History"
-                              onClick={() => setHistoryOpen(true, meeting)}
-                              className="hover:bg-gray-50 p-1 rounded"
-                            >
-                              <img src="/icons/icon-park-outline_history-query.svg" className="w-5 h-5" />
-                            </button>
+                                {/* Show appropriate archive/unarchive button based on meeting status */}
+                                {isArchived ? (
+                                  <button
+                                    title="Unarchive"
+                                    onClick={() => handleUnarchiveMeeting(meeting._id, meeting.name)}
+                                    className="hover:bg-green-50 p-1 rounded"
+                                  >
+                                    <ArchiveRestore className="w-4 h-4 text-green-600" />
+                                  </button>
+                                ) : (
+                                  <button
+                                    title="Archive"
+                                    onClick={() => handleArchiveMeeting(meeting._id, meeting.name)}
+                                    className="hover:bg-gray-50 p-1 rounded"
+                                  >
+                                    <img src="/icons/download.svg" className="w-4 h-4" />
+                                  </button>
+                                )}
+
+                                <button
+                                  title="Export"
+                                  onClick={() => setExportOpen(true, meeting)}
+                                  className="hover:bg-gray-50 p-1 rounded"
+                                >
+                                  <img src="/icons/icon-park_share.svg" className="w-5 h-5" />
+                                </button>
+                                <button
+                                  title="History"
+                                  onClick={() => setHistoryOpen(true, meeting)}
+                                  className="hover:bg-gray-50 p-1 rounded"
+                                >
+                                  <img src="/icons/icon-park-outline_history-query.svg" className="w-5 h-5" />
+                                </button>
+                              </>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -1022,6 +1111,57 @@ export default function Page() {
         onClose={() => setShowVideoLinkSender(false)}
         onSuccess={handleVideoLinkSuccess}
       />
+
+      {/* Permanent Delete Confirmation Dialog */}
+      {showPermanentDeleteDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/30 backdrop-blur-sm">
+          <div className="bg-orange-100/90 backdrop-blur-lg rounded-xl shadow-2xl p-7 w-full max-w-md border border-orange-200" style={{ boxShadow: '0 8px 32px 0 rgba(255, 183, 77, 0.18)' }}>
+            <h2 className="text-xl font-bold text-red-600 mb-3">Permanently Delete Meeting{multipleDeleteMode && selectedMeetings.length > 1 ? 's' : ''}?</h2>
+            <p className="mb-4 text-orange-900">This will permanently delete:</p>
+            <ul className="list-disc list-inside mb-4 text-orange-800">
+              <li>The meeting document{multipleDeleteMode && selectedMeetings.length > 1 ? 's' : ''}</li>
+              <li>All recordings</li>
+              <li>All screenshots</li>
+              <li>All associated media files</li>
+            </ul>
+            <p className="mb-4 text-sm text-orange-700">This action cannot be undone.</p>
+            <div className="flex justify-end gap-3">
+              <button
+                className="px-5 py-2 bg-orange-50 text-orange-900 rounded-full shadow-sm hover:bg-orange-200 hover:shadow-md transition-all font-semibold"
+                onClick={() => {
+                  setShowPermanentDeleteDialog(false);
+                  setMeetingToDelete(null);
+                  setMultipleDeleteMode(false);
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                className="px-5 py-2 bg-red-600 text-white rounded-full shadow-sm hover:bg-red-700 hover:shadow-md transition-all font-semibold"
+                onClick={async () => {
+                  if (multipleDeleteMode) {
+                    await proceedMultipleDelete();
+                    setShowPermanentDeleteDialog(false);
+                    setMultipleDeleteMode(false);
+                  } else if (meetingToDelete) {
+                    try {
+                      await permanentDeleteMeeting(meetingToDelete._id);
+                      toast.success("Meeting permanently deleted");
+                      setShowPermanentDeleteDialog(false);
+                      setMeetingToDelete(null);
+                      fetchMeetings(false);
+                    } catch (error) {
+                      toast.error("Failed to permanently delete meeting", { description: error?.response?.data?.message || error.message });
+                    }
+                  }
+                }}
+              >
+                Delete Permanently
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }

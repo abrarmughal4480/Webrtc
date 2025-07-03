@@ -1,4 +1,5 @@
 import express from 'express';
+import { isAuthenticate as isAuthenticated } from '../middlewares/auth.js';
 // ...existing imports...
 import { 
     create, 
@@ -6,7 +7,16 @@ import {
     getMeetingById, 
     updateMeeting, 
     deleteMeeting,
-    getMeetingForShare 
+    getMeetingForShare,
+    getMeetingByMeetingId,
+    deleteRecording,
+    deleteScreenshot,
+    archiveMeeting,
+    unarchiveMeeting,
+    getArchivedCount,
+    recordVisitorAccess,
+    restoreMeeting,
+    permanentDeleteMeeting
 } from '../controllers/meetingController.js';
 
 const router = express.Router();
@@ -22,5 +32,8 @@ router.delete('/meetings/:id', isAuthenticated, deleteMeeting);
 
 // Meeting routes - Public route for sharing
 router.get('/meetings/share/:id', getMeetingForShare);
+
+router.put('/meetings/restore/:id', isAuthenticated, restoreMeeting);
+router.delete('/meetings/permanent/:id', isAuthenticated, permanentDeleteMeeting);
 
 export default router;
