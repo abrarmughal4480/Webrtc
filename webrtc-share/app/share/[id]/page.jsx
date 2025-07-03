@@ -266,7 +266,7 @@ export default function SharePage({ params }) {
     if (landlordInfo.landlordName) {
       return landlordInfo.landlordName;
     }
-    return 'Videodesk Officer';
+    return 'Guest Access';
   };
 
   // Helper function to get initials
