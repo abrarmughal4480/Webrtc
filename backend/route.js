@@ -4,6 +4,7 @@ import {changePassword, loadme, login, logout, register, updateUser,forgotPasswo
 import {isAuthenticate} from "./middlewares/auth.js"
 import { create, getAllMeetings, getMeetingById, updateMeeting, deleteMeeting, getMeetingForShare, getMeetingByMeetingId, deleteRecording, deleteScreenshot, archiveMeeting, unarchiveMeeting, getArchivedCount, recordVisitorAccess, restoreMeeting, permanentDeleteMeeting } from './controllers/meetingController.js';
 import { getUserRoomInfo } from './controllers/userRoomInfoController.js';
+import cronRoutes from './routes/cron.js';
 
 // auth routes
 router.route('/register').post(register);
@@ -84,5 +85,7 @@ router.get('/room-user-info', getUserRoomInfo);
 
 router.route('/meetings/restore/:id').put(isAuthenticate, restoreMeeting);
 router.route('/meetings/permanent/:id').delete(isAuthenticate, permanentDeleteMeeting);
+
+router.use(cronRoutes);
 
 export default router;
