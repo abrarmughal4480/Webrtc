@@ -3574,7 +3574,9 @@ ${senderName}`;
                 <div>
                   <h4 className="font-semibold mb-3">Visitor Access Log</h4>
                   {(() => {
-                    const allAccesses = (selectedMeetingForHistory.access_history || []).slice().sort((a, b) => new Date(b.access_time) - new Date(a.access_time));
+                    const allAccesses = (selectedMeetingForHistory.access_history || []).slice().sort((a, b) =>
+                      new Date(a.access_time) - new Date(b.access_time)
+                    );
 
                     if (allAccesses.length > 0) {
                       return (

@@ -1,6 +1,6 @@
 "use client"
 import { Button } from "@/components/ui/button"
-import { FileText, Archive, Trash2, Monitor, Smartphone, Save, History, ArchiveRestore, ExternalLink, FileSearch, MailIcon, Loader2, Maximize2, Home, RotateCcw, XCircle, Undo2 } from "lucide-react"
+import { FileText, Archive, Trash2, Monitor, Smartphone, Save, History, ArchiveRestore, ExternalLink, FileSearch, MailIcon, Loader2, Maximize2, Home, RotateCcw, XCircle, Undo2, Info } from "lucide-react"
 import Image from "next/image"
 import {
   DropdownMenu,
@@ -29,6 +29,8 @@ import CustomDialog from "@/components/dialogs/CustomDialog"
 import { updateUserLogoRequest } from "@/http/authHttp"
 import VideoLinkSender from "@/components/VideoLinkSender"
 import moment from "moment/moment"
+import { AiOutlineInfoCircle } from "react-icons/ai";
+import { BsInfoCircleFill, BsInfoCircle } from "react-icons/bs";
 
 export default function Page() {
   const { user, isAuth, setIsAuth, setUser } = useUser();
@@ -659,12 +661,22 @@ export default function Page() {
                     setViewMode('trash');
                   }
                 }}
-                title={viewMode === 'trash' ? 'View Active Meetings' : 'View Trashed Meetings'}
+                title={viewMode === 'trash' ? '' : 'View Trashed Meetings'}
               >
                 <img src="/icons/trash-red.svg" className="w-4 h-4 filter brightness-0 invert" />
                 <span className="text-sm font-medium">
                   {viewMode === 'trash' ? 'Exit Trash' : 'View Trash'}
                 </span>
+                {viewMode === 'trash' && (
+                  <span className="relative group ml-1 flex items-center h-5 w-5">
+                    <BsInfoCircle className="w-full h-full text-white/90 hover:text-white cursor-pointer" />
+                    <span className="absolute left-1/2 top-full z-30 mt-4 min-w-[380px] max-w-xs -translate-x-1/2 rounded-md bg-blue-50 text-blue-900 text-xs px-3 py-2 h-auto overflow-visible opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity pointer-events-none shadow-lg border border-blue-200 flex flex-col items-center">
+                      <span className="font-semibold text-xs mb-1">Trash Auto-Delete</span>
+                      <span className="text-xs text-center">Meetings in Trash are <b>PERMANENTLY DELETED</b> after 10 days.<br />This action cannot be undone.</span>
+                      <span className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-full w-0 h-0 border-l-6 border-r-6 border-b-6 border-l-transparent border-r-transparent border-b-blue-50"></span>
+                    </span>
+                  </span>
+                )}
               </Button>
               {/* Archive Icon Button */}
               <Button
