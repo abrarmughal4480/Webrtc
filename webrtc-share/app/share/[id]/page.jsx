@@ -263,7 +263,7 @@ export default function SharePage({ params }) {
     if (landlordInfo.landlordName) {
       return landlordInfo.landlordName;
     }
-    return 'Guest Access';
+    return 'Guest/Visitor Access';
   };
 
   // Helper function to get initials
@@ -632,8 +632,8 @@ export default function SharePage({ params }) {
                                   : 'opacity-80 group-hover:opacity-100 group-hover:scale-110'
                               }`}
                             >
-                              <div className="bg-white/20 backdrop-blur-sm rounded-full p-4">
-                                <PlayIcon className="w-8 h-8 text-red-600 drop-shadow-lg" />
+                              <div className="bg-red-600 rounded-full p-4">
+                                <PlayIcon className="w-8 h-8 text-white drop-shadow-lg" />
                               </div>
                             </div>
                           )}

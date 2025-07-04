@@ -2815,6 +2815,7 @@ export default function Page({ params }) {
                   className="flex-1 px-2 py-1 rounded-lg bg-transparent text-gray-700 text-sm font-mono select-all truncate outline-none border-none focus:ring-0"
                   style={{ minWidth: 0, cursor: shareLink ? 'pointer' : 'not-allowed' }}
                   onFocus={e => e.target.select()}
+                  title={shareLink || 'No link generated yet'}
                   aria-label="Share link"
                 />
                 <button
