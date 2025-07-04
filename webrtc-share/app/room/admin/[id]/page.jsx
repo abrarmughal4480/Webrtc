@@ -2875,14 +2875,20 @@ export default function Page({ params }) {
                       toast.error("Please copy the link manually from the alert");
                     }
                   }}
-                  className={`p-2 rounded-lg border flex items-center justify-center ml-1 transition-colors duration-150 ${shareLink ? 'bg-gray-200 hover:bg-gray-300 border-gray-300 cursor-pointer' : 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'}`}
+                  className={`p-2 rounded-lg border flex items-center justify-center ml-1 transition-colors duration-150 ${shareLink ? (copied ? 'bg-blue-500 text-white border-blue-500' : 'bg-gray-200 hover:bg-gray-300 border-gray-300 cursor-pointer') : 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'}`}
                   title={shareLink ? "Copy share link" : "Generate a link first"}
                   type="button"
                   disabled={!shareLink}
                   aria-label="Copy share link"
                 >
-                  {copied ? <Check className="w-5 h-5 text-green-500 mr-1" /> : <Copy className="w-5 h-5 mr-1" />}
-                  <span>Copy</span>
+                 {copied ? (
+  <span className="font-semibold">Copied</span>
+) : (
+  <>
+    <Copy className="w-5 h-5 mr-1" />
+    <span>Copy</span>
+  </>
+)}
                 </button>
               </div>
               <span className="text-xs font-normal text-gray-500">(Copy and paste link to your job ticket or any system)</span>
