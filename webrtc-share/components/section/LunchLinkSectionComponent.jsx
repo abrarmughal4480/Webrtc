@@ -78,6 +78,11 @@ export const LaunchLinkSection = () => {
       return;
     }
 
+    if (!user?._id || user._id.length !== 24) {
+      toast.error("User ID is invalid. Please re-login or contact support.");
+      return;
+    }
+
     if (!phone && !email) {
       toast("Please enter phone or email", {
         description: "Enter either a phone number or email address"
