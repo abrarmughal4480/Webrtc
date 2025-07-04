@@ -58,7 +58,10 @@ export const DialogProvider = ({ children }) => {
     { name: 'Blue', bgClass: 'bg-blue-800', hoverClass: 'hover:bg-blue-900', color: '#1e40af' },
     { name: 'Red', bgClass: 'bg-red-800', hoverClass: 'hover:bg-red-900', color: '#dc2626' },
     { name: 'Purple', bgClass: 'bg-purple-800', hoverClass: 'hover:bg-purple-900', color: '#7c3aed' },
-    { name: 'Orange', bgClass: 'bg-orange-800', hoverClass: 'hover:bg-orange-900', color: '#ea580c' }
+    // Brighter orange
+    { name: 'Orange', bgClass: 'bg-orange-400', hoverClass: 'hover:bg-orange-500', color: '#fdba74' },
+    // Slightly darker yellow
+    { name: 'Yellow', bgClass: 'bg-yellow-500', hoverClass: 'hover:bg-yellow-600', color: '#eab308' }
   ];
 
   const [landlordName, setLandlordName] = useState("");

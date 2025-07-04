@@ -344,21 +344,25 @@ const page = ({params}) => {
           ) : (
           <>
             {/* Paper Plane Image - Always show */}
-            <div className="flex justify-center">
-              <Image src="/paper-plane.svg" alt="video-link-dialog-bg" className='object-contain pb-4 pt-2' width={150} height={150} />
+            <div className="flex justify-center w-full">
+              <img 
+                src="/paper-plane.svg" 
+                alt="video-link-dialog-bg" 
+                className="object-contain pb-4 pt-2 max-w-full max-h-32 sm:max-h-36 md:max-h-40" 
+                style={{ width: 'auto', height: 'auto' }}
+                onError={e => { e.target.style.display = 'none'; }}
+              />
             </div>
 
             {/* Landlord Logo - Show below paper plane if available */}
             {(!showDefaultLeader && roomUserInfo?.landlordInfo?.landlordLogo) && (
-              <div className="flex justify-center -mt-2 pt-3">
+              <div className="flex justify-center -mt-2 pt-3 w-full">
                 <img 
                   src={roomUserInfo?.landlordInfo?.landlordLogo} 
                   alt="Landlord Logo" 
-                  className="max-h-12 max-w-[150px] object-contain" 
-                  onError={(e) => {
-                    console.error('Failed to load landlord logo:', roomUserInfo?.landlordInfo?.landlordLogo);
-                    e.target.style.display = 'none';
-                  }}
+                  className="object-contain max-w-full" 
+                  style={{ width: 'auto', height: 'auto', maxWidth: '180px', maxHeight: '60px' }}
+                  onError={e => { e.target.style.display = 'none'; }}
                   onLoad={() => {
                     console.log('✅ Landlord logo loaded successfully in room [id]');
                   }}
@@ -380,7 +384,7 @@ const page = ({params}) => {
               </h2>
             </div>          <div className="flex justify-center w-full">
               <button 
-                className={`${buttonColor} ${getHoverColor(buttonColor)} text-white font-medium py-3 cursor-pointer rounded-full mt-4 text-lg w-[90%] outline-none transition-colors text-center`}
+                className={`${buttonColor} text-white font-medium py-3 cursor-pointer rounded-full mt-4 text-lg w-[90%] outline-none transition-colors text-center`}
                 onClick={handleStrt}
                 disabled={pageLoading}
               >
@@ -400,8 +404,14 @@ const page = ({params}) => {
             </div>
 
             {/* Device Icons - moved up */}
-            <div className="flex justify-center mt-2">
-              <img src="/devices.svg" alt="Videodesk" className="w-30" />
+            <div className="flex justify-center mt-2 w-full">
+              <img 
+                src="/devices.svg" 
+                alt="Videodesk" 
+                className="object-contain max-w-full max-h-12 sm:max-h-16 md:max-h-20" 
+                style={{ width: 'auto', height: 'auto' }}
+                onError={e => { e.target.style.display = 'none'; }}
+              />
             </div>
 
             {/* Videodesk Heading - show only if landlord name or logo exists and name is not "Videodesk" */}

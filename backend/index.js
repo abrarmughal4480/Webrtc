@@ -151,7 +151,8 @@ const getButtonColorFromTailwind = (tailwindClass) => {
         'bg-blue-800': { bg: '#1e40af', hover: '#1d4ed8' },
         'bg-red-800': { bg: '#dc2626', hover: '#b91c1c' },
         'bg-purple-800': { bg: '#7c3aed', hover: '#6d28d9' },
-        'bg-orange-800': { bg: '#ea580c', hover: '#c2410c' }
+        'bg-orange-400': { bg: '#fdba74', hover: '#fb923c' },
+        'bg-yellow-500': { bg: '#eab308', hover: '#ca8a04' }
     };
     
     console.log(`🎨 Button color requested: "${tailwindClass}"`);

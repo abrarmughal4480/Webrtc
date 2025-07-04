@@ -1,8 +1,7 @@
 "use client"
 import { useState, useRef, use, useEffect } from "react"
 import { VideoIcon, PlayIcon, Minimize2, Expand, ZoomIn, ZoomOut, ChevronDown, ChevronUp, X, User } from "lucide-react"
-import { getMeetingByMeetingId } from "@/http/meetingHttp"
-import { recordVisitorAccessRequest } from "@/http/meetingHttp"
+import { getMeetingForShare, recordVisitorAccessRequest } from "@/http/meetingHttp"
 import { useDialog } from "@/provider/DilogsProvider"
 import { toast } from "sonner"
 
@@ -81,10 +80,10 @@ export default function SharePage({ params }) {
     setIsLoadingMeetingData(true);
     try {
       console.log(`🔍 Fetching meeting data for share ID: ${id}`);
-      const response = await getMeetingByMeetingId(id);
+      const response = await getMeetingForShare(id);
       
-      if (response.data.success && response.data.meeting) {
-        const meetingData = response.data.meeting;
+      if (response.success && response.meeting) {
+        const meetingData = response.meeting;
         console.log('✅ Found meeting data:', meetingData);
         
         // Populate form fields with existing data (read-only)
@@ -320,10 +319,10 @@ export default function SharePage({ params }) {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
-      <div className="max-w-6xl mx-auto p-6 py-12">
+      <div className="max-w-6xl mx-auto px-2 sm:px-4 md:px-6 py-6 md:py-12">
         {/* Enhanced Header */}
-        <div className="bg-white rounded-2xl shadow-lg p-6 mb-8 border border-gray-200">
-          <div className="flex items-center justify-between">
+        <div className="bg-white rounded-2xl shadow-lg p-4 sm:p-6 mb-4 md:mb-8 border border-gray-200">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 md:gap-0">
             <div className="flex items-center">
               {/* Show landlord logo if available, otherwise show default */}
               {getLandlordLogo() ? (
@@ -333,33 +332,33 @@ export default function SharePage({ params }) {
                     alt="Landlord Logo" 
                     className="max-h-8 max-w-[120px] object-contain mr-3" 
                   />
-                  <a href="/" className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent flex items-center hover:opacity-80 transition-opacity">
-                    <VideoIcon className="mr-3 text-blue-600" size={32} />
+                  <a href="/" className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent flex items-center hover:opacity-80 transition-opacity">
+                    <VideoIcon className="mr-3 text-blue-600" size={28} />
                     <span>Videodesk.co.uk</span>
                   </a>
                 </div>
               ) : (
-                <a href="/" className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent flex items-center hover:opacity-80 transition-opacity">
-                  <VideoIcon className="mr-3 text-blue-600" size={32} />
+                <a href="/" className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent flex items-center hover:opacity-80 transition-opacity">
+                  <VideoIcon className="mr-3 text-blue-600" size={28} />
                   <span>Videodesk.co.uk</span>
                 </a>
               )}
             </div>
-            <div className="text-sm text-gray-500 bg-gray-50 px-4 py-2 rounded-full">
+            <div className="text-xs md:text-sm text-gray-500 bg-gray-50 px-3 md:px-4 py-1.5 md:py-2 rounded-full">
               Meeting ID: {id}
             </div>
           </div>
         </div>
 
         {/* Profile Section */}
-        <div className="bg-white rounded-2xl shadow-lg p-6 mb-8 border border-gray-200">
-          <div className="flex items-center justify-between">
+        <div className="bg-white rounded-2xl shadow-lg p-4 sm:p-6 mb-4 md:mb-8 border border-gray-200">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 md:gap-0">
             <div className="flex items-center">
               <div className="flex items-center">
                 {isLoadingProfile ? (
                   <div className="flex items-center">
                     <div className="w-12 h-12 bg-gray-200 rounded-full animate-pulse mr-3"></div>
-                    <div className="h-8 bg-gray-200 rounded animate-pulse w-32"></div>
+                    <div className="h-8 bg-gray-200 rounded animate-pulse w-24 md:w-32"></div>
                   </div>
                 ) : (
                   <>
@@ -371,26 +370,25 @@ export default function SharePage({ params }) {
                           className={`w-full h-full ${getImageObjectFitClass()}`}
                           onError={(e) => {
                             e.target.style.display = 'none';
-                            // Show fallback initials
-                            e.target.parentElement.innerHTML = `<div class="w-full h-full bg-gradient-to-r from-green-500 to-blue-500 flex items-center justify-center text-white font-semibold">${getInitials(getDisplayName())}</div>`;
+                            e.target.parentElement.innerHTML = `<div class=\"w-full h-full bg-gradient-to-r from-green-500 to-blue-500 flex items-center justify-center text-white font-semibold\">${getInitials(getDisplayName())}</div>`;
                           }}
                         />
                       ) : (
                         <div className="w-full h-full bg-gradient-to-r from-green-500 to-blue-500 flex items-center justify-center">
-                          <span className="text-white font-semibold text-lg">{getInitials(getDisplayName())}</span>
+                          <span className="text-white font-semibold text-base md:text-lg">{getInitials(getDisplayName())}</span>
                         </div>
                       )}
                     </div>
-                    <span className="text-3xl font-bold text-gray-800">
+                    <span className="text-2xl md:text-3xl font-bold text-gray-800">
                       {getDisplayName()}
                     </span>
                   </>
                 )}
               </div>
             </div>
-            <div className="text-sm text-gray-500 bg-gray-50 px-4 py-2 rounded-full">
+            <div className="text-xs md:text-sm text-gray-500 bg-gray-50 px-3 md:px-4 py-1.5 md:py-2 rounded-full">
               {isLoadingProfile ? (
-                <div className="h-4 bg-gray-200 rounded animate-pulse w-16"></div>
+                <div className="h-4 bg-gray-200 rounded animate-pulse w-12 md:w-16"></div>
               ) : landlordInfo.landlordName ? (
                 "Profile"
               ) : (
@@ -401,13 +399,13 @@ export default function SharePage({ params }) {
         </div>
 
         {/* Enhanced Main Content Card */}
-        <div className="bg-white rounded-3xl shadow-xl p-8 mb-8 border-2 border-gray-200">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="bg-white rounded-3xl shadow-xl p-4 sm:p-8 mb-4 md:mb-8 border-2 border-gray-200">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-8">
             {/* Left Side - Enhanced Name and Address */}
-            <div className="space-y-6">
+            <div className="space-y-4 md:space-y-6">
               {/* Resident Name */}
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">
+                <label className="block text-xs md:text-sm font-semibold text-gray-700 mb-2 md:mb-3 uppercase tracking-wide">
                   Resident Name
                 </label>
                 <input
@@ -415,54 +413,48 @@ export default function SharePage({ params }) {
                   type="text"
                   value={residentName}
                   readOnly
-                  className="w-full p-4 border-4 border-gray-200 rounded-2xl bg-gradient-to-r from-gray-50 to-gray-100 text-gray-800 font-medium text-lg focus:outline-none shadow-inner"
+                  className="w-full p-3 md:p-4 border-2 md:border-4 border-gray-200 rounded-2xl bg-gradient-to-r from-gray-50 to-gray-100 text-gray-800 font-medium text-base md:text-lg focus:outline-none shadow-inner"
                 />
               </div>
-              
               {/* Enhanced Address Fields */}
               <div>
-                <label htmlFor="residentAddress" className="block text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">
+                <label htmlFor="residentAddress" className="block text-xs md:text-sm font-semibold text-gray-700 mb-2 md:mb-3 uppercase tracking-wide">
                   Resident's Address
                 </label>
-                
                 {/* Main Address */}
                 {residentAddress && (
                   <textarea
                     value={residentAddress}
                     readOnly
                     rows={2}
-                    className="w-full p-4 border-4 border-gray-200 rounded-2xl bg-gradient-to-r from-gray-50 to-gray-100 text-gray-800 font-medium resize-none focus:outline-none shadow-inner leading-relaxed mb-3"
+                    className="w-full p-3 md:p-4 border-2 md:border-4 border-gray-200 rounded-2xl bg-gradient-to-r from-gray-50 to-gray-100 text-gray-800 font-medium resize-none focus:outline-none shadow-inner leading-relaxed mb-2 md:mb-3"
                   />
                 )}
-                
                 {/* Address Lines */}
                 {addressLine1 && (
                   <input
                     value={addressLine1}
                     readOnly
                     placeholder="Address Line 1"
-                    className="w-full p-3 border-2 border-gray-200 rounded-xl bg-gray-50 text-gray-800 font-medium focus:outline-none shadow-inner mb-2"
+                    className="w-full p-2.5 md:p-3 border-2 border-gray-200 rounded-xl bg-gray-50 text-gray-800 font-medium focus:outline-none shadow-inner mb-1.5 md:mb-2"
                   />
                 )}
-                
                 {addressLine2 && (
                   <input
                     value={addressLine2}
                     readOnly
                     placeholder="Address Line 2"
-                    className="w-full p-3 border-2 border-gray-200 rounded-xl bg-gray-50 text-gray-800 font-medium focus:outline-none shadow-inner mb-2"
+                    className="w-full p-2.5 md:p-3 border-2 border-gray-200 rounded-xl bg-gray-50 text-gray-800 font-medium focus:outline-none shadow-inner mb-1.5 md:mb-2"
                   />
                 )}
-                
                 {addressLine3 && (
                   <input
                     value={addressLine3}
                     readOnly
                     placeholder="Address Line 3"
-                    className="w-full p-3 border-2 border-gray-200 rounded-xl bg-gray-50 text-gray-800 font-medium focus:outline-none shadow-inner mb-2"
+                    className="w-full p-2.5 md:p-3 border-2 border-gray-200 rounded-xl bg-gray-50 text-gray-800 font-medium focus:outline-none shadow-inner mb-1.5 md:mb-2"
                   />
                 )}
-                
                 {/* Additional Address Lines */}
                 {additionalAddressLines.map((line, index) => (
                   line && (
@@ -471,109 +463,103 @@ export default function SharePage({ params }) {
                       value={line}
                       readOnly
                       placeholder={`Address Line ${index + 4}`}
-                      className="w-full p-3 border-2 border-gray-200 rounded-xl bg-gray-50 text-gray-800 font-medium focus:outline-none shadow-inner mb-2"
+                      className="w-full p-2.5 md:p-3 border-2 border-gray-200 rounded-xl bg-gray-50 text-gray-800 font-medium focus:outline-none shadow-inner mb-1.5 md:mb-2"
                     />
                   )
                 ))}
               </div>
-              
               {/* Postcode and Phone */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 md:gap-4">
                 {postCode && (
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2 uppercase tracking-wide">
+                    <label className="block text-xs md:text-sm font-semibold text-gray-700 mb-1 md:mb-2 uppercase tracking-wide">
                       Postcode
                     </label>
                     <input
                       value={postCode}
                       readOnly
-                      className="w-full p-3 border-2 border-gray-200 rounded-xl bg-gray-50 text-gray-800 font-medium focus:outline-none shadow-inner"
+                      className="w-full p-2.5 md:p-3 border-2 border-gray-200 rounded-xl bg-gray-50 text-gray-800 font-medium focus:outline-none shadow-inner"
                     />
                   </div>
                 )}
-                
                 {phoneNumber && (
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2 uppercase tracking-wide">
+                    <label className="block text-xs md:text-sm font-semibold text-gray-700 mb-1 md:mb-2 uppercase tracking-wide">
                       Phone Number
                     </label>
                     <input
                       value={phoneNumber}
                       readOnly
-                      className="w-full p-3 border-2 border-gray-200 rounded-xl bg-gray-50 text-gray-800 font-medium focus:outline-none shadow-inner"
+                      className="w-full p-2.5 md:p-3 border-2 border-gray-200 rounded-xl bg-gray-50 text-gray-800 font-medium focus:outline-none shadow-inner"
                     />
                   </div>
                 )}
               </div>
-              
               {/* Special Notes - Moved to Left Side */}
               {specialNotes && (
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">
+                  <label className="block text-xs md:text-sm font-semibold text-gray-700 mb-2 md:mb-3 uppercase tracking-wide">
                     Special Notes
                   </label>
                   <textarea
                     value={specialNotes}
                     readOnly
-                    rows={4}
-                    className="w-full p-4 border-4 border-yellow-200 rounded-2xl bg-gradient-to-r from-yellow-50 to-yellow-100 text-gray-800 font-medium resize-none focus:outline-none shadow-inner leading-relaxed"
+                    rows={3}
+                    className="w-full p-3 md:p-4 border-2 md:border-4 border-yellow-200 rounded-2xl bg-gradient-to-r from-yellow-50 to-yellow-100 text-gray-800 font-medium resize-none focus:outline-none shadow-inner leading-relaxed"
                   />
                 </div>
               )}
             </div>
-            
             {/* Right Side - Ref and Work Details */}
-            <div className="h-full flex flex-col space-y-6">
+            <div className="h-full flex flex-col space-y-4 md:space-y-6">
               {/* Ref Field */}
               {ref && (
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">
+                  <label className="block text-xs md:text-sm font-semibold text-gray-700 mb-2 md:mb-3 uppercase tracking-wide">
                     Reference
                   </label>
                   <input
                     type="text"
                     value={ref}
                     readOnly
-                    className="w-full p-4 border-4 border-gray-200 rounded-2xl bg-gradient-to-r from-gray-50 to-gray-100 text-gray-800 font-medium text-lg focus:outline-none shadow-inner overflow-x-auto"
+                    className="w-full p-3 md:p-4 border-2 md:border-4 border-gray-200 rounded-2xl bg-gradient-to-r from-gray-50 to-gray-100 text-gray-800 font-medium text-base md:text-lg focus:outline-none shadow-inner overflow-x-auto"
                   />
                 </div>
               )}
-              
               {/* Repair Details */}
               {repairDetails && (
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">
+                  <label className="block text-xs md:text-sm font-semibold text-gray-700 mb-2 md:mb-3 uppercase tracking-wide">
                     Repair Details
                   </label>
                   <textarea
                     value={repairDetails}
                     readOnly
-                    rows={3}
-                    className="w-full p-4 border-4 border-gray-200 rounded-2xl bg-gradient-to-r from-gray-50 to-gray-100 text-gray-800 font-medium resize-none focus:outline-none shadow-inner leading-relaxed"
+                    rows={2}
+                    className="w-full p-3 md:p-4 border-2 md:border-4 border-gray-200 rounded-2xl bg-gradient-to-r from-gray-50 to-gray-100 text-gray-800 font-medium resize-none focus:outline-none shadow-inner leading-relaxed"
                   />
                 </div>
               )}
-              
               {/* Work Details */}
               {workDetails && workDetails.length > 0 && (
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">
+                  <label className="block text-xs md:text-sm font-semibold text-gray-700 mb-2 md:mb-3 uppercase tracking-wide">
                     Work Details
                   </label>
-                  <div className="space-y-3">
+                  <div className="space-y-2 md:space-y-3">
                     {workDetails.map((work, index) => (
-                      <div key={index} className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4">
-                        <div className="flex justify-between items-start mb-2">
-                          <span className="text-sm font-semibold text-blue-800">Work Item {index + 1}</span>
+                      <div key={index} className="bg-blue-50 border-2 border-blue-200 rounded-xl p-3 md:p-4">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-1.5 md:mb-2">
+                          <span className="text-xs md:text-sm font-semibold text-blue-800">Work Item {index + 1}</span>
                           {work.target_time && (
-                            <span className="text-xs bg-blue-200 text-blue-800 px-2 py-1 rounded-full font-medium">
+                            <span className="text-xs bg-blue-200 text-blue-800 px-2 py-1 rounded-full font-medium mt-1 sm:mt-0">
                               {work.target_time}
                             </span>
                           )}
                         </div>
-                        <p className="text-gray-800 font-medium">{work.detail}</p>
+                        <p className="text-gray-800 font-medium text-sm md:text-base">{work.detail}</p>
                         {work.timestamp && (
-                          <p className="text-xs text-gray-500 mt-2">
+                          <p className="text-xs text-gray-500 mt-1 md:mt-2">
                             Added: {new Date(work.timestamp).toLocaleString()}
                           </p>
                         )}
@@ -587,23 +573,22 @@ export default function SharePage({ params }) {
         </div>
 
         {/* Enhanced Video & Image Section */}
-        <div className="bg-white rounded-3xl shadow-xl p-8 border-2 border-gray-200">
+        <div className="bg-white rounded-3xl shadow-xl p-4 sm:p-8 border-2 border-gray-200">
           {/* Videos Section */}
           {recordings.length > 0 && (
-            <div className="mb-8">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
-                <h2 className="text-xl font-bold text-gray-800 uppercase tracking-wide">Videos</h2>
+            <div className="mb-6 md:mb-8">
+              <div className="flex items-center gap-2 md:gap-3 mb-4 md:mb-6">
+                <div className="w-2.5 h-2.5 md:w-3 md:h-3 bg-red-500 rounded-full animate-pulse"></div>
+                <h2 className="text-lg md:text-xl font-bold text-gray-800 uppercase tracking-wide">Videos</h2>
               </div>
-              
               {/* Better container for videos */}
               <div className="w-full">
-                <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+                <div className="flex gap-3 md:gap-4 overflow-x-auto pb-2 md:pb-4 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
                   {recordings.map((recording) => {
                     const isExpanded = expandedVideos.has(recording.id);
                     return (
-                      <div key={recording.id} className={`flex-shrink-0 transition-all duration-300 ${isExpanded ? 'w-[400px]' : 'w-[280px] md:w-[200px]'}`}>
-                        <div className={`w-full bg-gradient-to-br from-gray-200 to-gray-300 rounded-3xl overflow-hidden relative shadow-lg hover:shadow-xl transition-all duration-300 group ${isExpanded ? 'h-[400px]' : 'h-[200px]'}`}>
+                      <div key={recording.id} className={`flex-shrink-0 transition-all duration-300 ${isExpanded ? 'w-[320px] sm:w-[400px]' : 'w-[180px] sm:w-[200px] md:w-[280px]'}`}>
+                        <div className={`w-full bg-gradient-to-br from-gray-200 to-gray-300 rounded-3xl overflow-hidden relative shadow-lg hover:shadow-xl transition-all duration-300 group ${isExpanded ? 'h-[320px] sm:h-[400px]' : 'h-[140px] sm:h-[200px]'}`}>
                           <video
                             src={recording.url}
                             controls={isExpanded}
@@ -632,13 +617,13 @@ export default function SharePage({ params }) {
                                   : 'opacity-80 group-hover:opacity-100 group-hover:scale-110'
                               }`}
                             >
-                              <div className="bg-red-600 rounded-full p-4">
-                                <PlayIcon className="w-8 h-8 text-white drop-shadow-lg" />
+                              <div className="bg-red-600 rounded-full p-3 md:p-4">
+                                <PlayIcon className="w-6 h-6 md:w-8 md:h-8 text-white drop-shadow-lg" />
                               </div>
                             </div>
                           )}
                           {/* Enhanced Control Buttons */}
-                          <div className="absolute top-3 right-3 flex flex-row gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                          <div className="absolute top-2 md:top-3 right-2 md:right-3 flex flex-row gap-1 md:gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                             <button 
                               onClick={() => {
                                 const newExpanded = new Set(expandedVideos);
@@ -649,14 +634,14 @@ export default function SharePage({ params }) {
                                 }
                                 setExpandedVideos(newExpanded);
                               }}
-                              className="p-2 bg-black/20 backdrop-blur-sm hover:bg-black/40 rounded-full text-white transition-all duration-200 hover:scale-110"
+                              className="p-1.5 md:p-2 bg-black/20 backdrop-blur-sm hover:bg-black/40 rounded-full text-white transition-all duration-200 hover:scale-110"
                             >
-                              {isExpanded ? <Minimize2 className="w-4 h-4" /> : <Expand className="w-4 h-4" />}
+                              {isExpanded ? <Minimize2 className="w-3.5 h-3.5 md:w-4 md:h-4" /> : <Expand className="w-3.5 h-3.5 md:w-4 md:h-4" />}
                             </button>
                           </div>
                         </div>
-                        <div className="mt-3 text-center">
-                          <p className="text-sm text-gray-600 font-medium">{recording.timestamp}</p>
+                        <div className="mt-2 md:mt-3 text-center">
+                          <p className="text-xs md:text-sm text-gray-600 font-medium">{recording.timestamp}</p>
                           <p className="text-xs text-gray-500">Duration: {formatRecordingTime(recording.duration)}</p>
                         </div>
                       </div>
@@ -669,18 +654,18 @@ export default function SharePage({ params }) {
           
           {/* Screenshots Section */}
           {screenshots.length > 0 && (
-            <div className={recordings.length > 0 ? 'border-t border-gray-200 pt-8' : ''}>
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-                <h2 className="text-xl font-bold text-gray-800 uppercase tracking-wide">SCREENSHOT(S)</h2>
+            <div className={recordings.length > 0 ? 'border-t border-gray-200 pt-6 md:pt-8' : ''}>
+              <div className="flex items-center gap-2 md:gap-3 mb-4 md:mb-6">
+                <div className="w-2.5 h-2.5 md:w-3 md:h-3 bg-green-500 rounded-full animate-pulse"></div>
+                <h2 className="text-lg md:text-xl font-bold text-gray-800 uppercase tracking-wide">SCREENSHOT(S)</h2>
               </div>
               
               {/* Better container for screenshots */}
               <div className="w-full">
-                <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+                <div className="flex gap-3 md:gap-4 overflow-x-auto pb-2 md:pb-4 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
                   {screenshots.map((screenshot, index) => (
-                    <div key={screenshot.id} className="w-[280px] md:w-[200px] flex-shrink-0">
-                      <div className="w-full h-[200px] bg-gradient-to-br from-gray-200 to-gray-300 rounded-3xl overflow-hidden relative shadow-lg hover:shadow-xl transition-all duration-300 group">
+                    <div key={screenshot.id} className="w-[140px] sm:w-[180px] md:w-[200px] flex-shrink-0">
+                      <div className="w-full h-[100px] sm:h-[140px] md:h-[200px] bg-gradient-to-br from-gray-200 to-gray-300 rounded-3xl overflow-hidden relative shadow-lg hover:shadow-xl transition-all duration-300 group">
                         <img
                           src={screenshot.url}
                           alt="screenshot"
@@ -688,25 +673,25 @@ export default function SharePage({ params }) {
                           onClick={() => setModalImage(screenshot)}
                         />
                         {/* Enhanced Control Buttons for Screenshots */}
-                        <div className="absolute top-3 right-3 flex flex-row gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                        <div className="absolute top-2 md:top-3 right-2 md:right-3 flex flex-row gap-1 md:gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                           <button 
                             onClick={() => setModalImage(screenshot)}
-                            className="p-2 bg-black/20 backdrop-blur-sm hover:bg-black/40 rounded-full text-white transition-all duration-200 hover:scale-110"
+                            className="p-1.5 md:p-2 bg-black/20 backdrop-blur-sm hover:bg-black/40 rounded-full text-white transition-all duration-200 hover:scale-110"
                           >
-                            <Expand className="w-4 h-4" />
+                            <Expand className="w-3.5 h-3.5 md:w-4 md:h-4" />
                           </button>
                         </div>
                         {/* Enhanced Image Label */}
-                        <div className="absolute top-3 left-3 bg-white/90 backdrop-blur-sm rounded-full px-3 py-1">
+                        <div className="absolute top-2 md:top-3 left-2 md:left-3 bg-white/90 backdrop-blur-sm rounded-full px-2 md:px-3 py-0.5 md:py-1">
                           <span className="text-xs font-semibold text-gray-700">#{index + 1}</span>
                         </div>
                         {/* Zoom indicator */}
-                        <div className="absolute bottom-3 right-3 bg-white/90 backdrop-blur-sm rounded-full p-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                          <ZoomIn className="w-4 h-4 text-gray-700" />
+                        <div className="absolute bottom-2 md:bottom-3 right-2 md:right-3 bg-white/90 backdrop-blur-sm rounded-full p-1.5 md:p-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                          <ZoomIn className="w-3.5 h-3.5 md:w-4 md:h-4 text-gray-700" />
                         </div>
                       </div>
-                      <div className="mt-3 text-center">
-                        <p className="text-sm text-gray-600 font-medium">{screenshot.timestamp}</p>
+                      <div className="mt-2 md:mt-3 text-center">
+                        <p className="text-xs md:text-sm text-gray-600 font-medium">{screenshot.timestamp}</p>
                       </div>
                     </div>
                   ))}
@@ -717,9 +702,9 @@ export default function SharePage({ params }) {
 
           {/* No content message */}
           {recordings.length === 0 && screenshots.length === 0 && (
-            <div className="text-center py-12">
-              <VideoIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-500 text-lg font-medium">No recordings or screenshots found</p>
+            <div className="text-center py-8 md:py-12">
+              <VideoIcon className="w-10 h-10 md:w-16 md:h-16 text-gray-300 mx-auto mb-3 md:mb-4" />
+              <p className="text-gray-500 text-base md:text-lg font-medium">No recordings or screenshots found</p>
             </div>
           )}
         </div>
@@ -727,37 +712,34 @@ export default function SharePage({ params }) {
 
       {/* Image Modal */}
       {modalImage && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="relative max-w-5xl max-h-[90vh] w-full h-full flex items-center justify-center">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-2 md:p-4">
+          <div className="relative max-w-full md:max-w-5xl max-h-[90vh] w-full h-full flex items-center justify-center">
             {/* Image container */}
             <div className="relative w-full h-full flex items-center justify-center">
-              {/* Close button - Positioned at top 5% and right 27% */}
+              {/* Close button - Positioned at top 5% and right 5% (responsive) */}
               <button
                 onClick={() => setModalImage(null)}
-                className="absolute z-10 p-3 bg-red-600 hover:bg-red-700 text-white rounded-full border-2 border-white/80 transition-all duration-300 hover:scale-110 flex items-center justify-center w-10 h-10 backdrop-blur-sm shadow-lg"
+                className="absolute z-10 p-2.5 md:p-3 bg-red-600 hover:bg-red-700 text-white rounded-full border-2 border-white/80 transition-all duration-300 hover:scale-110 flex items-center justify-center w-8 md:w-10 h-8 md:h-10 backdrop-blur-sm shadow-lg"
                 style={{ 
                   top: '5%', 
-                  right: '27%', 
+                  right: '5%', 
                   boxShadow: '0 2px 8px rgba(0,0,0,0.3)' 
                 }}
               >
-                <X className="w-5 h-5" strokeWidth="3" />
+                <X className="w-4 h-4 md:w-5 md:h-5" strokeWidth="3" />
               </button>
-              
               <img
                 src={modalImage.url}
                 alt="Expanded screenshot"
                 className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl"
                 onClick={() => setModalImage(null)}
               />
-              
               {/* Image info */}
-              <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-white/10 backdrop-blur-sm rounded-full px-6 py-3">
-                <p className="text-white text-sm font-medium">{modalImage.timestamp}</p>
+              <div className="absolute bottom-2 md:bottom-4 left-1/2 transform -translate-x-1/2 bg-white/10 backdrop-blur-sm rounded-full px-4 md:px-6 py-2 md:py-3">
+                <p className="text-white text-xs md:text-sm font-medium">{modalImage.timestamp}</p>
               </div>
             </div>
           </div>
-          
           {/* Click outside to close */}
           <div 
             className="absolute inset-0 -z-10"
