@@ -323,13 +323,13 @@ server.listen(PORT, () => {
         console.log(`   2. Set S3_USE_ACCELERATE=true in .env`);
     }
 });
-// --- CRON JOB: Auto-delete trashed meetings after 10 minutes (for auto-delete) ---
+// --- CRON JOB: Auto-delete trashed meetings after 10 days (for auto-delete) ---
 cron.schedule('* * * * *', async () => {
   console.log('⏰ [CRON] Auto-delete job running at', new Date().toLocaleString());
   try {
     const now = new Date();
-    // 10 minutes ago (for auto-delete). For production, use 10 * 24 * 60 * 60 * 1000 for 10 days
-    const threshold = new Date(now.getTime() - 10 * 60 * 1000);
+    // 10 days ago (for auto-delete)
+    const threshold = new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000);
     // Find meetings in trash older than threshold
     const expiredMeetings = await Meeting.find({ deleted: true, deletedAt: { $lte: threshold } });
     if (expiredMeetings.length > 0) {
