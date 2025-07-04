@@ -217,7 +217,10 @@ export const LaunchLinkSection = () => {
           </div>
 
           <div className="max-w-4xl mx-auto bg-white rounded-xl shadow-md border border-gray-100 p-4 md:p-8 relative overflow-hidden">
-            <h3 className="text-lg md:text-xl font-semibold mb-4 md:mb-6 text-center px-2">Enter your customer's mobile number or email address below to send an instant video link</h3>
+            <h3 className="text-lg md:text-xl font-semibold mb-4 md:mb-6 text-center px-2">
+              Enter your customer's mobile number or email address below<br />
+              to send an instant video link
+            </h3>
 
             <div className="flex flex-col md:flex-row md:items-center gap-3 md:gap-4">
               <div className="flex-1 w-full">

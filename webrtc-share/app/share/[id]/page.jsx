@@ -142,16 +142,19 @@ export default function SharePage({ params }) {
   // Helper function to extract query parameters
   const extractLandlordInfoFromUrl = () => {
     if (typeof window === 'undefined') return;
-    
     try {
       const urlParams = new URLSearchParams(window.location.search);
-      
-      // Check for new format parameters from DialogProvider
+      // New format parameters
       const senderName = urlParams.get('senderName');
       const senderProfile = urlParams.get('senderProfile');
       const profileType = urlParams.get('profileType');
       const profileShape = urlParams.get('profileShape');
-      
+      // Old format parameters
+      const landlordLogo = urlParams.get('landlordLogo');
+      const landlordName = urlParams.get('landlordName');
+      const officerImage = urlParams.get('officerImage');
+      const useLandlordLogoAsProfile = urlParams.get('useLandlordLogoAsProfile') === 'true';
+      const userName = urlParams.get('userName');
       let extractedInfo = {
         landlordName: null,
         landlordLogo: null,
@@ -160,46 +163,40 @@ export default function SharePage({ params }) {
         useLandlordLogoAsProfile: false,
         userName: null
       };
-      
-      // Handle new format from DialogProvider
+      // Prefer new format if present
       if (senderName || senderProfile) {
-        console.log('🔍 Detected new URL format with sender info');
-        
         extractedInfo.landlordName = senderName ? decodeURIComponent(senderName) : null;
         extractedInfo.userName = senderName ? decodeURIComponent(senderName) : null;
-        
-        if (senderProfile) {
-          const decodedProfile = decodeURIComponent(senderProfile);
-          
-          if (profileType === 'logo') {
-            extractedInfo.landlordLogo = decodedProfile;
-            extractedInfo.useLandlordLogoAsProfile = true;
-          } else if (profileType === 'officer') {
-            extractedInfo.officerImage = decodedProfile;
-            extractedInfo.useLandlordLogoAsProfile = false;
-          }
+        if (senderProfile && profileType === 'logo') {
+          extractedInfo.landlordLogo = decodeURIComponent(senderProfile);
+          extractedInfo.useLandlordLogoAsProfile = true;
+        } else if (senderProfile && profileType === 'officer') {
+          extractedInfo.officerImage = decodeURIComponent(senderProfile);
+          extractedInfo.useLandlordLogoAsProfile = false;
         }
-        
         if (profileShape) {
           extractedInfo.profileShape = profileShape;
         }
-      } 
-      // Handle existing format (fallback)
-      else {
-        console.log('🔍 Using existing URL format or no parameters found');
-        
-        // Check for existing format parameters
-        extractedInfo = {
-          landlordName: urlParams.get('landlordName'),
-          landlordLogo: urlParams.get('landlordLogo'),
-          profileShape: urlParams.get('profileShape') || 'circle',
-          officerImage: urlParams.get('officerImage'),
-          useLandlordLogoAsProfile: urlParams.get('useLandlordLogoAsProfile') === 'true',
-          userName: urlParams.get('userName')
-        };
       }
-      
-      console.log('🔍 Extracted landlord info from URL:', extractedInfo);
+      // Always fallback to old format if landlordLogo is present and not already set
+      if (!extractedInfo.landlordLogo && landlordLogo) {
+        extractedInfo.landlordLogo = decodeURIComponent(landlordLogo);
+      }
+      if (!extractedInfo.landlordName && landlordName) {
+        extractedInfo.landlordName = decodeURIComponent(landlordName);
+      }
+      if (!extractedInfo.officerImage && officerImage) {
+        extractedInfo.officerImage = decodeURIComponent(officerImage);
+      }
+      if (!extractedInfo.userName && userName) {
+        extractedInfo.userName = decodeURIComponent(userName);
+      }
+      if (!extractedInfo.useLandlordLogoAsProfile && useLandlordLogoAsProfile) {
+        extractedInfo.useLandlordLogoAsProfile = true;
+      }
+      if (!extractedInfo.profileShape && profileShape) {
+        extractedInfo.profileShape = profileShape;
+      }
       setLandlordInfo(extractedInfo);
       setIsLoadingProfile(false);
     } catch (error) {
@@ -636,7 +633,7 @@ export default function SharePage({ params }) {
                               }`}
                             >
                               <div className="bg-white/20 backdrop-blur-sm rounded-full p-4">
-                                <PlayIcon className="w-8 h-8 text-white drop-shadow-lg" />
+                                <PlayIcon className="w-8 h-8 text-red-600 drop-shadow-lg" />
                               </div>
                             </div>
                           )}

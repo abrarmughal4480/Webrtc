@@ -1,6 +1,6 @@
 "use client"
 import { useState, useRef, use, useEffect, useCallback } from "react"
-import { Trash2, Plus, Maximize2, VideoIcon, PlayIcon, Save, Edit, Minimize2, Expand, ZoomIn, ZoomOut, Pencil, X, Play, ChevronDown, Eraser, Palette, RotateCcw, Loader2 } from "lucide-react"
+import { Trash2, Plus, Maximize2, VideoIcon, PlayIcon, Save, Edit, Minimize2, Expand, ZoomIn, ZoomOut, Pencil, X, Play, ChevronDown, Eraser, Palette, RotateCcw, Loader2, Copy, Link as LinkIcon, ExternalLink, Check } from "lucide-react"
 import useWebRTC from "@/hooks/useWebRTC"
 import useDrawingTools from "@/hooks/useDrawingTools"
 import { createRequest, getMeetingByMeetingId, deleteRecordingRequest, deleteScreenshotRequest } from "@/http/meetingHttp"
@@ -1883,25 +1883,43 @@ export default function Page({ params }) {
     return name.charAt(0).toUpperCase();
   };
 
-  const handleCreateShareLink = () => {
-    if (!id) {
-      toast.error("No meeting ID available");
-      return;
+  // --- Share Link Generator State ---
+  const [shareLink, setShareLink] = useState("");
+  const [showLink, setShowLink] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [linkGenerated, setLinkGenerated] = useState(false);
+
+  // --- Generate Share Link Function (copied/enhanced from DilogsProvider.js) ---
+  const generateShareLink = () => {
+    if (!id) return "";
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+    let shareUrl = `${baseUrl}/share/${id}`;
+    const urlParams = new URLSearchParams();
+    if (user?.landlordInfo?.landlordName) {
+      urlParams.append('senderName', encodeURIComponent(user.landlordInfo.landlordName));
     }
-
-    const meetingData = {
-      meeting_id: id,
-      name: form.residentName,
-      address: form.residentAddress,
-      post_code: form.postCode,
-      repair_detail: form.repairDetails,
-      target_time: form.targetTime,
-      createdAt: new Date().toISOString(),
-      recordings: media.recordings,
-      screenshots: [...media.existingScreenshots, ...screenshots.map((screenshot, index) => ({ id: `new-${index}`, url: screenshot }))]
-    };
-
-    setShareLinkOpen(true, meetingData);
+    // Always add landlordLogo if available (dashboard style)
+    if (user?.landlordInfo?.landlordLogo && (user.landlordInfo.landlordLogo.startsWith('http') || user.landlordInfo.landlordLogo.startsWith('data:'))) {
+      urlParams.append('landlordLogo', encodeURIComponent(user.landlordInfo.landlordLogo));
+    }
+    if (user?.landlordInfo?.useLandlordLogoAsProfile && user?.landlordInfo?.landlordLogo) {
+      urlParams.append('senderProfile', encodeURIComponent(user.landlordInfo.landlordLogo));
+      urlParams.append('profileType', 'logo');
+      if (user?.landlordInfo?.profileShape) {
+        urlParams.append('profileShape', user.landlordInfo.profileShape);
+      }
+    } else if (user?.landlordInfo?.officerImage) {
+      urlParams.append('senderProfile', encodeURIComponent(user.landlordInfo.officerImage));
+      urlParams.append('profileType', 'officer');
+      if (user?.landlordInfo?.profileShape) {
+        urlParams.append('profileShape', user.landlordInfo.profileShape);
+      }
+    }
+    const paramString = urlParams.toString();
+    if (paramString) {
+      shareUrl += `?${paramString}`;
+    }
+    return shareUrl;
   };
 
   useEffect(() => {
@@ -2430,13 +2448,22 @@ export default function Page({ params }) {
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center' }}>
-                {getLandlordLogo() ? (
-                  <img src={getLandlordLogo()} alt="Landlord Logo" style={{ maxHeight: '40px', maxWidth: '120px', objectFit: 'contain' }} onError={(e) => { console.error('Failed to load landlord logo:', e); e.target.style.display = 'none'; }} />
-                ) : (
-                  <div style={{ backgroundColor: 'white', borderRadius: '8px', padding: '8px 12px', border: '2px solid black' }}>
-                    <span style={{ fontSize: '1.2vw', fontWeight: 'bold', color: 'black', minFontSize: '16px' }}>Logo</span>
-                  </div>
-                )}
+                <div className="flex items-center gap-2 cursor-pointer" style={{ minWidth: '120px' }}>
+                  {getLandlordLogo() ? (
+                    <img
+                      src={getLandlordLogo()}
+                      alt="Landlord Logo"
+                      className="max-h-10 max-w-[120px] object-contain"
+                    />
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 bg-gray-200 rounded flex items-center justify-center">
+                        {/* Optionally, add a placeholder icon here */}
+                      </div>
+                      <span className="text-gray-600">Your logo here</span>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -2776,13 +2803,89 @@ export default function Page({ params }) {
               </div>
             </div>
 
-            <button
-              onClick={handleCreateShareLink}
-              className="w-full bg-orange-400 hover:bg-orange-500 text-white font-medium py-4 rounded-md transition-colors mt-8 mb-2 flex flex-col gap-1 items-center justify-center"
-            >
-              <span>Create Share Link</span>
-              <span className="text-xs font-normal">(Copy and paste link to your job ticket or any system)</span>
-            </button>
+            {/* Enhanced Share Link Section */}
+            <div className="w-full flex flex-col items-center justify-center mt-8 mb-2 gap-2">
+              <h3 className="w-full text-left text-lg font-semibold mb-1 text-gray-800">Share Link:</h3>
+              <div className="w-full flex flex-row items-center gap-2 bg-white border border-gray-200 rounded-xl shadow-sm px-3 py-2 transition-all duration-150 focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100">
+                <input
+                  type="text"
+                  value={shareLink}
+                  readOnly
+                  placeholder="Click Generate to get link"
+                  className="flex-1 px-2 py-1 rounded-lg bg-transparent text-gray-700 text-sm font-mono select-all truncate outline-none border-none focus:ring-0"
+                  style={{ minWidth: 0, cursor: shareLink ? 'pointer' : 'not-allowed' }}
+                  onFocus={e => e.target.select()}
+                  aria-label="Share link"
+                />
+                <button
+                  className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white font-semibold rounded-lg shadow transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-orange-200 flex items-center gap-2"
+                  onClick={() => {
+                    if (shareLink) {
+                      toast.info("Link already generated");
+                      return;
+                    }
+                    const link = generateShareLink();
+                    setShareLink(link);
+                    setCopied(false);
+                    setLinkGenerated(true);
+                  }}
+                  type="button"
+                  style={{ minWidth: 120 }}
+                  aria-label="Generate share link"
+                >
+                  {linkGenerated && shareLink ? null : null}
+                  {linkGenerated && shareLink ? "Generated!" : "Generate Link"}
+                </button>
+                <button
+                  onClick={async () => {
+                    if (!shareLink) return;
+                    try {
+                      if (navigator.clipboard && window.isSecureContext) {
+                        await navigator.clipboard.writeText(shareLink);
+                        setCopied(true);
+                        setTimeout(() => setCopied(false), 1500);
+                        toast.success("Share link copied to clipboard!");
+                      } else {
+                        const textArea = document.createElement('textarea');
+                        textArea.value = shareLink;
+                        textArea.style.position = 'fixed';
+                        textArea.style.left = '-999999px';
+                        textArea.style.top = '-999999px';
+                        document.body.appendChild(textArea);
+                        textArea.focus();
+                        textArea.select();
+                        try {
+                          const successful = document.execCommand('copy');
+                          if (successful) {
+                            setCopied(true);
+                            setTimeout(() => setCopied(false), 1500);
+                            toast.success("Share link copied to clipboard!");
+                          } else {
+                            throw new Error('Copy command failed');
+                          }
+                        } catch (err) {
+                          window.prompt('Copy this link:', shareLink);
+                          toast.success("Link displayed for manual copy");
+                        }
+                        document.body.removeChild(textArea);
+                      }
+                    } catch (error) {
+                      window.alert(`Copy this link: ${shareLink}`);
+                      toast.error("Please copy the link manually from the alert");
+                    }
+                  }}
+                  className={`p-2 rounded-lg border flex items-center justify-center ml-1 transition-colors duration-150 ${shareLink ? 'bg-gray-200 hover:bg-gray-300 border-gray-300 cursor-pointer' : 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'}`}
+                  title={shareLink ? "Copy share link" : "Generate a link first"}
+                  type="button"
+                  disabled={!shareLink}
+                  aria-label="Copy share link"
+                >
+                  {copied ? <Check className="w-5 h-5 text-green-500 mr-1" /> : <Copy className="w-5 h-5 mr-1" />}
+                  <span>Copy</span>
+                </button>
+              </div>
+              <span className="text-xs font-normal text-gray-500">(Copy and paste link to your job ticket or any system)</span>
+            </div>
 
             <div className="w-full flex items-center gap-4 mt-6">
               <button 
