@@ -1,6 +1,6 @@
 "use client"
 import { Button } from '@/components/ui/button'
-import React, { useState, use, useRef, useEffect, Suspense } from 'react'
+import React, { useState, use, useRef, useEffect } from 'react'
 import { PhoneCall, Monitor, Video, Loader2 } from 'lucide-react'
 import { DialogComponent } from '@/components/dialogs/DialogCompnent'
 import Image from 'next/image'
@@ -8,9 +8,8 @@ import useWebRTC from '@/hooks/useWebRTC'
 import { io } from "socket.io-client"
 import { useSearchParams } from 'next/navigation'
 import { useRouter } from 'next/navigation'
-import FloatingResendButton from '@/components/FloatingResendButton'
 
-const RoomPageInner = ({params}) => {
+const page = ({params}) => {
   const {id} = use(params);
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -189,133 +188,244 @@ const RoomPageInner = ({params}) => {
   
   useEffect(() => {
     // Fetch sender info if sid is present
-    const sid = searchParams.get('sid');
-    console.log('🔍 Room page: sid from URL:', sid);
-    console.log('🔍 Room page: all searchParams:', Object.fromEntries(searchParams.entries()));
-    
+    const sid = searchParams.get('sid'); 
     if (sid) {
       setPageLoading(true); // Loader start karo
       const fetchUserInfo = async () => {
         try {
           const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-          const response = await fetch(`${backendUrl}/api/v1/user/${sid}`);
-          
-          if (response.ok) {
-            const userData = await response.json();
-            console.log('👤 Fetched user info for sid:', sid, userData);
-            setRoomUserInfo(userData.user);
+          const res = await fetch(`${backendUrl}/api/v1/room-user-info?userId=${encodeURIComponent(sid)}`);
+          const data = await res.json();
+          if (data.success) {
+            setRoomUserInfo(data.user);
+            if (data.user.messageSettings) {
+              setMessageSettings(data.user.messageSettings);
+              if (data.user.messageSettings.selectedButtonColor) {
+                setButtonColor(data.user.messageSettings.selectedButtonColor);
+              }
+            }
+            // Store redirect info from backend
+            setIsDefaultRedirectUrlFromUser(data.isDefaultRedirectUrl);
+            setRedirectUrlFromUser(data.redirectUrl);
+            console.log('[RoomUserInfo] Backend returned:', {
+              isDefault: data.isDefaultRedirectUrl,
+              redirectUrl: data.redirectUrl,
+              user: data.user
+            });
+            // Store tailored redirect in localStorage for use on disconnect
+            if (data.redirectUrl && data.isDefaultRedirectUrl === false) {
+              localStorage.setItem('redirectUrl', data.redirectUrl);
+            } else {
+              localStorage.removeItem('redirectUrl');
+            }
           } else {
-            console.warn('⚠️ Failed to fetch user info for sid:', sid);
+            setRoomUserInfo(null);
+            setIsDefaultRedirectUrlFromUser(true);
+            setRedirectUrlFromUser('');
+            localStorage.removeItem('redirectUrl');
+            console.warn('[RoomUserInfo] Not found:', data.message);
           }
-        } catch (error) {
-          console.error('❌ Error fetching user info:', error);
+        } catch (err) {
+          setRoomUserInfo(null);
+          setIsDefaultRedirectUrlFromUser(true);
+          setRedirectUrlFromUser('');
+          localStorage.removeItem('redirectUrl');
+          console.error('[RoomUserInfo] Error fetching:', err);
         } finally {
-          setPageLoading(false); // Loader end karo
+          setPageLoading(false); // Loader band karo
         }
       };
-      
       fetchUserInfo();
     } else {
-      setPageLoading(false); // No sid, no loader needed
+      setRoomUserInfo(null);
+      setIsDefaultRedirectUrlFromUser(true);
+      setRedirectUrlFromUser('');
+      localStorage.removeItem('redirectUrl');
+      setPageLoading(false); // sid nahi hai to loader band karo
     }
   }, [searchParams]);
-
-  // Set minimum skeleton time
+  
+  // Ensure skeleton is shown for at least 2 seconds
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setMinSkeletonTimePassed(true);
-    }, 2000);
+    setMinSkeletonTimePassed(false);
+    const timer = setTimeout(() => setMinSkeletonTimePassed(true), 2000);
     return () => clearTimeout(timer);
-  }, []);
-
+  }, [open, searchParams.get('sid')]);
+  
+  // 5-second fallback to default leader if roomUserInfo not loaded
+  useEffect(() => {
+    if (roomUserInfo) {
+      setShowDefaultLeader(false); // If loaded, don't show default
+      return;
+    }
+    setShowDefaultLeader(false); // Reset on new load
+    const fallbackTimer = setTimeout(() => {
+      if (!roomUserInfo) {
+        setShowDefaultLeader(true);
+      }
+    }, 5000);
+    return () => clearTimeout(fallbackTimer);
+  }, [roomUserInfo, open, searchParams.get('sid')]);
+  
   const handleStrt = () => {
-    setOpen(false);
-    startPeerConnection();
-  };
+    try {
+      setOpen(false);
+      startPeerConnection();
+      
+      // Notify admin that user has accepted and started the session
+      if (notificationSocketRef.current) {
+        notificationSocketRef.current.emit('user-started-session', id);
+      }
+    } catch (error) {
+      console.error('Error starting peer connection:', error);
+    }
+  }
 
   const handleVideoCallEnd = () => {
-    handleDisconnect();
-    if (redirectUrl) {
-      setShowRedirectDialog(true);
-      setRedirecting(true);
-      setTimeout(() => {
-        window.location.href = redirectUrl;
-      }, 2000);
-    } else {
-      router.push('/');
+    // Prefer backend user info for redirect
+    let urlToSend = redirectUrlFromUser;
+    let isDefault = isDefaultRedirectUrlFromUser;
+    console.log('[CallEnd] Initial from backend:', { isDefault, urlToSend });
+    // Fallback to tokenLandlordInfo/searchParams if backend not available
+    if (!urlToSend) {
+      const redirectUrlParam = searchParams.get('redirectUrl');
+      const tokenLandlordInfo = searchParams.get('tokenLandlordInfo');
+      let parsedTokenInfo = null;
+      if (tokenLandlordInfo) {
+        try {
+          const decodedTokenInfo = decodeURIComponent(tokenLandlordInfo);
+          parsedTokenInfo = JSON.parse(decodedTokenInfo);
+        } catch (e) {
+          console.error('[CallEnd] Failed to parse tokenLandlordInfo:', e);
+        }
+      }
+      if (parsedTokenInfo && parsedTokenInfo.redirectUrl) {
+        urlToSend = parsedTokenInfo.redirectUrl;
+        isDefault = Boolean(parsedTokenInfo.isDefaultRedirectUrl);
+        console.log('[CallEnd] Using tokenLandlordInfo:', { isDefault, urlToSend });
+      } else if (redirectUrlParam) {
+        urlToSend = redirectUrlParam;
+        isDefault = false; // treat as tailored if present
+        console.log('[CallEnd] Using redirectUrlParam:', { isDefault, urlToSend });
+      }
     }
-  };
-
-  // Rest of your component logic here...
-  // (I'll keep the existing logic but wrap it in the Suspense boundary)
-
+    if (urlToSend && !urlToSend.startsWith('http://') && !urlToSend.startsWith('https://')) {
+      urlToSend = `https://${urlToSend}`;
+    }
+    console.log('[CallEnd] Final values sent to endCallWithRedirect:', { isDefault, urlToSend });
+    endCallWithRedirect(isDefault, urlToSend);
+  }
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex flex-col">
-      {/* Your existing JSX here */}
-      <div className="flex-1 flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8">
-          <div className="text-center mb-8">
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">
-              {profileData.landlordName || 'Video Call'}
-            </h1>
-            <p className="text-gray-600">
-              Click the button below to start your video call
-            </p>
-          </div>
+    <>
+      <div className='w-[100vw] h-[100vh] relative overflow-hidden'>
+        <video ref={videoRef} autoPlay className="w-full h-full object-cover absolute top-0 left-0" />
 
-          <div className="space-y-4">
-            <Button
-              onClick={handleStrt}
-              className={`w-full ${buttonColor} ${getHoverColor(buttonColor)} text-white font-semibold py-4 rounded-xl text-lg transition-all duration-300 transform hover:scale-105`}
-              disabled={pageLoading}
-            >
-              {pageLoading ? (
-                <div className="flex items-center gap-3">
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  <span>Loading...</span>
-                </div>
-              ) : (
-                <div className="flex items-center gap-3">
-                  <Video className="w-5 h-5" />
-                  <span>Start Video Call</span>
-                </div>
-              )}
+        {
+          !open && (
+            <Button onClick={handleVideoCallEnd} className='absolute bottom-40 right-[50%] translate-x-[50%] text-white bg-red-400 rounded-md hover:bg-red-600 cursor-pointer text-xl'>
+              End Video Call
             </Button>
+          )
+        }
+      </div>
 
-            <Button
-              onClick={handleVideoCallEnd}
-              variant="outline"
-              className="w-full border-gray-300 text-gray-700 hover:bg-gray-50 font-semibold py-4 rounded-xl text-lg transition-all duration-300"
-            >
-              <div className="flex items-center gap-3">
-                <PhoneCall className="w-5 h-5" />
-                <span>End Call</span>
+      <DialogComponent open={open} setOpen={setOpen}>
+        <div className={`max-h-[90vh] w-[350px] p-6 flex flex-col items-center justify-center gap-3 overflow-y-auto min-h-[400px] ${!(roomUserInfo?.landlordInfo?.landlordName || roomUserInfo?.landlordInfo?.landlordLogo) && !profileData.landlordName && !profileData.landlordLogo ? 'pb-12' : ''}`}>
+          
+          {/* Skeleton Loader */}
+          {(pageLoading || (!roomUserInfo && !showDefaultLeader) || !minSkeletonTimePassed) ? (
+            <div className="flex flex-col items-center gap-4 animate-pulse w-full">
+              <div className="bg-gray-200 rounded-full h-24 w-24 mb-4" />
+              <div className="bg-gray-200 h-6 w-40 rounded mb-2" />
+              <div className="bg-gray-200 h-4 w-32 rounded mb-2" />
+              <div className="bg-gray-200 h-10 w-3/4 rounded mb-4" />
+              <div className="bg-gray-200 h-8 w-1/2 rounded" />
+            </div>
+          ) : (
+          <>
+            {/* Paper Plane Image - Always show */}
+            <div className="flex justify-center w-full">
+              <img 
+                src="/paper-plane.svg" 
+                alt="video-link-dialog-bg" 
+                className="object-contain pb-4 pt-2 max-w-full max-h-32 sm:max-h-36 md:max-h-40" 
+                style={{ width: 'auto', height: 'auto' }}
+                onError={e => { e.target.style.display = 'none'; }}
+              />
+            </div>
+
+            {/* Landlord Logo - Show below paper plane if available */}
+            {(!showDefaultLeader && roomUserInfo?.landlordInfo?.landlordLogo) && (
+              <div className="flex justify-center -mt-2 pt-3 w-full">
+                <img 
+                  src={roomUserInfo?.landlordInfo?.landlordLogo} 
+                  alt="Landlord Logo" 
+                  className="object-contain max-w-full" 
+                  style={{ width: 'auto', height: 'auto', maxWidth: '180px', maxHeight: '60px' }}
+                  onError={e => { e.target.style.display = 'none'; }}
+                  onLoad={() => {
+                    console.log('✅ Landlord logo loaded successfully in room [id]');
+                  }}
+                />
               </div>
-            </Button>
-          </div>
+            )}
+
+            {/* Landlord Name or Videodesk Default */}
+            <div className="flex justify-center">
+              <h2 className="text-xl font-bold mt-2 text-center pb-3">
+                {(!showDefaultLeader && roomUserInfo?.landlordInfo?.landlordName) && (roomUserInfo?.landlordInfo?.landlordName) !== "Videodesk" ? (
+                  <span className="text-xl font-bold">{roomUserInfo?.landlordInfo?.landlordName}</span>
+                ) : (
+                  <div className="flex items-center justify-center gap-2">
+                    <Video className="w-6 h-6 text-gray-700" />
+                    <span className="text-xl font-bold">Videodesk</span>
+                  </div>
+                )}
+              </h2>
+            </div>          <div className="flex justify-center w-full">
+              <button 
+                className={`${buttonColor} text-white font-medium py-3 cursor-pointer rounded-full mt-4 text-lg w-[90%] outline-none transition-colors text-center`}
+                onClick={handleStrt}
+                disabled={pageLoading}
+              >
+                {pageLoading ? (
+                  <div className="flex items-center justify-center gap-2">
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Loading...
+                  </div>
+                ) : (
+                  <>
+                    {messageSettings?.tailoredMessage
+                      ? messageSettings.tailoredMessage
+                      : 'Tap to allow video'} <br/> session now
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Device Icons - moved up */}
+            <div className="flex justify-center mt-2 w-full">
+              <img 
+                src="/devices.svg" 
+                alt="Videodesk" 
+                className="object-contain max-w-full max-h-12 sm:max-h-16 md:max-h-20" 
+                style={{ width: 'auto', height: 'auto' }}
+                onError={e => { e.target.style.display = 'none'; }}
+              />
+            </div>
+
+            {/* Videodesk Heading - show only if landlord name or logo exists and name is not "Videodesk" */}
+            {((!showDefaultLeader && roomUserInfo?.landlordInfo?.landlordName && roomUserInfo?.landlordInfo?.landlordName !== "Videodesk") || (!showDefaultLeader && roomUserInfo?.landlordInfo?.landlordLogo)) ? (
+              <div className="flex justify-center">
+                <h3 className="text-2xl font-bold text-black pt-6 pb-6">Videodesk</h3>
+              </div>
+            ) : null}
+          </>
+          )}
         </div>
-      </div>
+      </DialogComponent>   
+    </>
+  )
+}
 
-      {/* Floating Resend Button */}
-      <FloatingResendButton roomUserInfo={roomUserInfo} />
-    </div>
-  );
-};
-
-// Wrapper component with Suspense boundary
-const page = (props) => {
-  return (
-    <Suspense fallback={
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-gray-600" />
-          <p className="text-gray-600">Loading...</p>
-        </div>
-      </div>
-    }>
-      <RoomPageInner {...props} />
-    </Suspense>
-  );
-};
-
-export default page;
+export default page
