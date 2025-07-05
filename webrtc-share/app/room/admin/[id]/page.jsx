@@ -10,6 +10,7 @@ import { useDialog } from "@/provider/DilogsProvider"
 import { Button } from "@/components/ui/button"
 import { logoutRequest } from "@/http/authHttp"
 import { useUser } from "@/provider/UserProvider"
+import FloatingResendButton from "@/components/FloatingResendButton"
 
 export default function Page({ params }) {
   if (!params) {
@@ -3177,6 +3178,9 @@ export default function Page({ params }) {
           </div>
         </div>
       </div>
+
+      {/* Floating Resend Button */}
+      <FloatingResendButton />
     </>
   );
 }

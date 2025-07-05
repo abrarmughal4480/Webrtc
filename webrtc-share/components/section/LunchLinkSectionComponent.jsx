@@ -7,6 +7,7 @@ import { Loader2 } from 'lucide-react';
 import axios from 'axios';
 import { io } from "socket.io-client";
 import CustomDialog from "@/components/dialogs/CustomDialog";
+import ContactConfirmationDialog from "@/components/dialogs/ContactConfirmationDialog";
 import Image from "next/image";
 import Link from "next/link";
 
@@ -19,6 +20,9 @@ export const LaunchLinkSection = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [linkAccepted, setLinkAccepted] = useState(false);
   const [socketConnected, setSocketConnected] = useState(false);
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  const [tempPhone, setTempPhone] = useState('');
+  const [tempEmail, setTempEmail] = useState('');
 
   const socketRef = useRef(null);
 
@@ -90,14 +94,22 @@ export const LaunchLinkSection = () => {
       return;
     }
 
+    // Show confirmation popup instead of sending directly
+    setTempPhone(phone);
+    setTempEmail(email);
+    setShowConfirmation(true);
+  };
+
+  const handleConfirmSend = async () => {
     setIsLoading(true);
+    setShowConfirmation(false);
     
     try {
       const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
       
       const profileData = {
-        number: phone,
-        email: email
+        number: tempPhone,
+        email: tempEmail
       };
       
       if (user?.landlordInfo?.landlordName) {
@@ -167,7 +179,21 @@ export const LaunchLinkSection = () => {
       setDialogOpen(true);
       setLinkAccepted(false);
       
-      toast.success("Video link sent successfully!");
+      // Store last sent link info for resend functionality
+      const lastSentInfo = {
+        token: res.data.token,
+        phone: tempPhone,
+        email: tempEmail,
+        timestamp: Date.now()
+      };
+      localStorage.setItem('lastSentLink', JSON.stringify(lastSentInfo));
+      
+      // Dispatch custom event to notify dashboard about localStorage update
+      window.dispatchEvent(new Event('lastSentLinkUpdated'));
+      
+      toast.success("Video link sent successfully! Look for the floating button to resend or edit.", {
+        duration: 5000
+      });
       
       // Clear form
       setPhone('');
@@ -179,6 +205,12 @@ export const LaunchLinkSection = () => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleEditContact = () => {
+    setShowConfirmation(false);
+    setPhone(tempPhone);
+    setEmail(tempEmail);
   };
 
   const handleKeyPress = (e) => {
@@ -208,12 +240,15 @@ export const LaunchLinkSection = () => {
               Launch new video link
             </a>
 
-            <div className="flex justify-center items-center space-x-2 mt-2 text-sm md:text-base">
-              <a href="#login" className="text-blue-500 hover:underline">Log in</a>
-              <span>or</span>
-              <a href="#signup" className="text-blue-500 hover:underline">Sign up</a>
-              <span>to launch a video link</span>
-            </div>
+            {/* Only show login/signup text if user is not authenticated */}
+            {!isAuth && (
+              <div className="flex justify-center items-center space-x-2 mt-2 text-sm md:text-base">
+                <a href="#login" className="text-blue-500 hover:underline">Log in</a>
+                <span>or</span>
+                <a href="#signup" className="text-blue-500 hover:underline">Sign up</a>
+                <span>to launch a video link</span>
+              </div>
+            )}
           </div>
 
           <div className="max-w-4xl mx-auto bg-white rounded-xl shadow-md border border-gray-100 p-4 md:p-8 relative overflow-hidden">
@@ -269,6 +304,21 @@ export const LaunchLinkSection = () => {
         </div>
       </section>
 
+      {/* Enhanced Confirmation Dialog */}
+      <ContactConfirmationDialog
+        isOpen={showConfirmation}
+        onClose={() => setShowConfirmation(false)}
+        onConfirm={handleConfirmSend}
+        onEdit={handleEditContact}
+        phone={tempPhone}
+        email={tempEmail}
+        isLoading={isLoading}
+        title="Confirm Contact Details"
+        description="Please confirm the contact details before sending the video link"
+        confirmText="Send Link"
+        editText="Edit"
+      />
+
       {/* Success Dialog - Same as Dashboard */}
       <CustomDialog open={dialogOpen} setOpen={handleDialogClose} heading={"Link sent successfully"}>
         <div className="h-[33rem] p-16 flex flex-col items-center justify-center">
@@ -280,7 +330,7 @@ export const LaunchLinkSection = () => {
                 <h2 className="text-2xl font-bold text-left">
                   Link sent successfully
                 </h2>
-                <p>Please wait a second for user to open and accept link...</p>
+                <p>Please wait a second for user to open and accept link...</p>
               </div>
             </div>
             

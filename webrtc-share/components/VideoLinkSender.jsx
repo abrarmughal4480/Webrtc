@@ -10,6 +10,7 @@ import { io } from "socket.io-client"
 import { useUser } from "@/provider/UserProvider"
 import { useDialog } from "@/provider/DilogsProvider"
 import CustomDialog from "@/components/dialogs/CustomDialog"
+import ContactConfirmationDialog from "@/components/dialogs/ContactConfirmationDialog"
 
 export default function VideoLinkSender({ isOpen, onClose, onSuccess }) {
   const { user, isAuth } = useUser();
@@ -25,6 +26,9 @@ export default function VideoLinkSender({ isOpen, onClose, onSuccess }) {
   const [isManualSelection, setIsManualSelection] = useState(false);
   const [linkAccepted, setLinkAccepted] = useState(false);
   const [socketConnected, setSocketConnected] = useState(false);
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  const [tempPhone, setTempPhone] = useState('');
+  const [tempEmail, setTempEmail] = useState('');
 
   // Drag and drop states
   const [isDragging, setIsDragging] = useState(false);
@@ -280,13 +284,21 @@ export default function VideoLinkSender({ isOpen, onClose, onSuccess }) {
       return
     }
 
+    // Show confirmation popup instead of sending directly
+    setTempPhone(phone);
+    setTempEmail(email);
+    setShowConfirmation(true);
+  };
+
+  const handleConfirmSend = async () => {
     setIsLoading(true);
+    setShowConfirmation(false);
 
     try {
       const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
       const queryParams = new URLSearchParams();
-      if (phone) queryParams.append('number', normalizePhoneNumber(phone));
-      if (email) queryParams.append('email', email);
+      if (tempPhone) queryParams.append('number', normalizePhoneNumber(tempPhone));
+      if (tempEmail) queryParams.append('email', tempEmail);
       if (user?._id) queryParams.append('senderId', user._id);
       const res = await axios.get(`${backendUrl}/send-token?${queryParams.toString()}`);
       setToken(res.data.token);
@@ -297,9 +309,27 @@ export default function VideoLinkSender({ isOpen, onClose, onSuccess }) {
       setEmail('');
       setIsManualSelection(false);
       setModalPosition({ x: 0, y: 0 });
+      
+      // Store last sent link info for resend functionality
+      const lastSentInfo = {
+        token: res.data.token,
+        phone: tempPhone,
+        email: tempEmail,
+        timestamp: Date.now()
+      };
+      localStorage.setItem('lastSentLink', JSON.stringify(lastSentInfo));
+      
+      // Dispatch custom event to notify dashboard about localStorage update
+      window.dispatchEvent(new Event('lastSentLinkUpdated'));
+      
       if (onSuccess) {
         onSuccess(res.data.token);
       }
+      
+      // Show notification about resend feature
+      toast.success("Video link sent successfully! Look for the floating button to resend or edit.", {
+        duration: 5000
+      });
     } catch (error) {
       console.error('Error sending token:', error);
       toast.error("Failed to send video link. Please try again.");
@@ -309,11 +339,26 @@ export default function VideoLinkSender({ isOpen, onClose, onSuccess }) {
     }
   };
 
+  const handleEditContact = () => {
+    setShowConfirmation(false);
+    setPhone(tempPhone);
+    setEmail(tempEmail);
+    // Focus on the appropriate input
+    if (tempPhone) {
+      phoneInputRef.current?.focus();
+      setContactMethod('phone');
+    } else if (tempEmail) {
+      emailInputRef.current?.focus();
+      setContactMethod('email');
+    }
+  };
+
   const handleClose = () => {
     setPhone('');
     setEmail('');
     setIsManualSelection(false);
     setModalPosition({ x: 0, y: 0 });
+    setShowConfirmation(false);
     onClose();
   };
 
@@ -331,7 +376,7 @@ export default function VideoLinkSender({ isOpen, onClose, onSuccess }) {
   return (
     <>
       {/* Form Modal - only show when dialog is not open */}
-      {!dialogOpen && (
+      {!dialogOpen && !showConfirmation && (
         <div className="fixed inset-0 bg-black/10 flex items-center justify-center z-[9999] px-4">
           <div 
             ref={modalRef}
@@ -423,6 +468,21 @@ export default function VideoLinkSender({ isOpen, onClose, onSuccess }) {
         </div>
       </div>
       )}
+
+      {/* Enhanced Confirmation Dialog */}
+      <ContactConfirmationDialog
+        isOpen={showConfirmation}
+        onClose={() => setShowConfirmation(false)}
+        onConfirm={handleConfirmSend}
+        onEdit={handleEditContact}
+        phone={tempPhone}
+        email={tempEmail}
+        isLoading={isLoading}
+        title="Confirm Contact Details"
+        description="Please confirm the contact details before sending the video link"
+        confirmText="Send Link"
+        editText="Edit"
+      />
 
       {/* Success Dialog */}
       <CustomDialog open={dialogOpen} setOpen={handleDialogClose} heading={"Link sent successfully"}>

@@ -59,7 +59,7 @@ export const DialogProvider = ({ children }) => {
     { name: 'Red', bgClass: 'bg-red-800', hoverClass: 'hover:bg-red-900', color: '#dc2626' },
     { name: 'Purple', bgClass: 'bg-purple-800', hoverClass: 'hover:bg-purple-900', color: '#7c3aed' },
     // Brighter orange
-    { name: 'Orange', bgClass: 'bg-orange-400', hoverClass: 'hover:bg-orange-500', color: '#fdba74' },
+    { name: 'Orange', bgClass: 'bg-orange-400', hoverClass: 'hover:bg-orange-500', color: '#fb923c' },
     // Slightly darker yellow
     { name: 'Yellow', bgClass: 'bg-yellow-500', hoverClass: 'hover:bg-yellow-600', color: '#eab308' }
   ];

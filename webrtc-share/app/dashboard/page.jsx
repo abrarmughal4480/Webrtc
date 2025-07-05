@@ -28,6 +28,8 @@ import { useDialog } from "@/provider/DilogsProvider"
 import CustomDialog from "@/components/dialogs/CustomDialog"
 import { updateUserLogoRequest } from "@/http/authHttp"
 import VideoLinkSender from "@/components/VideoLinkSender"
+import FloatingResendButton from "@/components/FloatingResendButton"
+
 import moment from "moment/moment"
 import { AiOutlineInfoCircle } from "react-icons/ai";
 import { BsInfoCircleFill, BsInfoCircle } from "react-icons/bs";
@@ -46,6 +48,9 @@ export default function Page() {
   const [archivedCount, setArchivedCount] = useState(0);
   // Add state for VideoLinkSender
   const [showVideoLinkSender, setShowVideoLinkSender] = useState(false);
+
+  // Add state for floating resend button
+  const [lastSentLink, setLastSentLink] = useState(null);
 
   // Add state for multiple selection
   const [selectedMeetings, setSelectedMeetings] = useState([]);
@@ -76,6 +81,72 @@ export default function Page() {
       if (trashInterval) clearInterval(trashInterval);
     };
   }, [viewMode]);
+
+  // Load last sent link from localStorage
+  useEffect(() => {
+    const loadLastSentLink = () => {
+      const storedLink = localStorage.getItem('lastSentLink');
+      
+      if (storedLink) {
+        try {
+          const linkData = JSON.parse(storedLink);
+          const tenMinutesAgo = Date.now() - (10 * 60 * 1000);
+          
+          // Only show if link was sent within last 10 minutes
+          if (linkData.timestamp > tenMinutesAgo) {
+            setLastSentLink(linkData);
+          } else {
+            // Clear expired link
+            localStorage.removeItem('lastSentLink');
+            setLastSentLink(null);
+          }
+        } catch (error) {
+          console.error('Error parsing last sent link:', error);
+          localStorage.removeItem('lastSentLink');
+        }
+      }
+    };
+
+    // Load initially
+    loadLastSentLink();
+
+    // Listen for storage changes (when localStorage is updated from other components)
+    const handleStorageChange = (e) => {
+      if (e.key === 'lastSentLink') {
+        loadLastSentLink();
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+
+    // Also listen for custom events (for same-tab updates)
+    const handleCustomStorageChange = () => {
+      loadLastSentLink();
+    };
+
+    window.addEventListener('lastSentLinkUpdated', handleCustomStorageChange);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('lastSentLinkUpdated', handleCustomStorageChange);
+    };
+  }, []);
+
+  // Timer to clear expired link
+  useEffect(() => {
+    if (!lastSentLink) return;
+
+    const checkExpiry = () => {
+      const tenMinutesAgo = Date.now() - (10 * 60 * 1000);
+      if (lastSentLink.timestamp < tenMinutesAgo) {
+        localStorage.removeItem('lastSentLink');
+        setLastSentLink(null);
+      }
+    };
+
+    const interval = setInterval(checkExpiry, 1000); // Check every second
+    return () => clearInterval(interval);
+  }, [lastSentLink]);
 
   // Add effect to handle user loading state
   useEffect(() => {
@@ -1140,6 +1211,11 @@ export default function Page() {
         onClose={() => setShowVideoLinkSender(false)}
         onSuccess={handleVideoLinkSuccess}
       />
+
+      {/* Floating Resend Button */}
+      <FloatingResendButton />
+
+
 
       {/* Permanent Delete Confirmation Dialog */}
       {showPermanentDeleteDialog && (

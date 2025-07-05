@@ -13,6 +13,7 @@ import Image from 'next/image'
 import { StarIcon } from 'lucide-react'
 import PriceAndPlan from '@/components/section/PriceAndPlanSectionComponent'
 import SendFriendSectionComponent from '@/components/section/SendFriendSectionComponent'
+import FloatingResendButton from '@/components/FloatingResendButton'
 
 const FeedbackDialog = () => {
   const [showFeedback, setShowFeedback] = useState(false);
@@ -275,6 +276,9 @@ const Page = () => {
       <Suspense fallback={null}>
         <FeedbackDialog />
       </Suspense>
+      
+      {/* Floating Resend Button */}
+      <FloatingResendButton />
     </div>
   )
 }
