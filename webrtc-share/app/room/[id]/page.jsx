@@ -8,6 +8,7 @@ import useWebRTC from '@/hooks/useWebRTC'
 import { io } from "socket.io-client"
 import { useSearchParams } from 'next/navigation'
 import { useRouter } from 'next/navigation'
+import FloatingResendButton from '@/components/FloatingResendButton'
 
 const page = ({params}) => {
   const {id} = use(params);
@@ -189,6 +190,9 @@ const page = ({params}) => {
   useEffect(() => {
     // Fetch sender info if sid is present
     const sid = searchParams.get('sid');
+    console.log('🔍 Room page: sid from URL:', sid);
+    console.log('🔍 Room page: all searchParams:', Object.fromEntries(searchParams.entries()));
+    
     if (sid) {
       setPageLoading(true); // Loader start karo
       const fetchUserInfo = async () => {
@@ -197,6 +201,7 @@ const page = ({params}) => {
           const res = await fetch(`${backendUrl}/api/v1/room-user-info?userId=${encodeURIComponent(sid)}`);
           const data = await res.json();
           if (data.success) {
+            console.log('🔍 Room page: User info fetched:', data.user._id);
             setRoomUserInfo(data.user);
             if (data.user.messageSettings) {
               setMessageSettings(data.user.messageSettings);
@@ -424,6 +429,9 @@ const page = ({params}) => {
           )}
         </div>
       </DialogComponent>
+      
+      {/* Floating Resend Button */}
+      <FloatingResendButton roomUserInfo={roomUserInfo} />
     </>
   )
 }

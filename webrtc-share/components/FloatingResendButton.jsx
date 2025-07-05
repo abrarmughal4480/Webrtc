@@ -4,9 +4,11 @@ import { RotateCcw, Clock, X } from 'lucide-react';
 import { toast } from 'sonner';
 import ResendLinkDialog from './dialogs/ResendLinkDialog';
 import { useUser } from '@/provider/UserProvider';
+import { useSearchParams } from 'next/navigation';
 
-const FloatingResendButton = ({ onOpenResendDialog }) => {
+const FloatingResendButton = ({ onOpenResendDialog, roomUserInfo }) => {
   const { user } = useUser();
+  const searchParams = useSearchParams();
   const [timeLeft, setTimeLeft] = useState(600); // 10 minutes in seconds
   const [isVisible, setIsVisible] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
@@ -20,6 +22,45 @@ const FloatingResendButton = ({ onOpenResendDialog }) => {
   const holdTimerRef = useRef(null);
   const hasMovedRef = useRef(false);
   const initialPositionRef = useRef({ x: 0, y: 0 });
+
+  // Get senderId from URL parameters as fallback
+  const getSenderId = () => {
+    // First try to get from user context
+    if (user?._id) {
+      console.log('🔍 getSenderId: Found from user context:', user._id);
+      return user._id;
+    }
+    
+    // Then try to get from room user info (if on room page)
+    if (roomUserInfo?._id) {
+      console.log('🔍 getSenderId: Found from roomUserInfo:', roomUserInfo._id);
+      return roomUserInfo._id;
+    }
+    
+    // Then try to get from URL parameters (sid)
+    const sidFromUrl = searchParams.get('sid');
+    if (sidFromUrl) {
+      console.log('🔍 getSenderId: Found from URL sid:', sidFromUrl);
+      return sidFromUrl;
+    }
+    
+    // Finally try to get from stored localStorage data
+    const storedLink = localStorage.getItem('lastSentLink');
+    if (storedLink) {
+      try {
+        const linkData = JSON.parse(storedLink);
+        if (linkData.senderId) {
+          console.log('🔍 getSenderId: Found from localStorage:', linkData.senderId);
+          return linkData.senderId;
+        }
+      } catch (error) {
+        console.error('Error parsing last sent link:', error);
+      }
+    }
+    
+    console.log('🔍 getSenderId: No senderId found');
+    return null;
+  };
 
   // Check localStorage every second for new links
   useEffect(() => {
@@ -302,7 +343,11 @@ const FloatingResendButton = ({ onOpenResendDialog }) => {
     toast.success('Link resent successfully!');
     // Update the last sent link timestamp and reset timer
     if (lastSentLink) {
-      const updatedLink = { ...lastSentLink, timestamp: Date.now() };
+      const updatedLink = { 
+        ...lastSentLink, 
+        timestamp: Date.now(),
+        senderId: getSenderId() // Ensure senderId is preserved
+      };
       localStorage.setItem('lastSentLink', JSON.stringify(updatedLink));
       setLastSentLink(updatedLink);
       setTimeLeft(600); // Reset timer to 10 minutes
@@ -414,7 +459,7 @@ const FloatingResendButton = ({ onOpenResendDialog }) => {
         originalPhone={lastSentLink?.phone || ''}
         originalEmail={lastSentLink?.email || ''}
         token={lastSentLink?.token || ''}
-        senderId={user?._id}
+        senderId={getSenderId()}
         onResendSuccess={handleResendSuccess}
       />
     </>

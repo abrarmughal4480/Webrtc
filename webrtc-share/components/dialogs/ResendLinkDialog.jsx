@@ -106,7 +106,14 @@ export default function ResendLinkDialog({
       if (phone) queryParams.append('number', phone);
       if (email) queryParams.append('email', email);
       if (token) queryParams.append('token', token); // Use existing token
-      if (senderId) queryParams.append('senderId', senderId);
+      
+      // Use senderId from props or from stored data
+      const effectiveSenderId = senderId || lastSentLink?.senderId;
+      console.log('🔍 ResendLinkDialog: senderId prop:', senderId);
+      console.log('🔍 ResendLinkDialog: lastSentLink?.senderId:', lastSentLink?.senderId);
+      console.log('🔍 ResendLinkDialog: effectiveSenderId:', effectiveSenderId);
+      
+      if (effectiveSenderId) queryParams.append('senderId', effectiveSenderId);
       
       const res = await axios.get(`${backendUrl}/resend-token?${queryParams.toString()}`);
       
@@ -118,7 +125,7 @@ export default function ResendLinkDialog({
           phone, 
           email, 
           token, 
-          senderId,
+          senderId: effectiveSenderId,
           timestamp: Date.now() 
         };
         localStorage.setItem('lastSentLink', JSON.stringify(updatedLink));
@@ -343,7 +350,7 @@ export default function ResendLinkDialog({
                     className="flex-1 border-amber-200 text-amber-700 hover:bg-amber-50 font-semibold py-3 rounded-xl"
                   >
                     <Copy className="w-4 h-4 mr-2" />
-                    Copy Admin Link
+                    Copy Live Video Room Link
                   </Button>
                   <Button
                     onClick={openAdminLink}
@@ -351,7 +358,7 @@ export default function ResendLinkDialog({
                     className="flex-1 border-amber-200 text-amber-700 hover:bg-amber-50 font-semibold py-3 rounded-xl"
                   >
                     <ExternalLink className="w-4 h-4 mr-2" />
-                    Open Admin Room
+                    Re-open Live Video Room
                   </Button>
                 </div>
               </div>

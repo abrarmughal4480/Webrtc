@@ -320,8 +320,17 @@ app.get('/resend-token', async (req, res) => {
         // Use the existing token instead of generating a new one
         console.log('🎫 Using existing meeting token:', token);
 
-        // Build URL with existing token
+        // Build URL with existing token and senderId
         let url = `${process.env.FRONTEND_URL}/room/${token}`;
+        
+        // Add senderId to URL if available
+        if (senderId) {
+            const encryptedSenderId = encryptUserId(senderId);
+            url += `?sid=${encodeURIComponent(encryptedSenderId)}`;
+            console.log('🔗 Resend URL with senderId:', url);
+        } else {
+            console.log('⚠️ No senderId provided for resend, URL:', url);
+        }
 
         // --- UK Phone Normalization Helper ---
         function normalizeUKPhoneNumber(number) {

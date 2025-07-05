@@ -315,6 +315,7 @@ export default function VideoLinkSender({ isOpen, onClose, onSuccess }) {
         token: res.data.token,
         phone: tempPhone,
         email: tempEmail,
+        senderId: user?._id,
         timestamp: Date.now()
       };
       localStorage.setItem('lastSentLink', JSON.stringify(lastSentInfo));
