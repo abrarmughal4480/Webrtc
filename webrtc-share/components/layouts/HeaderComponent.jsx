@@ -394,13 +394,11 @@ const handleLogout = async () => {
     <>
       <header className="sticky top-0 z-50 bg-white shadow-sm h-[15vh]">
         <div className="mx-auto px-4 md:px-10 py-4 flex items-center justify-between h-full">
-          <div className="flex items-center flex-col">
-            <a href="/" className="text-xl md:text-2xl font-bold text-gray-900 flex items-center">
-              <VideoIcon className="mr-2" />
-              <span className="hidden sm:inline">Videodesk.co.uk</span>
-              <span className="sm:hidden">Videodesk</span>
-            </a>
-            <img src="/device-icons.png" alt="Videodesk" className="mt-2 w-16 md:w-20" />
+          <div className="flex flex-col items-center">
+            <div className="flex items-center">
+              <img src="/device-icons.png" alt="Videodesk" className="w-24 md:w-32 mr-2" />
+            </div>
+            <span className="text-2xl md:text-4xl font-bold text-gray-900">Videodesk</span>
           </div>
 
           <nav className="hidden md:flex items-center space-x-5">

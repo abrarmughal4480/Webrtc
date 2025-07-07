@@ -50,7 +50,7 @@ export const deleteMeeting = async (id) => {
 // Add public endpoint for sharing - no authentication required
 export const getMeetingForShare = async (id) => {
     try {
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/api/v1/meetings/share/${id}`, {
+        const response = await fetch(`/api/v1/meetings/share/${id}`, {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json',
@@ -173,7 +173,7 @@ export const getArchivedCount = async () => {
 // Add function to record visitor access to shared meeting
 export const recordVisitorAccessRequest = async (meetingId, visitorData) => {
     try {
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/api/v1/meetings/share/${meetingId}/access`, {
+        const response = await fetch(`/api/v1/meetings/share/${meetingId}/access`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
