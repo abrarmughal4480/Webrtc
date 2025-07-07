@@ -232,7 +232,7 @@ export const LaunchLinkSection = () => {
     <>
       <section id="launch-link" className="py-12 md:py-16 bg-white">
         <div className="container mx-auto px-4 md:px-8">
-          <div className="max-w-3xl mx-auto text-center mb-8 md:mb-12">
+          <div className={`max-w-3xl mx-auto text-center ${!isAuth ? 'mb-6 md:mb-8' : 'mb-2 md:mb-3'}`}>
             <a
               href="#launch"
               className="inline-block text-black font-bold py-2 md:py-3 px-6 md:px-8 rounded-full text-2xl md:text-3xl transition-all transform hover:scale-105 mb-3 md:mb-4"
@@ -251,37 +251,55 @@ export const LaunchLinkSection = () => {
             )}
           </div>
 
-          <div className="max-w-4xl mx-auto bg-white rounded-xl shadow-md border border-gray-100 p-4 md:p-8 relative overflow-hidden">
+          <div className="max-w-4xl mx-auto bg-white rounded-xl shadow-lg border border-gray-100 -mt-2 p-4 md:p-8 relative overflow-hidden">
             <h3 className="text-lg md:text-xl font-semibold mb-4 md:mb-6 text-center px-2">
               Enter your customer's mobile number or email address below<br />
               to send an instant video link
             </h3>
 
             <div className="flex flex-col md:flex-row md:items-center gap-3 md:gap-4">
-              <div className="flex-1 w-full">
+              <div className="flex-1 w-full relative">
                 <input
                   type="text"
                   placeholder="Enter customer mobile number"
-                  className="w-full px-3 md:px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-400 text-sm md:text-base"
+                  className="w-full px-3 md:px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-400 text-sm md:text-base pr-10"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   onKeyPress={handleKeyPress}
+                  disabled={!isAuth}
                 />
+                {!isAuth && (
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center">
+                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <circle cx="9" cy="9" r="7" stroke="#EF4444" strokeWidth="2" fill="none" />
+                      <line x1="6" y1="6" x2="12" y2="12" stroke="#EF4444" strokeWidth="2" strokeLinecap="round" />
+                    </svg>
+                  </span>
+                )}
               </div>
 
               <div className="self-center">
                 <span className="text-gray-500 text-sm md:text-base">or</span>
               </div>
 
-              <div className="flex-1 w-full">
+              <div className="flex-1 w-full relative">
                 <input
                   type="email"
                   placeholder="Enter customer email address"
-                  className="w-full px-3 md:px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-400 text-sm md:text-base"
+                  className="w-full px-3 md:px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-400 text-sm md:text-base pr-10"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   onKeyPress={handleKeyPress}
+                  disabled={!isAuth}
                 />
+                {!isAuth && (
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center">
+                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <circle cx="9" cy="9" r="7" stroke="#EF4444" strokeWidth="2" fill="none" />
+                      <line x1="6" y1="6" x2="12" y2="12" stroke="#EF4444" strokeWidth="2" strokeLinecap="round" />
+                    </svg>
+                  </span>
+                )}
               </div>
 
               <button

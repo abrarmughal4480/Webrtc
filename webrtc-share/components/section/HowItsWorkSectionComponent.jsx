@@ -25,21 +25,16 @@ export const HowItWorksSection = () => {
   const steps = [
     {
       number: 1,
-      title: "Sign up in 3 easy steps | no payment card | needed",
-      description: ""
-    },
-    {
-      number: 2,
       title: "Enter your customer's | mobile number or email | and send a video link | instantly",
       description: ""
     },
     {
-      number: 3,
+      number: 2,
       title: "View live video, take video | snapshots or image | screenshots",
       description: ""
     },
     {
-      number: 4,
+      number: 3,
       title: "Share and send page | links to any colleague, |  any contractor  or | any system",
     }
   ];
