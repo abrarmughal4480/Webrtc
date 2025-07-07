@@ -262,7 +262,7 @@ export const LaunchLinkSection = () => {
                 <input
                   type="text"
                   placeholder="Enter customer mobile number"
-                  className="w-full px-3 md:px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-400 text-sm md:text-base pr-10"
+                  className={`w-full px-3 md:px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-400 text-sm md:text-base pr-10${!isAuth ? ' cursor-not-allowed' : ''}`}
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   onKeyPress={handleKeyPress}
@@ -286,7 +286,7 @@ export const LaunchLinkSection = () => {
                 <input
                   type="email"
                   placeholder="Enter customer email address"
-                  className="w-full px-3 md:px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-400 text-sm md:text-base pr-10"
+                  className={`w-full px-3 md:px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-400 text-sm md:text-base pr-10${!isAuth ? ' cursor-not-allowed' : ''}`}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   onKeyPress={handleKeyPress}
