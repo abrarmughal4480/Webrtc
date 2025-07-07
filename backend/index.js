@@ -23,21 +23,8 @@ connectDB();
 const app = express();
 const PORT = process.env.PORT || 4000;
 
-const allowedOrigins = [
-  'http://localhost:3000',
-  'http://31.97.57.180'
-];
-
 app.use(cors({
-  origin: function (origin, callback) {
-    // allow requests with no origin (like mobile apps, curl, etc.)
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      return callback(null, true);
-    } else {
-      return callback(new Error('Not allowed by CORS'));
-    }
-  },
+  origin: true, // Allow all origins
   credentials: true
 }));
 
