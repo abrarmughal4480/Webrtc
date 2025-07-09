@@ -69,13 +69,19 @@ export default function Page() {
 
   // Add state for search fields
   const [searchFields, setSearchFields] = useState({
-    name: '',
-    address: '',
-    post_code: '',
+    first_name: '',
+    last_name: '', // Surname
+    house_number: '', // House/Building number or name
+    street: '',      // Street/Road
+    city: '',        // Town/City
+    post_code: '',   // Postcode (one word)
     phone_number: '',
+    email: '',
+    date_from: '', // NEW
+    date_to: '',   // NEW
     repair_detail: '',
-    special_notes: '',
-    target_time: '',
+    target_time: '', // moved up
+    special_notes: '', // moved down
     reference: '',
   });
 
@@ -1358,62 +1364,102 @@ export default function Page() {
 
       {showSearchModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20">
-          <div className="relative w-full max-w-md p-0 rounded-2xl border border-gray-200 shadow-2xl bg-white overflow-hidden animate-fade-in-up">
-            {/* Top section with title only */}
-            <div className="flex flex-col items-center justify-center pt-6 pb-2 px-6 bg-white rounded-t-2xl">
-              <h2 className="text-xl font-extrabold text-gray-800 drop-shadow mb-1">Search Records</h2>
-              <p className="text-xs text-gray-600 mb-2">Find meetings fast by resident, address, or details</p>
+          <div className="relative w-full max-w-2xl p-0 rounded-2xl border border-gray-200 shadow-2xl bg-white overflow-hidden animate-fade-in-up">
+            {/* Header bar like other modals */}
+            <div className="flex items-center justify-between bg-purple-500 text-white p-4 m-0 rounded-t-2xl relative">
+              <div className="flex-1 flex items-center justify-center relative">
+                <h2 className="text-base font-semibold text-center w-full">Search Records</h2>
+                <button
+                  onClick={() => setShowSearchModal(false)}
+                  aria-label="Close"
+                  className="absolute right-0 text-white hover:text-gray-200"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
-            <div className="border-t border-b border-gray-100 mx-6" />
             {/* Form section */}
             <form className="space-y-3 px-6 py-4" onSubmit={handleSearchMeetings}>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <div>
-                  <input type="text" value={searchFields.name} onChange={e => handleSearchFieldChange('name', e.target.value)} className="w-full h-11 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-sm bg-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="Resident name" />
+                  <input type="text" value={searchFields.first_name} onChange={e => handleSearchFieldChange('first_name', e.target.value)} className="w-full h-14 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-base bg-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="First name" />
                 </div>
                 <div>
-                  <input type="text" value={searchFields.address} onChange={e => handleSearchFieldChange('address', e.target.value)} className="w-full h-11 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-sm bg-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="Address" />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <input type="text" value={searchFields.post_code} onChange={e => handleSearchFieldChange('post_code', e.target.value)} className="w-full h-11 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-sm bg-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="Postcode" />
-                </div>
-                <div>
-                  <input type="text" value={searchFields.phone_number} onChange={e => handleSearchFieldChange('phone_number', e.target.value)} className="w-full h-11 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-sm bg-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="Phone number" />
+                  <input type="text" value={searchFields.last_name} onChange={e => handleSearchFieldChange('last_name', e.target.value)} className="w-full h-14 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-base bg-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="Surname" />
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <div>
-                  <input type="text" value={searchFields.repair_detail} onChange={e => handleSearchFieldChange('repair_detail', e.target.value)} className="w-full h-11 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-sm bg-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="Repair details" />
+                  <input type="text" value={searchFields.house_number} onChange={e => handleSearchFieldChange('house_number', e.target.value)} className="w-full h-14 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-base bg-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="House/Building number or name" />
                 </div>
                 <div>
-                  <input type="text" value={searchFields.special_notes} onChange={e => handleSearchFieldChange('special_notes', e.target.value)} className="w-full h-11 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-sm bg-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="Special notes" />
+                  <input type="text" value={searchFields.street} onChange={e => handleSearchFieldChange('street', e.target.value)} className="w-full h-14 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-base bg-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="Street/Road" />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div>
+                  <input type="text" value={searchFields.city} onChange={e => handleSearchFieldChange('city', e.target.value)} className="w-full h-14 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-base bg-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="Town/City" />
+                </div>
+                <div>
+                  <input type="text" value={searchFields.post_code} onChange={e => handleSearchFieldChange('post_code', e.target.value)} className="w-full h-14 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-base bg-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="Postcode" />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <input type="text" value={searchFields.reference} onChange={e => handleSearchFieldChange('reference', e.target.value)} className="w-full h-11 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-sm bg-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="Reference" />
+                  <input type="text" value={searchFields.phone_number} onChange={e => handleSearchFieldChange('phone_number', e.target.value)} className="w-full h-14 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-base bg-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="Phone number" />
                 </div>
                 <div>
-                  {/* Empty for layout symmetry */}
+                  <input type="text" value={searchFields.email} onChange={e => handleSearchFieldChange('email', e.target.value)} className="w-full h-14 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-base bg-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="Email address" />
                 </div>
               </div>
-              <div className="relative">
-                <select value={searchFields.target_time} onChange={e => handleSearchFieldChange('target_time', e.target.value)} className="w-full h-11 border border-gray-300 rounded-xl pl-4 pr-10 py-2 text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none appearance-none shadow-sm">
-                  <option value="">Target Time</option>
-                  <option value="Emergency 24 Hours">Emergency 24 Hours</option>
-                  <option value="Urgent (7 Days)">Urgent (7 Days)</option>
-                  <option value="Routine (28 Days)">Routine (28 Days)</option>
-                  <option value="Follow Up Work">Follow Up Work</option>
-                  <option value="Other">Other</option>
-                </select>
-                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 drop-shadow"><ChevronDown className="w-5 h-5" /></span>
+              {/* Date range with labels */}
+              <div className="grid grid-cols-2 gap-2">
+                <div className="flex flex-col">
+                  <label className="mb-1 text-sm font-medium text-gray-700">From</label>
+                  <input type="date" value={searchFields.date_from} onChange={e => handleSearchFieldChange('date_from', e.target.value)} className="w-full h-14 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-base bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="Date From" />
+                </div>
+                <div className="flex flex-col">
+                  <label className="mb-1 text-sm font-medium text-gray-700">To</label>
+                  <input type="date" value={searchFields.date_to} onChange={e => handleSearchFieldChange('date_to', e.target.value)} className="w-full h-14 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-base bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="Date To" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <input type="text" value={searchFields.reference} onChange={e => handleSearchFieldChange('reference', e.target.value)} className="w-full h-14 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-base bg-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="Job ref" />
+                </div>
+                <div className="relative">
+                  <select value={searchFields.target_time} onChange={e => handleSearchFieldChange('target_time', e.target.value)} className="w-full h-14 border border-gray-300 rounded-xl pl-4 pr-10 py-2 text-base bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none appearance-none shadow-sm">
+                    <option value="">Target Time</option>
+                    <option value="Emergency 24 Hours">Emergency 24 Hours</option>
+                    <option value="Urgent (7 Days)">Urgent (7 Days)</option>
+                    <option value="Routine (28 Days)">Routine (28 Days)</option>
+                    <option value="Follow Up Work">Follow Up Work</option>
+                    <option value="Other">Other</option>
+                  </select>
+                  <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 drop-shadow"><ChevronDown className="w-5 h-5" /></span>
+                </div>
+              </div>
+              <div className="border-t border-gray-100 my-3" />
+              {/* Place the Target Time and Repair Details fields just before Special Notes at the end */}
+              <div>
+                <input type="text" value={searchFields.repair_detail} onChange={e => handleSearchFieldChange('repair_detail', e.target.value)} className="w-full h-14 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-base bg-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="Repair details" />
+              </div>
+              {/* Special Notes full width at the end */}
+              <div className="border-t border-gray-100 my-3" />
+              <div>
+                <input type="text" value={searchFields.special_notes} onChange={e => handleSearchFieldChange('special_notes', e.target.value)} className="w-full h-14 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-base bg-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="Special notes" />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                
+                <div>{/* Empty for layout symmetry */}</div>
               </div>
               <div className="border-t border-gray-100 my-3" />
               <div className="flex justify-end gap-2 pt-2">
-                <button type="button" className="border border-gray-300 bg-white hover:bg-gray-100 text-gray-700 px-5 py-2 rounded-xl shadow-sm transition-all duration-200 outline-none focus:ring-2 focus:ring-blue-300" onClick={() => { setShowSearchModal(false); setSearchFields({ name: '', address: '', post_code: '', phone_number: '', repair_detail: '', special_notes: '', target_time: '', reference: '' }); fetchMeetings(); }}>Clear</button>
-                <button type="submit" className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-xl shadow-md font-semibold transition-all duration-200 outline-none focus:ring-2 focus:ring-blue-400 active:scale-95"><Search className="w-5 h-5" />Search</button>
+                <button type="button" className="border border-gray-300 bg-white hover:bg-gray-100 text-gray-700 font-bold px-6 py-3 rounded-xl shadow-sm transition-all duration-200 outline-none focus:ring-2 focus:ring-blue-300 min-w-[160px] flex items-center justify-center gap-2" onClick={() => { setShowSearchModal(false); setSearchFields({ first_name: '', last_name: '', house_number: '', street: '', city: '', post_code: '', phone_number: '', repair_detail: '', special_notes: '', target_time: '', reference: '' }); fetchMeetings(); }}>
+                  <img src="/erase.svg" alt="Clear" className="w-5 h-5" />
+                  Clear
+                </button>
+                <button type="submit" className="flex items-center gap-2 bg-yellow-300 hover:bg-yellow-400 text-black font-bold px-6 py-3 rounded-xl shadow-md transition-all duration-200 outline-none focus:ring-2 focus:ring-yellow-400 active:scale-95 border-2 border-yellow-400 min-w-[160px]"><Search className="w-5 h-5 text-black" />Search</button>
               </div>
             </form>
           </div>
@@ -1423,3 +1469,7 @@ export default function Page() {
     </>
   )
 }
+
+
+
+
