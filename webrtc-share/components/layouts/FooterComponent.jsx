@@ -321,18 +321,18 @@ export function Footer() {
 
             {/* Right Section - Navigation Links */}
             <div className="space-y-3">
-              <Link href="/about" className="block text-gray-600 hover:text-gray-900 transition-colors">
+              <a href="#about" className="block text-gray-600 hover:text-gray-900 transition-colors">
                 About
-              </Link>
-              <Link href="/how-it-works" className="block text-gray-600 hover:text-gray-900 transition-colors">
+              </a>
+              <a href="#how-it-works" className="block text-gray-600 hover:text-gray-900 transition-colors">
                 How it works
-              </Link>
-              <Link href="/launch" className="block text-gray-600 hover:text-gray-900 transition-colors">
+              </a>
+              <a href="#launch-link" className="block text-gray-600 hover:text-gray-900 transition-colors">
                 Launch new video link
-              </Link>
-              <Link href="/pricing" className="block text-gray-600 hover:text-gray-900 transition-colors">
+              </a>
+              <a href="#pricing" className="block text-gray-600 hover:text-gray-900 transition-colors">
                 Pricing and Plans
-              </Link>
+              </a>
             </div>
           </div>
         </div>
