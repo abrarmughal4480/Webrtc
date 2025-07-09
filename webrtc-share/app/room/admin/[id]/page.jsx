@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button"
 import { logoutRequest } from "@/http/authHttp"
 import { useUser } from "@/provider/UserProvider"
 import FloatingResendButton from "@/components/FloatingResendButton"
+import SpecialNotesDialog from "@/components/dialogs/SpecialNotesDialog"
 
 export default function Page({ params }) {
   if (!params) {
@@ -1934,6 +1935,8 @@ export default function Page({ params }) {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const isInitialLoad = useRef(true);
+  // Dialog state for Special Notes
+  const [specialNotesDialogOpen, setSpecialNotesDialogOpen] = useState(false);
 
   // When loading meeting data, split residentName only on initial load
   useEffect(() => {
@@ -3196,7 +3199,7 @@ export default function Page({ params }) {
             <div className="mt-6">
               <div className="flex items-center gap-3 mb-2">
                 <label className="block text-lg font-medium">Special Notes:</label>
-                <div className="flex bg-gray-200 rounded-full p-1">
+                <div className="flex bg-gray-200 rounded-full p-1 items-center">
                   <button
                     onClick={() => updateUI({ showSpecialNotes: true })}
                     className={`px-3 py-1 rounded-full transition-colors text-sm font-medium ${ui.showSpecialNotes
@@ -3218,6 +3221,7 @@ export default function Page({ params }) {
                     Hide
                   </button>
                 </div>
+                <Plus className="w-5 h-5 text-gray-600 ml-4 cursor-pointer" onClick={() => setSpecialNotesDialogOpen(true)} />
               </div>
 
               <div className={`transition-all duration-300 ease-in-out overflow-hidden ${ui.showSpecialNotes ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'}`}>
@@ -3236,6 +3240,8 @@ export default function Page({ params }) {
 
       {/* Floating Resend Button */}
       <FloatingResendButton />
+      {/* Special Notes Dialog */}
+      <SpecialNotesDialog open={specialNotesDialogOpen} onClose={() => setSpecialNotesDialogOpen(false)} />
     </>
   );
 }

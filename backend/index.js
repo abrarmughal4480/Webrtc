@@ -24,7 +24,7 @@ const app = express();
 const PORT = process.env.PORT || 4000;
 
 app.use(cors({
-  origin: true, // Allow all origins
+  origin: ['https://videodesk.co.uk', 'http://localhost:3000'], // Allow production and local frontend
   credentials: true
 }));
 
