@@ -16,7 +16,8 @@ import {
     getArchivedCount,
     recordVisitorAccess,
     restoreMeeting,
-    permanentDeleteMeeting
+    permanentDeleteMeeting,
+    searchMeetings
 } from '../controllers/meetingController.js';
 
 const router = express.Router();
@@ -29,6 +30,7 @@ router.get('/meetings/all', isAuthenticated, getAllMeetings);
 router.get('/meetings/:id', isAuthenticated, getMeetingById);
 router.put('/meetings/:id', isAuthenticated, updateMeeting);
 router.delete('/meetings/:id', isAuthenticated, deleteMeeting);
+router.post('/meetings/search', isAuthenticated, searchMeetings);
 
 // Meeting routes - Public route for sharing
 router.get('/meetings/share/:id', getMeetingForShare);

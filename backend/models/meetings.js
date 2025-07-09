@@ -49,7 +49,8 @@ const meetingSchema = new mongoose.Schema({
         access_time: {type: Date, default: Date.now},
         ip_address: {type: String},
         user_agent: {type: String},
-        from_storage: {type: Boolean, default: false} // Track if access was from localStorage
+        from_storage: {type: Boolean, default: false}, // Track if access was from localStorage
+        creator: {type: Boolean, default: false} // Track if access was by the creator
     }],
     // Additional tracking fields
     created_by: {type: mongoose.Schema.ObjectId, ref: "User"}, // Who created the meeting

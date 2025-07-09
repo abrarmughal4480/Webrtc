@@ -24,6 +24,7 @@ export const UserProvider = ({ children }) => {
         console.log('✅ User data loaded successfully');
         setUser(response.data.user);
         setIsAuth(true);
+        setLoading(false); // <-- Ensure loading is set to false on success
     } catch (error) {
         // Handle network errors gracefully
         if (error.code === 'ERR_NETWORK') {
@@ -36,6 +37,7 @@ export const UserProvider = ({ children }) => {
         // Don't throw error, just set user as not authenticated
         setIsAuth(false);
         setUser(null);
+        setLoading(false); // <-- Ensure loading is set to false on error
     }
   };
 

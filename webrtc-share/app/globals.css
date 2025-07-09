@@ -120,3 +120,59 @@ video::-webkit-media-controls-mute-button
  {
   display: none !important;
 }
+
+/* Hide scrollbar for Chrome, Safari and Opera */
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+/* Hide scrollbar for IE, Edge and Firefox */
+.hide-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;     /* Firefox */
+  -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+  touch-action: pan-y; /* Allow vertical scroll on touch devices */
+}
+
+/* Custom thin scrollbar for the whole website */
+html, body, .custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #b39ddb #f8f8fa; /* thumb, track */
+}
+
+html::-webkit-scrollbar, body::-webkit-scrollbar, .custom-scrollbar::-webkit-scrollbar {
+  width: 5px;
+  background: transparent;
+}
+
+html::-webkit-scrollbar-thumb, body::-webkit-scrollbar-thumb, .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #b39ddb;
+  border-radius: 8px;
+  box-shadow: 0 0 6px 1px #9452ff22;
+}
+
+html::-webkit-scrollbar-thumb:hover, body::-webkit-scrollbar-thumb:hover, .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #9452ff;
+}
+
+html::-webkit-scrollbar-track, body::-webkit-scrollbar-track, .custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Extra thin scrollbar for popups/dialogs */
+.dialog-content, .CustomDialog, .dialog-content .custom-scrollbar {
+  scrollbar-width: thin !important;
+  scrollbar-color: #b39ddb transparent !important;
+  min-width: 0 !important;
+}
+.dialog-content::-webkit-scrollbar, .CustomDialog::-webkit-scrollbar, .dialog-content .custom-scrollbar::-webkit-scrollbar {
+  width: 3px !important;
+  min-width: 3px !important;
+  background: transparent !important;
+}
+.dialog-content::-webkit-scrollbar-thumb, .CustomDialog::-webkit-scrollbar-thumb, .dialog-content .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #b39ddb !important;
+  border-radius: 8px !important;
+}
+.dialog-content::-webkit-scrollbar-track, .CustomDialog::-webkit-scrollbar-track, .dialog-content .custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent !important;
+}

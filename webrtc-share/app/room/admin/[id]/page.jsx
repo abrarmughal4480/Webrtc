@@ -1930,6 +1930,35 @@ export default function Page({ params }) {
     };
   }, []);
 
+  // Add state for first and last name
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const isInitialLoad = useRef(true);
+
+  // When loading meeting data, split residentName only on initial load
+  useEffect(() => {
+    if (isInitialLoad.current && form.residentName) {
+      const parts = form.residentName.split(" ");
+      if (parts.length > 1) {
+        setFirstName(parts[0]);
+        setLastName(parts.slice(1).join(" "));
+      } else {
+        setFirstName(form.residentName);
+        setLastName("");
+      }
+      isInitialLoad.current = false;
+    }
+    // eslint-disable-next-line
+  }, [form.residentName]);
+
+  // When firstName or lastName changes, update form.residentName
+  useEffect(() => {
+    if (!isInitialLoad.current) {
+      updateForm({ residentName: (firstName + (lastName ? " " + lastName : "")).trim() });
+    }
+    // eslint-disable-next-line
+  }, [firstName, lastName]);
+
   if (!ui.isClient) {
     return (
       <div style={{ width: '100vw', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f9fafb' }}>
@@ -2946,15 +2975,27 @@ export default function Page({ params }) {
 
           <div className="space-y-6 hide-scrollbar" style={{ maxHeight: 'none', overflowY: 'visible', overflowX: 'hidden', scrollbarWidth: 'none', msOverflowStyle: 'none', paddingTop: '2vh', paddingLeft: '1.5vw', paddingRight: '1.5vw', paddingBottom: '1vh', minWidth: '250px', maxWidth: '100%' }}>
             <div>
-              <input
-                type="text"
-                id="residentName"
-                value={form.residentName}
-                onChange={(e) => updateForm({ residentName: e.target.value })}
-                placeholder="Resident Name"
-                className="w-full p-3 bg-gray-50 border border-black rounded-lg focus:outline-none focus:border-transparent focus:ring-2 focus:ring-orange-300"
-                style={{ borderWidth: '3px' }}
-              />
+              <label htmlFor="residentFirstName" className="block text-lg font-medium mb-2">Resident Name:</label>
+              <div className="flex flex-col md:flex-row gap-4 mb-4 min-w-0">
+                <input
+                  type="text"
+                  id="residentFirstName"
+                  value={firstName}
+                  onChange={e => setFirstName(e.target.value)}
+                  placeholder="First Name"
+                  className="w-full p-3 bg-white border border-gray-300 rounded-xl shadow-sm focus:outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-200 placeholder-gray-400 transition-all duration-200 hover:bg-orange-50"
+                  style={{ borderWidth: '2px' }}
+                />
+                <input
+                  type="text"
+                  id="residentLastName"
+                  value={lastName}
+                  onChange={e => setLastName(e.target.value)}
+                  placeholder="Last Name"
+                  className="w-full p-3 bg-white border border-gray-300 rounded-xl shadow-sm focus:outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-200 placeholder-gray-400 transition-all duration-200 hover:bg-orange-50"
+                  style={{ borderWidth: '2px' }}
+                />
+              </div>
             </div>
 
             <div>

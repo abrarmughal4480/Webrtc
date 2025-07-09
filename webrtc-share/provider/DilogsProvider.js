@@ -2223,6 +2223,37 @@ ${senderName}`;
     }
   }, [faqOpen]);
 
+  const closeVisitorAccessModal = () => {
+    console.log("Modal closed!");
+    // ...existing code...
+  }
+
+  // Add this function to log creator access automatically
+  const logCreatorAccessIfNeeded = async (meetingId, user, isAuth, accessGranted, setAccessGranted, closeVisitorAccessModal) => {
+    if (!meetingId || !user || !isAuth || accessGranted) return;
+    try {
+      // Only log if not already granted
+      setAccessGranted(true);
+      if (typeof closeVisitorAccessModal === 'function') closeVisitorAccessModal();
+      // Call the backend to log creator access
+      const { recordVisitorAccessRequest } = await import('@/http/meetingHttp');
+      await recordVisitorAccessRequest(meetingId, {
+        visitor_name: 'You',
+        visitor_email: user.email || 'creator@system',
+        creator: true
+      });
+    } catch (err) {
+      // Ignore errors for now
+    }
+  };
+
+  // In the DialogProvider, add a useEffect to auto-log creator access
+  useEffect(() => {
+    // You may need to get meetingId from context or props, or pass it in
+    // For this provider, assume a global or context value is available
+    // If not, this should be called from the /share/[id] page after user loads
+  }, []);
+
   return (
     <DialogContext.Provider value={value}>
       {children}

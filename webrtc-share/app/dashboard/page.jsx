@@ -1,6 +1,6 @@
 "use client"
 import { Button } from "@/components/ui/button"
-import { FileText, Archive, Trash2, Monitor, Smartphone, Save, History, ArchiveRestore, ExternalLink, FileSearch, MailIcon, Loader2, Maximize2, Home, RotateCcw, XCircle, Undo2, Info } from "lucide-react"
+import { FileText, Archive, Trash2, Monitor, Smartphone, Save, History, ArchiveRestore, ExternalLink, FileSearch, MailIcon, Loader2, Maximize2, Home, RotateCcw, XCircle, Undo2, Info, Search, X, User, Wrench, Clock, ChevronDown } from "lucide-react"
 import Image from "next/image"
 import {
   DropdownMenu,
@@ -9,7 +9,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { logoutRequest } from "@/http/authHttp"
-import { getAllMeetings, deleteMeeting, archiveMeeting, unarchiveMeeting, getArchivedCount, restoreMeeting, permanentDeleteMeeting } from "@/http/meetingHttp"
+import { getAllMeetings, deleteMeeting, archiveMeeting, unarchiveMeeting, getArchivedCount, restoreMeeting, permanentDeleteMeeting, searchMeetings } from "@/http/meetingHttp"
 import { useUser } from "@/provider/UserProvider"
 import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
@@ -64,7 +64,25 @@ export default function Page() {
   const [meetingToDelete, setMeetingToDelete] = useState(null);
   const [multipleDeleteMode, setMultipleDeleteMode] = useState(false);
 
+  // Add state for search modal
+  const [showSearchModal, setShowSearchModal] = useState(false);
+
+  // Add state for search fields
+  const [searchFields, setSearchFields] = useState({
+    name: '',
+    address: '',
+    post_code: '',
+    phone_number: '',
+    repair_detail: '',
+    special_notes: '',
+    target_time: '',
+    reference: '',
+  });
+
   const skeletonMinTimeRef = useRef(null);
+
+
+
 
   useEffect(() => {
     fetchMeetings();
@@ -639,6 +657,28 @@ export default function Page() {
     
     return addressParts.length > 0 ? addressParts.join(', ') : 'No address provided';
   };
+
+  // Remove filteredMeetings logic, use meetings directly
+  // const filteredMeetings = meetings.filter(m => {
+  //   const nameMatch = searchValue.trim()
+  //     ? (m.name || '').toLowerCase().includes(searchValue.trim().toLowerCase())
+  //     : true;
+  //   let dateMatch = true;
+  //   if (fromDate) {
+  //     const created = new Date(m.createdAt);
+  //     const from = new Date(fromDate);
+  //     from.setHours(0,0,0,0);
+  //     dateMatch = dateMatch && created >= from;
+  //   }
+  //   if (toDate) {
+  //     const created = new Date(m.createdAt);
+  //     const to = new Date(toDate);
+  //     to.setHours(23,59,59,999);
+  //     dateMatch = dateMatch && created <= to;
+  //   }
+  //   return nameMatch && dateMatch;
+  // });
+
   // Calculate pagination
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
@@ -675,6 +715,40 @@ export default function Page() {
     setSelectedMeetings([]); // Clear selections when meetings change
     setSelectAll(false);
   }, [meetings]);
+
+  // Handler for search popup field changes
+  const handleSearchFieldChange = (field, value) => {
+    setSearchFields(prev => ({ ...prev, [field]: value }));
+  };
+
+  // Handler for search button
+  const handleSearchMeetings = async (e) => {
+    if (e) e.preventDefault();
+    // Only send filled fields
+    const params = {};
+    Object.entries(searchFields).forEach(([key, value]) => {
+      if (value && value.trim() !== '') params[key] = value.trim();
+    });
+    setShowSearchModal(false);
+    setLoading(true);
+    try {
+      let response;
+      if (Object.keys(params).length === 0) {
+        // No search fields, show all meetings
+        await fetchMeetings();
+        setLoading(false);
+        return;
+      } else {
+        response = await searchMeetings(params);
+      }
+      const sortedMeetings = (response.data.meetings || []).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      setMeetings(sortedMeetings);
+      setLoading(false);
+    } catch (error) {
+      setLoading(false);
+      toast.error(error?.response?.data?.message || error.message);
+    }
+  };
 
   return (
     <>
@@ -799,7 +873,7 @@ export default function Page() {
                   <DropdownMenuItem><button className='bg-none border-none cursor-pointer' onClick={() => setResetOpen(true)}>Reset Password</button></DropdownMenuItem>
                   <DropdownMenuItem > <button className='bg-none border-none cursor-pointer' onClick={() => setInviteOpen(true)}>Invite Coworkers</button></DropdownMenuItem>
                   <DropdownMenuItem><button className='bg-none border-none cursor-pointer' onClick={() => setMessageOpen(true)}>Amend Message</button></DropdownMenuItem>
-                  <DropdownMenuItem> <button className='bg-none border-none cursor-pointer text-left' onClick={() => setLandlordDialogOpen(true)}>Add Landlord Name/Logo/ <br />Profile Image </button></DropdownMenuItem>
+                  <DropdownMenuItem > <button className='bg-none border-none cursor-pointer text-left' onClick={() => setLandlordDialogOpen(true)}>Add Landlord Name/Logo/ <br />Profile Image </button></DropdownMenuItem>
                   <DropdownMenuItem > <button className='bg-none border-none cursor-pointer' onClick={() => setFaqOpen(true)}>FAQs</button></DropdownMenuItem>
                   <DropdownMenuItem > <button className='bg-none border-none cursor-pointer' onClick={() => setFeedbackOpen(true)}>Give Feedback</button></DropdownMenuItem>
                 </DropdownMenuContent>
@@ -897,10 +971,12 @@ export default function Page() {
                 )}
               </Button>
             </div>
-          </div>          <div className="bg-white p-4 sm:p-5 rounded-xl shadow-md overflow-x-auto mt-6">
+          </div>          {/* Colored Blocks Row */}
+          <div className="bg-white p-4 sm:p-5 rounded-xl shadow-md overflow-x-auto mt-6">
             {/* Gmail-style Header with Actions - Fixed height to prevent layout shift */}
             <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-200 h-12">
-              <div className="flex items-center gap-3">
+              {/* Left: Select All, Selection Info, Bulk Actions */}
+              <div className="flex items-center gap-3 flex-shrink-0">
                 <input
                   type="checkbox"
                   checked={selectAll}
@@ -946,6 +1022,18 @@ export default function Page() {
                     {meetings.length} {meetings.length === 1 ? 'meeting' : 'meetings'}
                   </span>
                 )}
+              </div>
+              {/* Right: Colored Small Boxes (replacing search/date filters) */}
+              <div className="flex items-center gap-2 flex-shrink-0 ml-auto">
+                <div className="flex gap-2">
+                  <div className="w-[70px] h-6 rounded-md bg-sky-400" />
+                  <div className="w-[70px] h-6 rounded-md bg-red-500" />
+                  <div className="w-[70px] h-6 rounded-md bg-green-500" />
+                  <div className="w-[70px] h-6 flex items-center justify-center rounded-md bg-yellow-300 border border-yellow-400 cursor-pointer" onClick={() => setShowSearchModal(true)}>
+                    <Search className="w-4 h-4 mr-1" />
+                    <span className="text-xs font-semibold text-black">Search</span>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -1265,6 +1353,71 @@ export default function Page() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {showSearchModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20">
+          <div className="relative w-full max-w-md p-0 rounded-2xl border border-gray-200 shadow-2xl bg-white overflow-hidden animate-fade-in-up">
+            {/* Top section with title only */}
+            <div className="flex flex-col items-center justify-center pt-6 pb-2 px-6 bg-white rounded-t-2xl">
+              <h2 className="text-xl font-extrabold text-gray-800 drop-shadow mb-1">Search Records</h2>
+              <p className="text-xs text-gray-600 mb-2">Find meetings fast by resident, address, or details</p>
+            </div>
+            <div className="border-t border-b border-gray-100 mx-6" />
+            {/* Form section */}
+            <form className="space-y-3 px-6 py-4" onSubmit={handleSearchMeetings}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div>
+                  <input type="text" value={searchFields.name} onChange={e => handleSearchFieldChange('name', e.target.value)} className="w-full h-11 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-sm bg-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="Resident name" />
+                </div>
+                <div>
+                  <input type="text" value={searchFields.address} onChange={e => handleSearchFieldChange('address', e.target.value)} className="w-full h-11 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-sm bg-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="Address" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <input type="text" value={searchFields.post_code} onChange={e => handleSearchFieldChange('post_code', e.target.value)} className="w-full h-11 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-sm bg-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="Postcode" />
+                </div>
+                <div>
+                  <input type="text" value={searchFields.phone_number} onChange={e => handleSearchFieldChange('phone_number', e.target.value)} className="w-full h-11 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-sm bg-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="Phone number" />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div>
+                  <input type="text" value={searchFields.repair_detail} onChange={e => handleSearchFieldChange('repair_detail', e.target.value)} className="w-full h-11 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-sm bg-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="Repair details" />
+                </div>
+                <div>
+                  <input type="text" value={searchFields.special_notes} onChange={e => handleSearchFieldChange('special_notes', e.target.value)} className="w-full h-11 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-sm bg-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="Special notes" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <input type="text" value={searchFields.reference} onChange={e => handleSearchFieldChange('reference', e.target.value)} className="w-full h-11 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-sm bg-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="Reference" />
+                </div>
+                <div>
+                  {/* Empty for layout symmetry */}
+                </div>
+              </div>
+              <div className="relative">
+                <select value={searchFields.target_time} onChange={e => handleSearchFieldChange('target_time', e.target.value)} className="w-full h-11 border border-gray-300 rounded-xl pl-4 pr-10 py-2 text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none appearance-none shadow-sm">
+                  <option value="">Target Time</option>
+                  <option value="Emergency 24 Hours">Emergency 24 Hours</option>
+                  <option value="Urgent (7 Days)">Urgent (7 Days)</option>
+                  <option value="Routine (28 Days)">Routine (28 Days)</option>
+                  <option value="Follow Up Work">Follow Up Work</option>
+                  <option value="Other">Other</option>
+                </select>
+                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 drop-shadow"><ChevronDown className="w-5 h-5" /></span>
+              </div>
+              <div className="border-t border-gray-100 my-3" />
+              <div className="flex justify-end gap-2 pt-2">
+                <button type="button" className="border border-gray-300 bg-white hover:bg-gray-100 text-gray-700 px-5 py-2 rounded-xl shadow-sm transition-all duration-200 outline-none focus:ring-2 focus:ring-blue-300" onClick={() => { setShowSearchModal(false); setSearchFields({ name: '', address: '', post_code: '', phone_number: '', repair_detail: '', special_notes: '', target_time: '', reference: '' }); fetchMeetings(); }}>Clear</button>
+                <button type="submit" className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-xl shadow-md font-semibold transition-all duration-200 outline-none focus:ring-2 focus:ring-blue-400 active:scale-95"><Search className="w-5 h-5" />Search</button>
+              </div>
+            </form>
+          </div>
+          <style>{`.animate-fade-in-up{animation:fadeInUp .4s cubic-bezier(.39,.575,.565,1) both;}@keyframes fadeInUp{0%{opacity:0;transform:translateY(40px);}100%{opacity:1;transform:translateY(0);}}`}</style>
         </div>
       )}
     </>

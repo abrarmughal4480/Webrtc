@@ -344,10 +344,10 @@ export function Footer() {
         setOpen={setIsCallbackOpen} 
         heading={
           <div className="w-full relative flex items-center justify-center">
-            <h2 className="text-[1.8rem] font-bold text-white">Request a Callback</h2>
+            <h2 className="text-[1.3rem] md:text-[1.8rem] font-bold text-white">Request a Callback</h2>
             <button
               onClick={() => setIsCallbackOpen(false)}
-              className="absolute right-0 text-white hover:text-gray-200 transition-colors p-1 rounded-full hover:bg-white/10"
+              className="absolute right-2 md:right-0 text-white hover:text-gray-200 transition-colors p-1 rounded-full hover:bg-white/10"
               aria-label="Close dialog"
             >
               <X className="w-5 h-5" />
@@ -355,8 +355,102 @@ export function Footer() {
           </div>
         }
       >
-        <div className="max-h-[80vh] overflow-y-auto">
+        <div className="max-h-[73vh] overflow-y-auto pb-3">
           <form className="space-y-6 max-w-lg mx-auto" onSubmit={handleCallbackSubmit}>
+            <div className="flex items-start flex-col gap-3">
+              <label className="text-gray-800 font-semibold text-sm">Best time to call</label>
+              <div className="flex flex-col gap-3 w-full px-4 md:px-8 mx-auto">
+                <label className="flex items-center gap-2 bg-gray-50 p-2 rounded-md">
+                  <input
+                    type="radio"
+                    name="day"
+                    value="today"
+                    checked={callbackFormData.day === 'today'}
+                    onChange={e => setCallbackFormData(prev => ({ ...prev, day: 'today', customDate: '' }))}
+                    className="w-4 h-4 text-purple-600"
+                  />
+                  <span className="text-gray-700 text-sm">Today</span>
+                </label>
+                <label className="flex items-center gap-2 bg-gray-50 p-2 rounded-md">
+                  <input
+                    type="radio"
+                    name="day"
+                    value="tomorrow"
+                    checked={callbackFormData.day === 'tomorrow'}
+                    onChange={e => setCallbackFormData(prev => ({ ...prev, day: 'tomorrow', customDate: '' }))}
+                    className="w-4 h-4 text-purple-600"
+                  />
+                  <span className="text-gray-700 text-sm">Tomorrow</span>
+                </label>
+                <label className="flex items-center gap-2 bg-gray-50 p-2 rounded-md">
+                  <input
+                    type="radio"
+                    name="day"
+                    value="custom"
+                    checked={callbackFormData.day === 'custom'}
+                    onChange={e => setCallbackFormData(prev => ({ ...prev, day: 'custom' }))}
+                    className="w-4 h-4 text-purple-600"
+                  />
+                  <span className="text-gray-700 text-sm">Or pick a date:</span>
+                  <input
+                    type="date"
+                    name="customDate"
+                    value={callbackFormData.customDate}
+                    onChange={e => setCallbackFormData(prev => ({ ...prev, customDate: e.target.value, day: 'custom' }))}
+                    className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:border-purple-500 text-sm"
+                  />
+                </label>
+                <div className="flex flex-col bg-gray-50 p-2 rounded-lg w-full mt-2">
+                  <span className="text-gray-700 text-xs font-medium mb-2">Pick a time</span>
+                  <div className="flex items-center gap-2">
+                    <select
+                      name="customHour"
+                      value={callbackFormData.customHour}
+                      onChange={handleCallbackInputChange}
+                      className="flex-1 px-2 py-2 border border-gray-300 rounded-md focus:outline-none focus:border-purple-500 text-xs bg-white"
+                    >
+                      {Array.from({ length: 12 }, (_, i) => {
+                        const hour = i + 8;
+                        const display = hour.toString().padStart(2, '0');
+                        return (
+                          <option key={hour} value={display}>
+                            {display}
+                          </option>
+                        );
+                      })}
+                    </select>
+                    <select
+                      name="customMinute"
+                      value={callbackFormData.customMinute}
+                      onChange={handleCallbackInputChange}
+                      className="flex-1 px-2 py-2 border border-gray-300 rounded-md focus:outline-none focus:border-purple-500 text-xs bg-white"
+                    >
+                      {Array.from({ length: 60 }, (_, i) => {
+                        const minute = i;
+                        const display = minute.toString().padStart(2, '0');
+                        return (
+                          <option key={minute} value={display}>
+                            {display}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-start flex-col gap-3">
+              <label className="text-gray-800 font-semibold text-sm">Message</label>
+              <textarea
+                name="message"
+                value={callbackFormData.message}
+                onChange={handleCallbackInputChange}
+                placeholder="Enter your message"
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition-all duration-200 bg-white shadow-sm h-24 resize-none"
+              />
+            </div>
+
             <div className="flex items-start flex-col gap-3">
               <label className="text-gray-800 font-semibold text-sm">Your Name *</label>
               <input
@@ -393,168 +487,6 @@ export function Footer() {
                 required
               />
             </div>
-            <div className="flex items-start flex-col gap-4">
-              <label className="text-gray-800 font-semibold text-sm">Best time to call</label>
-              <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-                <div className="flex items-center justify-between w-full mb-4 border-b pb-4">
-                  <span className="text-blue-600 font-medium text-sm">(Select a day)</span>
-                  <div className="flex items-center gap-3 bg-gray-50 p-2 rounded-md">
-                    <p className="text-gray-700 text-sm">Today</p>
-                    <input 
-                      type="radio" 
-                      name="day" 
-                      value="today"
-                      checked={callbackFormData.day === 'today'}
-                      onChange={handleCallbackInputChange}
-                      className="w-4 h-4 text-purple-600" 
-                    />
-                  </div>
-                  <div className="flex items-center gap-3 bg-gray-50 p-2 rounded-md">
-                    <p className="text-gray-700 text-sm">Tomorrow</p>
-                    <input 
-                      type="radio" 
-                      name="day" 
-                      value="tomorrow"
-                      checked={callbackFormData.day === 'tomorrow'}
-                      onChange={handleCallbackInputChange}
-                      className="w-4 h-4 text-purple-600" 
-                    />
-                  </div>
-                  <div className="flex items-start gap-2 flex-col">
-                    <p className="text-gray-700 text-sm">or Pick a date:</p>
-                    <input 
-                      type="date" 
-                      name="customDate"
-                      value={callbackFormData.customDate}
-                      onChange={handleCallbackInputChange}
-                      className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:border-purple-500 text-sm"
-                    />
-                  </div>
-                </div>
-                <div className="flex items-start flex-1 w-full gap-6 pt-2">
-                  <div className="flex items-start gap-4 bg-gray-50 p-3 rounded-lg">
-                    <div className="space-y-2">
-                      <p className="text-gray-700 text-sm font-medium h-6 flex items-center w-20">Morning</p>
-                      <p className="text-gray-700 text-sm font-medium h-6 flex items-center w-20">Lunch time</p>
-                      <p className="text-gray-700 text-sm font-medium h-6 flex items-center w-20">Afternoon</p>
-                      <p className="text-gray-700 text-sm font-medium h-6 flex items-center w-20">Early Evening</p>
-                    </div>
-                    <div className="space-y-2">
-                      <div className="text-gray-600 text-sm h-6 flex items-center">
-                        <span className="w-16 text-left">9.00AM</span>
-                        <span className="w-4">-</span>
-                        <span className="w-16">12 Noon</span>
-                      </div>
-                      <div className="text-gray-600 text-sm h-6 flex items-center">
-                        <span className="w-16 text-left">12 Noon</span>
-                        <span className="w-4">-</span>
-                        <span className="w-16">2.00PM</span>
-                      </div>
-                      <div className="text-gray-600 text-sm h-6 flex items-center">
-                        <span className="w-16 text-left">2.00PM</span>
-                        <span className="w-4">-</span>
-                        <span className="w-16">5.00PM</span>
-                      </div>
-                      <div className="text-gray-600 text-sm h-6 flex items-center">
-                        <span className="w-16 text-left">5.00PM</span>
-                        <span className="w-4">-</span>
-                        <span className="w-16">6.00PM</span>
-                      </div>
-                    </div>
-                    <div className="space-y-2 flex flex-col">
-                      <div className="h-6 flex items-center">
-                        <input 
-                          type="radio" 
-                          name="timeSlot" 
-                          value="morning"
-                          checked={callbackFormData.timeSlot === 'morning'}
-                          onChange={handleCallbackInputChange}
-                          className="w-4 h-4 text-purple-600" 
-                        />
-                      </div>
-                      <div className="h-6 flex items-center">
-                        <input 
-                          type="radio" 
-                          name="timeSlot" 
-                          value="lunch"
-                          checked={callbackFormData.timeSlot === 'lunch'}
-                          onChange={handleCallbackInputChange}
-                          className="w-4 h-4 text-purple-600" 
-                        />
-                      </div>
-                      <div className="h-6 flex items-center">
-                        <input 
-                          type="radio" 
-                          name="timeSlot" 
-                          value="afternoon"
-                          checked={callbackFormData.timeSlot === 'afternoon'}
-                          onChange={handleCallbackInputChange}
-                          className="w-4 h-4 text-purple-600" 
-                        />
-                      </div>
-                      <div className="h-6 flex items-center">
-                        <input 
-                          type="radio" 
-                          name="timeSlot" 
-                          value="evening"
-                          checked={callbackFormData.timeSlot === 'evening'}
-                          onChange={handleCallbackInputChange}
-                          className="w-4 h-4 text-purple-600" 
-                        />
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex-1 flex flex-col bg-gray-50 p-3 rounded-lg">
-                    <p className="text-gray-700 text-sm font-medium mb-2">or Pick a time</p>
-                    <div className="flex items-center gap-2">
-                      <select 
-                        name="customHour"
-                        value={callbackFormData.customHour}
-                        onChange={handleCallbackInputChange}
-                        className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:border-purple-500 text-sm bg-white"
-                      >
-                        {Array.from({ length: 12 }, (_, i) => {
-                          const hour = i + 8;
-                          const display = hour.toString().padStart(2, '0');
-                          return (
-                            <option key={hour} value={display}>
-                              {display}
-                            </option>
-                          );
-                        })}
-                      </select>
-                      <select 
-                        name="customMinute"
-                        value={callbackFormData.customMinute}
-                        onChange={handleCallbackInputChange}
-                        className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:border-purple-500 text-sm bg-white"
-                      >
-                        {Array.from({ length: 60 }, (_, i) => {
-                          const minute = i;
-                          const display = minute.toString().padStart(2, '0');
-                          return (
-                            <option key={minute} value={display}>
-                              {display}
-                            </option>
-                          );
-                        })}
-                      </select>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-start flex-col gap-3">
-              <label className="text-gray-800 font-semibold text-sm">Message</label>
-              <textarea
-                name="message"
-                value={callbackFormData.message}
-                onChange={handleCallbackInputChange}
-                placeholder="Enter your message"
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition-all duration-200 bg-white shadow-sm h-24 resize-none"
-              />
-            </div>
 
             <button
               type="submit"
@@ -573,10 +505,10 @@ export function Footer() {
         setOpen={setISMeetingOpen} 
         heading={
           <div className="w-full relative flex items-center justify-center">
-            <h2 className="text-[1.8rem] font-bold text-white">Book a Demo Meeting</h2>
+            <h2 className="text-[1.3rem] md:text-[1.8rem] font-bold text-white">Book a Demo Meeting</h2>
             <button
               onClick={() => setISMeetingOpen(false)}
-              className="absolute right-0 text-white hover:text-gray-200 transition-colors p-1 rounded-full hover:bg-white/10"
+              className="absolute right-2 md:right-0 text-white hover:text-gray-200 transition-colors p-1 rounded-full hover:bg-white/10"
               aria-label="Close dialog"
             >
               <X className="w-5 h-5" />
@@ -584,7 +516,7 @@ export function Footer() {
           </div>
         }
       >
-        <div className="max-h-[80vh] overflow-y-auto">
+        <div className="max-h-[73vh] overflow-y-auto pb-3">
           <form className="space-y-6 max-w-lg mx-auto" onSubmit={handleMeetingSubmit}>
             <div className="flex items-start flex-col gap-3">
               <label className="text-gray-800 font-semibold text-sm">Your Name *</label>

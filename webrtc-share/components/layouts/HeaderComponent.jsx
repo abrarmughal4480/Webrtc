@@ -396,7 +396,7 @@ const handleLogout = async () => {
         <div className="mx-auto px-4 md:px-10 py-4 flex items-center justify-between h-full">
           <div className="flex flex-col items-center">
             <div className="flex items-center">
-              <img src="/device-icons.png" alt="Videodesk" className="w-24 md:w-32 mr-2" />
+              <img src="/devices.svg" alt="Videodesk" className="w-24 md:w-32 mr-2" />
             </div>
             <span className="text-2xl md:text-4xl font-bold text-gray-900">Videodesk</span>
           </div>
@@ -827,7 +827,7 @@ const handleLogout = async () => {
 
             <div className='flex items-center gap-2 justify-center'>
               <p className='text-md'>Remember your password?</p>
-              <button className='border-none bg-none text-blue-500 text-md cursor-pointer' type='button' onClick={() => { setIsForgotOpen(false); setSignInOpen(true) }}>Sign In</button>
+              <button className='class="border-none bg-none !text-blue-500 text-md cursor-pointer"' type='button' onClick={() => { setIsForgotOpen(false); setSignInOpen(true) }}>Sign In</button>
             </div>
           </form>
         </div>

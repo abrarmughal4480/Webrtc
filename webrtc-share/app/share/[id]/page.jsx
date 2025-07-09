@@ -4,10 +4,14 @@ import { VideoIcon, PlayIcon, Minimize2, Expand, ZoomIn, ZoomOut, ChevronDown, C
 import { getMeetingForShare, recordVisitorAccessRequest } from "@/http/meetingHttp"
 import { useDialog } from "@/provider/DilogsProvider"
 import { toast } from "sonner"
+import { useUser } from "@/provider/UserProvider"
 
 export default function SharePage({ params }) {
   const { id } = use(params);
-  const { openVisitorAccessModal } = useDialog();
+  const { openVisitorAccessModal, closeVisitorAccessModal } = useDialog();
+  const { user, isAuth, loading: userLoading } = useUser();
+  const [accessGranted, setAccessGranted] = useState(false);
+  console.log("Initial states", { userLoading, isAuth, accessGranted });
   
   const [targetTime, setTargetTime] = useState("Emergency 24 Hours")
   const [residentName, setResidentName] = useState("")
@@ -29,7 +33,6 @@ export default function SharePage({ params }) {
   const [recordings, setRecordings] = useState([]);
   const [screenshots, setScreenshots] = useState([]);
   const [playingVideos, setPlayingVideos] = useState(new Set());
-  const [accessGranted, setAccessGranted] = useState(false);
   
   // Add new states for individual item expansion
   const [expandedVideos, setExpandedVideos] = useState(new Set());
@@ -47,6 +50,12 @@ export default function SharePage({ params }) {
   });
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
 
+  // Add a state to track if the user is the creator
+  const [isCreator, setIsCreator] = useState(false);
+
+  // Add a ref to prevent duplicate logging
+  const creatorAccessLogged = useRef(false);
+
   // Format recording duration
   const formatRecordingTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
@@ -56,27 +65,66 @@ export default function SharePage({ params }) {
 
   // Function to handle visitor access - always grant access after submission
   const handleVisitorAccess = async (visitorData) => {
+    console.log("handleVisitorAccess called", visitorData);
     try {
       console.log(`🔐 Recording visitor access for meeting: ${id}`);
       const response = await recordVisitorAccessRequest(id, visitorData);
 
       if (response.success) {
         setAccessGranted(true);
+        if (typeof closeVisitorAccessModal === 'function') closeVisitorAccessModal();
         console.log(`✅ Visitor access recorded successfully for meeting: ${id}`);
-        await fetchMeetingData();
+        // Fetch meeting data for non-creators after visitor access
+        setIsLoadingMeetingData(true);
+        const meetingResp = await getMeetingForShare(id);
+        if (meetingResp.success && meetingResp.meeting) {
+          const meetingData = meetingResp.meeting;
+          setMeetingData(meetingData);
+          setResidentName(meetingData.name || "");
+          setResidentAddress(meetingData.address || "");
+          setAddressLine1(meetingData.address_line_1 || "");
+          setAddressLine2(meetingData.address_line_2 || "");
+          setAddressLine3(meetingData.address_line_3 || "");
+          setAdditionalAddressLines(meetingData.additional_address_lines || []);
+          setPostCode(meetingData.post_code || "");
+          setPhoneNumber(meetingData.phone_number || "");
+          setRef(meetingData.reference || meetingData.ref || "");
+          setRepairDetails(meetingData.repair_detail || "");
+          setWorkDetails(meetingData.work_details || []);
+          setSpecialNotes(meetingData.special_notes || "");
+          setTargetTime(meetingData.target_time || "Emergency 24 Hours");
+          if (meetingData.recordings && meetingData.recordings.length > 0) {
+            const recordingsData = meetingData.recordings.map(rec => ({
+              id: rec._id || Date.now() + Math.random(),
+              url: rec.url,
+              timestamp: new Date(rec.timestamp).toLocaleString(),
+              duration: rec.duration || 0
+            }));
+            setRecordings(recordingsData);
+          }
+          if (meetingData.screenshots && meetingData.screenshots.length > 0) {
+            const screenshotsData = meetingData.screenshots.map(screenshot => ({
+              id: screenshot._id || Date.now() + Math.random(),
+              url: screenshot.url,
+              timestamp: new Date(screenshot.timestamp).toLocaleString()
+            }));
+            setScreenshots(screenshotsData);
+          }
+        }
+        setIsLoadingMeetingData(false);
       } else {
         throw new Error(response.message || 'Failed to record access');
       }
     } catch (error) {
+      setIsLoadingMeetingData(false);
       console.error('❌ Failed to record visitor access:', error);
       throw error;
     }
   };
 
-  // Fetch meeting data when component mounts
-  const fetchMeetingData = async () => {
+  // Fetch meeting data and check creator
+  const fetchMeetingDataAndCheckCreator = async () => {
     if (!id) return;
-    
     setIsLoadingMeetingData(true);
     try {
       console.log(`🔍 Fetching meeting data for share ID: ${id}`);
@@ -124,6 +172,20 @@ export default function SharePage({ params }) {
         
         setMeetingData(meetingData);
         
+        // Check if current user is creator
+        if (
+          isAuth && user && meetingData && (
+            (meetingData.owner && user._id && meetingData.owner.toString() === user._id.toString()) ||
+            (meetingData.userId && user._id && meetingData.userId.toString() === user._id.toString()) ||
+            (meetingData.created_by && user._id && meetingData.created_by.toString() === user._id.toString())
+          )
+        ) {
+          setIsCreator(true);
+          setAccessGranted(true);
+        } else {
+          setIsCreator(false);
+        }
+
         toast.success("Meeting data loaded successfully!", {
           description: `Found ${meetingData.recordings?.length || 0} recordings and ${meetingData.screenshots?.length || 0} screenshots`
         });
@@ -278,22 +340,130 @@ export default function SharePage({ params }) {
     return name.charAt(0).toUpperCase();
   };
 
+  // Effect: For unauthenticated users, open visitor modal after userLoading is false
   useEffect(() => {
-    if (!id) return;
-    
-    // Extract landlord info from URL first
+    if (userLoading) return;
+    if (!isAuth && !accessGranted) {
+      openVisitorAccessModal(handleVisitorAccess);
+    }
+    // eslint-disable-next-line
+  }, [userLoading, isAuth, accessGranted]);
+
+  // Effect: Close visitor modal when access is granted
+  useEffect(() => {
+    if (accessGranted && typeof closeVisitorAccessModal === 'function') {
+      closeVisitorAccessModal();
+    }
+  }, [accessGranted, closeVisitorAccessModal]);
+
+  // Effect: Force-close visitor modal if user becomes authenticated (creator)
+  useEffect(() => {
+    if (isAuth && typeof closeVisitorAccessModal === 'function') {
+      closeVisitorAccessModal();
+    }
+  }, [isAuth, closeVisitorAccessModal]);
+
+  // Main effect: after user loads, only fetch meeting data if user is creator
+  useEffect(() => {
+    if (userLoading || !id) return;
+    if (!(isAuth && user)) return; // Only run for authenticated users
+    (async () => {
+      setIsLoadingMeetingData(true);
+      try {
+        const response = await getMeetingForShare(id);
+        if (response.success && response.meeting) {
+          const meetingData = response.meeting;
+          // Check if user is creator
+          if (
+            isAuth && user && (
+              (meetingData.owner && user._id && meetingData.owner.toString() === user._id.toString()) ||
+              (meetingData.userId && user._id && meetingData.userId.toString() === user._id.toString()) ||
+              (meetingData.created_by && user._id && meetingData.created_by.toString() === user._id.toString())
+            )
+          ) {
+            setIsCreator(true);
+            setAccessGranted(true);
+            setMeetingData(meetingData);
+            // Populate all fields as before
+            setResidentName(meetingData.name || "");
+            setResidentAddress(meetingData.address || "");
+            setAddressLine1(meetingData.address_line_1 || "");
+            setAddressLine2(meetingData.address_line_2 || "");
+            setAddressLine3(meetingData.address_line_3 || "");
+            setAdditionalAddressLines(meetingData.additional_address_lines || []);
+            setPostCode(meetingData.post_code || "");
+            setPhoneNumber(meetingData.phone_number || "");
+            setRef(meetingData.reference || meetingData.ref || "");
+            setRepairDetails(meetingData.repair_detail || "");
+            setWorkDetails(meetingData.work_details || []);
+            setSpecialNotes(meetingData.special_notes || "");
+            setTargetTime(meetingData.target_time || "Emergency 24 Hours");
+            if (meetingData.recordings && meetingData.recordings.length > 0) {
+              const recordingsData = meetingData.recordings.map(rec => ({
+                id: rec._id || Date.now() + Math.random(),
+                url: rec.url,
+                timestamp: new Date(rec.timestamp).toLocaleString(),
+                duration: rec.duration || 0
+              }));
+              setRecordings(recordingsData);
+            }
+            if (meetingData.screenshots && meetingData.screenshots.length > 0) {
+              const screenshotsData = meetingData.screenshots.map(screenshot => ({
+                id: screenshot._id || Date.now() + Math.random(),
+                url: screenshot.url,
+                timestamp: new Date(screenshot.timestamp).toLocaleString()
+              }));
+              setScreenshots(screenshotsData);
+            }
+          } else {
+            setIsCreator(false);
+          }
+        } else {
+          setIsLoadingMeetingData(false);
+          toast.error("Failed to load meeting data", {
+            description: response.message || 'Unknown error'
+          });
+        }
+      } catch (error) {
+        setIsLoadingMeetingData(false);
+        toast.error("Failed to load meeting data", {
+          description: error?.response?.data?.message || error.message
+        });
+      }
+    })();
+    // eslint-disable-next-line
+  }, [userLoading, isAuth, user, id]);
+
+  // Only show visitor modal if not creator and userLoading is false
+  useEffect(() => {
+    if (!id || isCreator || userLoading) return;
     extractLandlordInfoFromUrl();
-    
-    // ============ NO CACHE - ALWAYS SHOW MODAL ============
-    console.log(`🔐 Always showing visitor access modal for meeting ${id}...`);
     const timeout = setTimeout(() => {
       openVisitorAccessModal(handleVisitorAccess);
-    }, 100); // 100ms delay to ensure provider is mounted
+    }, 100);
     return () => clearTimeout(timeout);
-  }, [id]);
+  }, [id, isCreator, userLoading]);
 
-  // Show loading while waiting for access or loading data
-  if (!accessGranted || isLoadingMeetingData) {
+  // Effect: Log creator access if needed
+  useEffect(() => {
+    if (
+      isCreator && user && id && !creatorAccessLogged.current
+    ) {
+      // Send creator access log
+      recordVisitorAccessRequest(id, {
+        creator: true,
+        visitor_name: user.name || 'You',
+        visitor_email: user.email || 'creator@system'
+      }).then(() => {
+        creatorAccessLogged.current = true;
+      }).catch(() => {
+        // Ignore errors
+      });
+    }
+  }, [isCreator, user, id]);
+
+  // Loader logic: only show loader if not creator
+  if ((!accessGranted || isLoadingMeetingData) && !isCreator) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
         <div className="max-w-6xl mx-auto p-6 py-12">

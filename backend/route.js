@@ -2,7 +2,7 @@ import express from 'express';
 const router = express.Router();
 import {changePassword, loadme, login, logout, register, updateUser,forgotPassword,resetPassword, verify, sendFriendLink, resetPasswordFromDashboard, sendFeedback, raiseSupportTicket, updateUserLogo, updateLandlordInfo, bookDemoMeeting, requestCallback, updateMessageSettings, getMessageSettings} from './controllers/authController.js';
 import {isAuthenticate} from "./middlewares/auth.js"
-import { create, getAllMeetings, getMeetingById, updateMeeting, deleteMeeting, getMeetingForShare, getMeetingByMeetingId, deleteRecording, deleteScreenshot, archiveMeeting, unarchiveMeeting, getArchivedCount, recordVisitorAccess, restoreMeeting, permanentDeleteMeeting } from './controllers/meetingController.js';
+import { create, getAllMeetings, getMeetingById, updateMeeting, deleteMeeting, getMeetingForShare, getMeetingByMeetingId, deleteRecording, deleteScreenshot, archiveMeeting, unarchiveMeeting, getArchivedCount, recordVisitorAccess, restoreMeeting, permanentDeleteMeeting, searchMeetings } from './controllers/meetingController.js';
 import { getUserRoomInfo } from './controllers/userRoomInfoController.js';
 
 // auth routes
@@ -30,6 +30,7 @@ router.route('/book-demo-meeting').post(bookDemoMeeting);
 router.route('/meetings/create').post(isAuthenticate, create);
 router.route('/meetings/all').get(isAuthenticate, getAllMeetings);
 router.route('/meetings/archived-count').get(isAuthenticate, getArchivedCount);
+router.route('/meetings/search').post(isAuthenticate, searchMeetings);
 router.route('/meetings/:id').get(isAuthenticate, getMeetingById);
 router.route('/meetings/:id').put(isAuthenticate, updateMeeting);
 router.route('/meetings/:id').delete(isAuthenticate, deleteMeeting);

@@ -18,7 +18,7 @@ const CustomDialog = ({open,setOpen,children,heading}) => {
                         )}
                     </div>
                 </DialogHeader>
-                <div className='overflow-y-auto mt-[4rem] p-2 pt-6'>
+                <div className='overflow-y-auto mt-[4rem] p-2 pt-6 max-h-[80vh]'>
                     {children}
                 </div>
             </DialogContent>

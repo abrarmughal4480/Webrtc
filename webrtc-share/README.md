@@ -1,22 +1,48 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+# WebRTC Frontend
 
-## Getting Started
+## Overview
+This is the frontend for the WebRTC application, built with Next.js and React. It provides the user interface for meetings, authentication, and sharing features.
 
-First, run the development server:
+## Structure
+- `app/`: Next.js app directory (routes, pages, layouts).
+- `components/`: Reusable React components (dialogs, UI, layouts, sections, etc.).
+- `hooks/`: Custom React hooks (WebRTC, mobile detection, etc.).
+- `http/`: API request logic (auth, meetings, etc.).
+- `lib/`: Utility functions for the frontend.
+- `provider/`: React context providers (dialogs, user state, etc.).
+- `public/`: Static assets (images, icons, etc.).
+- `utils/`: Frontend utility functions (cookies, MongoDB ID validation, etc.).
+- `package.json`: Frontend dependencies and scripts.
+- `next.config.mjs`: Next.js configuration.
+- `postcss.config.mjs`: PostCSS configuration for styling.
+- `eslint.config.mjs`: ESLint configuration for code quality.
+- `jsconfig.json`: JS/TS path aliases and config.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## Technologies
+- Next.js (React framework)
+- React (UI library)
+- Socket.io-client (real-time communication)
+- Axios or fetch (API requests)
+- Tailwind CSS or similar (styling)
+- Context API (state management)
+- Custom hooks (WebRTC, device detection, etc.)
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Project Flow
+1. User navigates to a page (e.g., dashboard, room, share).
+2. Components render UI and use hooks for logic (e.g., WebRTC).
+3. HTTP layer communicates with the backend for data.
+4. Providers manage global state (user, dialogs).
+5. Socket.io-client connects to backend for real-time features.
 
-You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
+## Setup
+1. Install dependencies:
+   ```bash
+   npm install
+   ```
+2. Start the development server:
+   ```bash
+   npm run dev
+   ```
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 

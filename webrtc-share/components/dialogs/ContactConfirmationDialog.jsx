@@ -11,7 +11,7 @@ export default function ContactConfirmationDialog({
   phone = "",
   email = "",
   isLoading = false,
-  title = "Confirm Contact Details",
+  title = "Confirm Correct Details",
   description = "Please confirm the contact details before sending the video link",
   confirmText = "Send Link",
   editText = "Edit",

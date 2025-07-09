@@ -926,6 +926,26 @@ export const getMeetingForShare = catchAsyncError(async (req, res, next) => {
         return next(new ErrorHandler("Meeting not found", 404));
     }
 
+    // Log creator access if the user is the creator/owner
+    if (req.user && (
+        (meeting.owner && meeting.owner.toString() === req.user._id.toString()) ||
+        (meeting.userId && meeting.userId.toString() === req.user._id.toString()) ||
+        (meeting.created_by && meeting.created_by.toString() === req.user._id.toString())
+    )) {
+        const ip_address = req.ip || req.connection?.remoteAddress || req.socket?.remoteAddress || (req.connection?.socket ? req.connection.socket.remoteAddress : null);
+        const user_agent = req.get ? req.get('User-Agent') : (req.headers['user-agent'] || 'Unknown');
+        meeting.access_history.push({
+            visitor_name: 'You',
+            visitor_email: req.user.email || 'creator@system',
+            access_time: new Date(),
+            ip_address,
+            user_agent,
+            creator: true
+        });
+        meeting.total_access_count = (meeting.total_access_count || 0) + 1;
+        await meeting.save();
+    }
+
     const shareData = {
         meeting_id: meeting.meeting_id,
         name: meeting.name,
@@ -948,7 +968,10 @@ export const getMeetingForShare = catchAsyncError(async (req, res, next) => {
         total_recordings: meeting.total_recordings,
         total_screenshots: meeting.total_screenshots,
         total_access_count: meeting.total_access_count || 0,
-        access_history: meeting.access_history || []
+        access_history: meeting.access_history || [],
+        owner: meeting.owner,
+        userId: meeting.userId,
+        created_by: meeting.created_by
     };
 
     res.status(200).json({
@@ -959,13 +982,71 @@ export const getMeetingForShare = catchAsyncError(async (req, res, next) => {
 });
 
 export const recordVisitorAccess = catchAsyncError(async (req, res, next) => {
-    const { visitor_name, visitor_email } = req.body;
+    const { visitor_name, visitor_email, creator } = req.body;
     const meetingId = req.params.id;
 
     console.log(`👤 Recording visitor access for meeting: ${meetingId}`, {
         visitor_name,
-        visitor_email
+        visitor_email,
+        creator
     });
+
+    // If creator flag is set, auto-log as creator
+    if (creator === true || creator === 'true') {
+        const meeting = await MeetingModel.findOne({
+            meeting_id: meetingId
+        });
+
+        if (!meeting) {
+            return next(new ErrorHandler("Meeting not found", 404));
+        }
+
+        const ip_address = req.ip || req.connection.remoteAddress || req.socket.remoteAddress ||
+            (req.connection.socket ? req.connection.socket.remoteAddress : null);
+        const user_agent = req.get('User-Agent') || 'Unknown';
+
+        const creatorAccess = {
+            visitor_name: visitor_name || 'You',
+            visitor_email: visitor_email || 'creator@system',
+            access_time: new Date(),
+            ip_address: ip_address,
+            user_agent: user_agent,
+            creator: true
+        };
+
+        if (!meeting.access_history) {
+            meeting.access_history = [];
+        }
+
+        meeting.access_history.push(creatorAccess);
+        meeting.total_access_count = (meeting.total_access_count || 0) + 1;
+
+        // Keep only last 24 hours
+        const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        meeting.access_history = meeting.access_history.filter(access =>
+            access.access_time > twentyFourHoursAgo
+        );
+
+        await meeting.save();
+
+        console.log(`✅ Creator access recorded:`, {
+            meeting_id: meetingId,
+            visitor: creatorAccess.visitor_name,
+            email: creatorAccess.visitor_email,
+            total_access: meeting.total_access_count
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: "Creator access recorded successfully",
+            access_count: meeting.total_access_count,
+            visitor_info: {
+                name: creatorAccess.visitor_name,
+                email: creatorAccess.visitor_email,
+                access_time: creatorAccess.access_time
+            }
+        });
+    }
 
     if (!visitor_name || !visitor_email) {
         return next(new ErrorHandler("Visitor name and email are required", 400));
@@ -1320,6 +1401,92 @@ export const permanentDeleteMeeting = catchAsyncError(async (req, res, next) => 
     res.status(200).json({
         success: true,
         message: "Meeting permanently deleted (including S3 files)"
+    });
+});
+
+// --- SEARCH MEETINGS ENDPOINT ---
+export const searchMeetings = catchAsyncError(async (req, res, next) => {
+    const user_id = req.user._id;
+    const {
+        name,
+        address,
+        address_line_1,
+        address_line_2,
+        address_line_3,
+        additional_address_lines,
+        post_code,
+        phone_number,
+        reference,
+        repair_detail,
+        special_notes,
+        target_time,
+        work_details_target_time,
+        ref // support ref as alias for reference
+    } = req.body;
+
+    // Build dynamic filter
+    const filter = {
+        $and: [
+            {
+                $or: [
+                    { owner: user_id },
+                    { userId: user_id },
+                    { created_by: user_id }
+                ]
+            }
+        ]
+    };
+
+    if (name) filter.$and.push({ name: { $regex: name, $options: 'i' } });
+    if (address) {
+        // Search across all address fields
+        filter.$and.push({
+            $or: [
+                { address: { $regex: address, $options: 'i' } },
+                { address_line_1: { $regex: address, $options: 'i' } },
+                { address_line_2: { $regex: address, $options: 'i' } },
+                { address_line_3: { $regex: address, $options: 'i' } },
+                { additional_address_lines: { $elemMatch: { $regex: address, $options: 'i' } } }
+            ]
+        });
+    }
+    if (address_line_1) filter.$and.push({ address_line_1: { $regex: address_line_1, $options: 'i' } });
+    if (address_line_2) filter.$and.push({ address_line_2: { $regex: address_line_2, $options: 'i' } });
+    if (address_line_3) filter.$and.push({ address_line_3: { $regex: address_line_3, $options: 'i' } });
+    if (Array.isArray(additional_address_lines) && additional_address_lines.length > 0) {
+        filter.$and.push({ additional_address_lines: { $in: additional_address_lines.filter(Boolean) } });
+    }
+    if (post_code) filter.$and.push({ post_code: { $regex: post_code, $options: 'i' } });
+    if (phone_number) filter.$and.push({ phone_number: { $regex: phone_number, $options: 'i' } });
+    if (reference) filter.$and.push({ reference: { $regex: reference, $options: 'i' } });
+    if (ref) filter.$and.push({ reference: { $regex: ref, $options: 'i' } });
+    if (repair_detail) filter.$and.push({ repair_detail: { $regex: repair_detail, $options: 'i' } });
+    if (special_notes) filter.$and.push({ special_notes: { $regex: special_notes, $options: 'i' } });
+    if (target_time) {
+        // Search both top-level and inside work_details array
+        filter.$and.push({ $or: [
+            { target_time: { $regex: target_time, $options: 'i' } },
+            { 'work_details.target_time': { $regex: target_time, $options: 'i' } }
+        ] });
+    }
+    if (work_details_target_time) {
+        filter.$and.push({ 'work_details.target_time': { $regex: work_details_target_time, $options: 'i' } });
+    }
+
+    // Remove $and if only user filter present (no search fields)
+    if (filter.$and.length === 1) delete filter.$and;
+
+    const meetings = await MeetingModel.find(filter)
+        .populate('created_by', 'email')
+        .populate('last_updated_by', 'email')
+        .populate('archivedBy', 'email');
+
+    res.status(200).json({
+        success: true,
+        meetings,
+        total_meetings: meetings.length,
+        user_id: user_id,
+        filter: 'search'
     });
 });
 

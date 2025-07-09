@@ -11,7 +11,9 @@ import {fileURLToPath} from 'url';
 import { generateOTP } from '../utils/generateOTP.js';
 import { sendMail } from '../services/mailService.js';
 import { v2 as cloudinary } from 'cloudinary';
-    
+import { S3Client, DeleteObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
+import { Upload } from '@aws-sdk/lib-storage';
+
 // Configure cloudinary
 cloudinary.config({
     cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -20,6 +22,158 @@ cloudinary.config({
 });
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
+
+// S3 SETUP (copied from meetingController.js)
+const s3Client = new S3Client({
+    region: process.env.AWS_REGION || 'ap-southeast-2',
+    credentials: {
+        accessKeyId: process.env.S3_ACCESS_KEY,
+        secretAccessKey: process.env.S3_SECRET_ACCESS_KEY,
+    },
+    maxAttempts: parseInt(process.env.S3_MAX_RETRIES) || 3,
+    retryMode: 'adaptive',
+    forcePathStyle: false,
+    requestHandler: {
+        connectionTimeout: parseInt(process.env.S3_CONNECTION_TIMEOUT) || 3000,
+        socketTimeout: parseInt(process.env.S3_SOCKET_TIMEOUT) || 120000,
+        http2: true,
+    },
+    endpoint: process.env.S3_USE_ACCELERATE === 'true' 
+        ? `https://s3-accelerate.amazonaws.com` 
+        : undefined,
+});
+
+const S3_CONFIG = {
+    bucket: process.env.S3_BUCKET_NAME,
+    partSize: parseInt(process.env.S3_PART_SIZE) || 16 * 1024 * 1024,
+    queueSize: parseInt(process.env.S3_QUEUE_SIZE) || 6,
+    leavePartsOnError: false,
+    useAccelerateEndpoint: process.env.S3_USE_ACCELERATE === 'true',
+    storageClass: process.env.S3_STORAGE_CLASS || 'STANDARD',
+    enableDelete: process.env.S3_ENABLE_DELETE !== 'false',
+};
+
+const generateUniqueFileName = (prefix, userId, extension) => {
+    const timestamp = Date.now();
+    const randomString = crypto.randomBytes(8).toString('hex');
+    return `${prefix}/${userId}/${timestamp}_${randomString}.${extension}`;
+};
+
+const uploadToS3 = async (data, options) => {
+    // data: base64 string with header (e.g., data:image/png;base64,... or data:application/pdf;base64,...)
+    let buffer, contentType, fileExtension;
+
+    // Extract MIME type and extension from base64 header
+    const matches = data.match(/^data:(.+);base64,(.*)$/);
+    if (!matches) throw new Error('Invalid base64 file data');
+    contentType = matches[1];
+    const base64Data = matches[2];
+    buffer = Buffer.from(base64Data, 'base64');
+
+    // Guess extension from MIME type if not provided
+    if (options.extension) {
+        fileExtension = options.extension;
+    } else {
+        const mimeToExt = {
+            'image/png': 'png',
+            'image/jpeg': 'jpg',
+            'image/jpg': 'jpg',
+            'image/svg+xml': 'svg',
+            'application/pdf': 'pdf',
+            'application/msword': 'doc',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+            'application/vnd.ms-excel': 'xls',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+        };
+        fileExtension = mimeToExt[contentType] || contentType.split('/')[1];
+    }
+
+    const fileKey = generateUniqueFileName(options.folder || 'uploads', options.userId, fileExtension);
+
+    // Use single-part upload for files < 5MB
+    if (buffer.length < 5 * 1024 * 1024) {
+        const putCommand = new PutObjectCommand({
+            Bucket: S3_CONFIG.bucket,
+            Key: fileKey,
+            Body: buffer,
+            ContentType: contentType,
+            StorageClass: S3_CONFIG.storageClass,
+            ServerSideEncryption: 'AES256',
+            CacheControl: 'public, max-age=31536000, immutable',
+            ContentDisposition: 'inline',
+            Metadata: {
+                'uploaded-by': options.userId.toString(),
+                'upload-timestamp': Date.now().toString(),
+                'file-type': options.fileType || fileExtension,
+                'upload-method': 'single-part'
+            },
+            Tagging: `Environment=${process.env.NODE_ENV || 'development'}&Service=videodesk&Type=${options.fileType || fileExtension}`
+        });
+        const result = await s3Client.send(putCommand);
+        const region = process.env.AWS_REGION || 'ap-southeast-2';
+        const url = `https://${S3_CONFIG.bucket}.s3.${region}.amazonaws.com/${fileKey}`;
+        return {
+            secure_url: url,
+            public_id: fileKey,
+            bytes: buffer.length,
+            etag: result.ETag,
+            key: fileKey
+        };
+    }
+
+    // For larger files, use multipart upload with 5MB part size
+    const upload = new Upload({
+        client: s3Client,
+        params: {
+            Bucket: S3_CONFIG.bucket,
+            Key: fileKey,
+            Body: buffer,
+            ContentType: contentType,
+            StorageClass: S3_CONFIG.storageClass,
+            ServerSideEncryption: 'AES256',
+            CacheControl: 'public, max-age=31536000, immutable',
+            ContentDisposition: 'inline',
+            Metadata: {
+                'uploaded-by': options.userId.toString(),
+                'upload-timestamp': Date.now().toString(),
+                'file-type': options.fileType || fileExtension,
+                'upload-method': 'multipart-optimized'
+            },
+            Tagging: `Environment=${process.env.NODE_ENV || 'development'}&Service=videodesk&Type=${options.fileType || fileExtension}`
+        },
+        partSize: 5 * 1024 * 1024, // 5MB for faster multipart
+        queueSize: S3_CONFIG.queueSize,
+        leavePartsOnError: S3_CONFIG.leavePartsOnError,
+    });
+    const result = await upload.done();
+    return {
+        secure_url: result.Location,
+        public_id: fileKey,
+        bytes: buffer.length,
+        etag: result.ETag,
+        key: fileKey
+    };
+};
+
+const deleteFromS3WithRetry = async (fileKey, retries = 3) => {
+    if (!S3_CONFIG.enableDelete) {
+        return { deleted: false, fileKey, reason: 'DeleteDisabled', message: 'S3 delete disabled in configuration', canRetry: false };
+    }
+    for (let attempt = 1; attempt <= retries; attempt++) {
+        try {
+            const deleteCommand = new DeleteObjectCommand({
+                Bucket: S3_CONFIG.bucket,
+                Key: fileKey
+            });
+            await s3Client.send(deleteCommand);
+            return { deleted: true, fileKey, message: 'Successfully deleted from S3' };
+        } catch (error) {
+            if (attempt === retries) {
+                return { deleted: false, fileKey, reason: error.code || 'UnknownError', message: error.message, canRetry: true };
+            }
+        }
+    }
+};
 
 // Function to get the logo HTML for email templates
 const getLogoSvg = () => {
@@ -770,74 +924,47 @@ export const bookDemoMeeting = catchAsyncError(async (req, res, next) => {
 // Update user logo
 export const updateUserLogo = catchAsyncError(async (req, res, next) => {
     const { logoData } = req.body;
-    
     if (!logoData) {
         return next(new ErrorHandler("Logo data is required", 400));
     }
-    
     try {
         // Get user's current logo URL to delete old one
         const currentUser = await UserModel.findById(req.user._id);
         const oldLogoUrl = currentUser.logo;
-        
-        // If user has an existing logo, delete it from Cloudinary
+        // If user has an existing logo, delete it from S3
         if (oldLogoUrl) {
-            try {
-                // Extract public_id from the URL
-                const urlParts = oldLogoUrl.split('/');
-                const fileNameWithExtension = urlParts[urlParts.length - 1];
-                const publicId = `videodesk_logos/${fileNameWithExtension.split('.')[0]}`;
-                
-                console.log('🗑️  Attempting to delete old logo from Cloudinary...');
-                console.log('Old logo URL:', oldLogoUrl);
-                console.log('Extracted public_id:', publicId);
-                
-                const deleteResult = await cloudinary.uploader.destroy(publicId);
-                
-                if (deleteResult.result === 'ok') {
-                    console.log('✅ Old logo deleted successfully from Cloudinary');
-                } else {
-                    console.log('⚠️  Old logo deletion result:', deleteResult);
-                }
-            } catch (deleteError) {
-                console.error('❌ Error deleting old logo from Cloudinary:', deleteError);
-                // Continue with upload even if deletion fails
+            // Extract S3 key from URL
+            const urlParts = oldLogoUrl.split('/');
+            const keyIndex = urlParts.findIndex(part => part === S3_CONFIG.bucket);
+            let fileKey = null;
+            if (keyIndex !== -1) {
+                fileKey = urlParts.slice(keyIndex + 1).join('/');
             }
-        } else {
-            console.log('ℹ️  No existing logo found to delete');
+            if (fileKey) {
+                await deleteFromS3WithRetry(fileKey);
+            }
         }
-        
-        console.log('📤 Uploading new logo to Cloudinary...');
-        
-        // Upload new logo to cloudinary
-        const uploadResult = await cloudinary.uploader.upload(logoData, {
+        // Upload new logo to S3
+        const uploadResult = await uploadToS3(logoData, {
             folder: 'videodesk_logos',
-            public_id: `logo_${req.user._id}_${Date.now()}`,
-            overwrite: true,
-            resource_type: 'auto'
+            userId: req.user._id,
+            fileType: 'image',
+            contentType: 'image/png',
+            extension: 'png'
         });
-        
-        console.log('✅ New logo uploaded successfully to Cloudinary');
-        console.log('New logo URL:', uploadResult.secure_url);
-        
         // Update user with new logo URL
         const user = await UserModel.findByIdAndUpdate(
             req.user._id, 
             { logo: uploadResult.secure_url },
             { new: true }
         );
-        
-        console.log('✅ User logo URL updated in database');
-        
         res.status(200).json({
             success: true,
             message: "Logo updated successfully",
             logoUrl: uploadResult.secure_url,
             user
         });
-        
     } catch (error) {
-        console.error('❌ Cloudinary upload error:', error);
         return next(new ErrorHandler("Failed to upload logo", 500));
     }
 });
@@ -845,131 +972,140 @@ export const updateUserLogo = catchAsyncError(async (req, res, next) => {
 // Update landlord information
 export const updateLandlordInfo = catchAsyncError(async (req, res, next) => {
     const { type, logoData, imageData, landlordName, landlordLogo, officerImage, useLandlordLogoAsProfile, profileShape, redirectUrlDefault, redirectUrlTailored } = req.body;
-    
     const user = await UserModel.findById(req.user._id);
-    
     if (type === 'landlordLogo') {
-        console.log('📤 Processing landlord logo upload...');
-        
         try {
-            // Delete old landlord logo from Cloudinary if exists
+            // Delete old landlord logo from S3 if exists
             if (user.landlordInfo?.landlordLogo) {
-                const oldPublicId = user.landlordInfo.landlordLogo.split('/').pop().split('.')[0];
-                console.log('🗑️ Deleting old landlord logo:', oldPublicId);
-                await cloudinary.uploader.destroy(`landlord_logos/${oldPublicId}`);
+                const oldLogoUrl = user.landlordInfo.landlordLogo;
+                const urlParts = oldLogoUrl.split('/');
+                const keyIndex = urlParts.findIndex(part => part === S3_CONFIG.bucket);
+                let fileKey = null;
+                if (keyIndex !== -1) {
+                    fileKey = urlParts.slice(keyIndex + 1).join('/');
+                }
+                if (fileKey) {
+                    await deleteFromS3WithRetry(fileKey);
+                }
             }
-            
-            // Upload new logo
-            const result = await cloudinary.uploader.upload(logoData, {
+            // Upload new logo to S3
+            const result = await uploadToS3(logoData, {
                 folder: 'landlord_logos',
-                public_id: `landlord_logo_${user._id}_${Date.now()}`,
-                transformation: [
-                    { width: 500, height: 200, crop: 'limit' },
-                    { quality: 'auto:good' }
-                ]
+                userId: user._id,
+                fileType: 'image',
+                // contentType and extension are now auto-detected
             });
-            
-            console.log('✅ New landlord logo uploaded:', result.secure_url);
-            
-            res.status(200).json({
+            return res.status(200).json({
                 success: true,
                 message: 'Landlord logo uploaded successfully',
                 logoUrl: result.secure_url
             });
         } catch (error) {
-            console.error('❌ Error uploading landlord logo:', error);
             return next(new ErrorHandler(error.message, 500));
         }
     }
     else if (type === 'officerImage') {
-        console.log('📤 Processing officer image upload...');
-        
         try {
-            // Delete old officer image from Cloudinary if exists
+            // Delete old officer image from S3 if exists
             if (user.landlordInfo?.officerImage) {
-                const oldPublicId = user.landlordInfo.officerImage.split('/').pop().split('.')[0];
-                console.log('🗑️ Deleting old officer image:', oldPublicId);
-                await cloudinary.uploader.destroy(`officer_images/${oldPublicId}`);
+                const oldImageUrl = user.landlordInfo.officerImage;
+                const urlParts = oldImageUrl.split('/');
+                const keyIndex = urlParts.findIndex(part => part === S3_CONFIG.bucket);
+                let fileKey = null;
+                if (keyIndex !== -1) {
+                    fileKey = urlParts.slice(keyIndex + 1).join('/');
+                }
+                if (fileKey) {
+                    await deleteFromS3WithRetry(fileKey);
+                }
             }
-            
-            // Upload new image
-            const result = await cloudinary.uploader.upload(imageData, {
+            // Upload new image to S3
+            const result = await uploadToS3(imageData, {
                 folder: 'officer_images',
-                public_id: `officer_image_${user._id}_${Date.now()}`,
-                transformation: [
-                    { width: 400, height: 400, crop: 'limit' },
-                    { quality: 'auto:good' }
-                ]
+                userId: user._id,
+                fileType: 'image',
+                // contentType and extension are now auto-detected
             });
-            
-            console.log('✅ New officer image uploaded:', result.secure_url);
-            
-            res.status(200).json({
+            return res.status(200).json({
                 success: true,
                 message: 'Officer image uploaded successfully',
                 imageUrl: result.secure_url
             });
         } catch (error) {
-            console.error('❌ Error uploading officer image:', error);
             return next(new ErrorHandler(error.message, 500));
         }
     }
     else if (type === 'deleteLandlordLogo') {
         if (user.landlordInfo?.landlordLogo) {
             try {
-                const publicId = user.landlordInfo.landlordLogo.split('/').pop().split('.')[0];
-                await cloudinary.uploader.destroy(`landlord_logos/${publicId}`);
-                
-                // Update database
+                const oldLogoUrl = user.landlordInfo.landlordLogo;
+                const urlParts = oldLogoUrl.split('/');
+                const keyIndex = urlParts.findIndex(part => part === S3_CONFIG.bucket);
+                let fileKey = null;
+                if (keyIndex !== -1) {
+                    fileKey = urlParts.slice(keyIndex + 1).join('/');
+                }
+                if (fileKey) {
+                    await deleteFromS3WithRetry(fileKey);
+                }
                 user.landlordInfo.landlordLogo = undefined;
                 if (user.landlordInfo.useLandlordLogoAsProfile) {
                     user.landlordInfo.useLandlordLogoAsProfile = false;
                 }
                 await user.save();
-
                 return res.status(200).json({
                     success: true,
                     message: "Landlord logo deleted successfully",
                     user: user
                 });
             } catch (error) {
-                console.log('Error deleting landlord logo:', error);
                 return res.status(500).json({
                     success: false,
                     message: "Failed to delete landlord logo"
                 });
             }
+        } else {
+            return res.status(400).json({
+                success: false,
+                message: "No landlord logo to delete"
+            });
         }
     }
-
     if (type === 'deleteOfficerImage') {
         if (user.landlordInfo?.officerImage) {
             try {
-                const publicId = user.landlordInfo.officerImage.split('/').pop().split('.')[0];
-                await cloudinary.uploader.destroy(`officer_images/${publicId}`);
-                
-                // Update database
+                const oldImageUrl = user.landlordInfo.officerImage;
+                const urlParts = oldImageUrl.split('/');
+                const keyIndex = urlParts.findIndex(part => part === S3_CONFIG.bucket);
+                let fileKey = null;
+                if (keyIndex !== -1) {
+                    fileKey = urlParts.slice(keyIndex + 1).join('/');
+                }
+                if (fileKey) {
+                    await deleteFromS3WithRetry(fileKey);
+                }
                 user.landlordInfo.officerImage = undefined;
                 await user.save();
-
                 return res.status(200).json({
                     success: true,
                     message: "Officer image deleted successfully",
                     user: user
                 });
             } catch (error) {
-                console.log('Error deleting officer image:', error);
                 return res.status(500).json({
                     success: false,
                     message: "Failed to delete officer image"
                 });
             }
+        } else {
+            return res.status(400).json({
+                success: false,
+                message: "No officer image to delete"
+            });
         }
     }
-
     // Handle saving landlord info
     if (type === 'saveLandlordInfo') {
-        // Update landlord info
         user.landlordInfo = {
             ...user.landlordInfo,
             landlordName,
@@ -980,21 +1116,17 @@ export const updateLandlordInfo = catchAsyncError(async (req, res, next) => {
             redirectUrlDefault,
             redirectUrlTailored
         };
-
         await user.save();
-
         return res.status(200).json({
             success: true,
             message: "Landlord information saved successfully",
             user: user
         });
     }
-
     return res.status(400).json({
         success: false,
         message: "Invalid request type"
     });
-
 });
 
 // Request Callback

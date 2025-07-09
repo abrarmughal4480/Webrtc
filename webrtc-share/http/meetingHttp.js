@@ -1,5 +1,12 @@
 import { api } from ".";
 
+// Helper to get the full API URL with optional NEXT_PUBLIC_BACKEND_URL
+const getApiUrl = (path) => {
+    const base = process.env.NEXT_PUBLIC_API_URL || '';
+    // Remove trailing slash from base and leading slash from path
+    return base.replace(/\/$/, '') + '/' + path.replace(/^\//, '');
+};
+
 export const createRequest = async (formData) => await api.post("/meetings/create", formData);
 export const getAllMeetings = async (archived = null, deleted = null) => {
     let url = "/meetings/all";
@@ -50,12 +57,11 @@ export const deleteMeeting = async (id) => {
 // Add public endpoint for sharing - no authentication required
 export const getMeetingForShare = async (id) => {
     try {
-        const response = await fetch(`/api/v1/meetings/share/${id}`, {
+        const response = await fetch(getApiUrl(`/api/v1/meetings/share/${id}`), {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json',
             },
-            // Don't include credentials for public endpoint
         });
         if (!response.ok) {
             throw new Error('Meeting not found');
@@ -173,7 +179,7 @@ export const getArchivedCount = async () => {
 // Add function to record visitor access to shared meeting
 export const recordVisitorAccessRequest = async (meetingId, visitorData) => {
     try {
-        const response = await fetch(`/api/v1/meetings/share/${meetingId}/access`, {
+        const response = await fetch(getApiUrl(`/api/v1/meetings/share/${meetingId}/access`), {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -199,4 +205,10 @@ export const restoreMeeting = async (id) => {
 
 export const permanentDeleteMeeting = async (id) => {
     return await api.delete(`/meetings/permanent/${id}`);
+};
+
+export const searchMeetings = async (searchParams) => {
+    // POST to /meetings/search with searchParams as body
+    const response = await api.post('/meetings/search', searchParams);
+    return response;
 };
