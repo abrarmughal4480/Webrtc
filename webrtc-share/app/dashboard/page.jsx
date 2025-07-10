@@ -1366,7 +1366,7 @@ export default function Page() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20">
           <div className="relative w-full max-w-2xl p-0 rounded-2xl border border-gray-200 shadow-2xl bg-white overflow-hidden animate-fade-in-up">
             {/* Header bar like other modals */}
-            <div className="flex items-center justify-between bg-purple-500 text-white p-4 m-0 rounded-t-2xl relative">
+            <div className="flex items-center justify-between bg-purple-500 text-white p-4 m-0 rounded-t-2xl relative sticky top-0 z-20">
               <div className="flex-1 flex items-center justify-center relative">
                 <h2 className="text-base font-semibold text-center w-full">Search Records</h2>
                 <button
@@ -1379,7 +1379,7 @@ export default function Page() {
               </div>
             </div>
             {/* Form section */}
-            <form className="space-y-3 px-6 py-4" onSubmit={handleSearchMeetings}>
+            <form className="space-y-3 px-6 py-4 max-h-[calc(85vh-64px)] overflow-y-auto" onSubmit={handleSearchMeetings}>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <div>
                   <input type="text" value={searchFields.first_name} onChange={e => handleSearchFieldChange('first_name', e.target.value)} className="w-full h-14 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-base bg-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="First name" />
