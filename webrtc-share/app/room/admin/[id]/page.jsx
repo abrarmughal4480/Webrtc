@@ -3,7 +3,7 @@ import { useState, useRef, use, useEffect, useCallback } from "react"
 import { Trash2, Plus, Maximize2, VideoIcon, PlayIcon, Save, Edit, Minimize2, Expand, ZoomIn, ZoomOut, Pencil, X, Play, ChevronDown, Eraser, Palette, RotateCcw, Loader2, Copy, Link as LinkIcon, ExternalLink, Check } from "lucide-react"
 import useWebRTC from "@/hooks/useWebRTC"
 import useDrawingTools from "@/hooks/useDrawingTools"
-import { createRequest, getMeetingByMeetingId, deleteRecordingRequest, deleteScreenshotRequest } from "@/http/meetingHttp"
+import { createRequest, getMeetingByMeetingId, deleteRecordingRequest, deleteScreenshotRequest, getSpecialNotes } from "@/http/meetingHttp"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
 import { useDialog } from "@/provider/DilogsProvider"
@@ -1937,6 +1937,8 @@ export default function Page({ params }) {
   const isInitialLoad = useRef(true);
   // Dialog state for Special Notes
   const [specialNotesDialogOpen, setSpecialNotesDialogOpen] = useState(false);
+  const [specialNotesDialogData, setSpecialNotesDialogData] = useState(null);
+  const [specialNotesLoading, setSpecialNotesLoading] = useState(false);
 
   // When loading meeting data, split residentName only on initial load
   useEffect(() => {
@@ -1961,6 +1963,33 @@ export default function Page({ params }) {
     }
     // eslint-disable-next-line
   }, [firstName, lastName]);
+
+  // When opening dialog, fetch from backend
+  const handleOpenSpecialNotesDialog = async () => {
+    setSpecialNotesLoading(true);
+    try {
+      const res = await getSpecialNotes(id);
+      setSpecialNotesDialogData(res.data.special_notes || {});
+      setSpecialNotesDialogOpen(true);
+    } catch (err) {
+      toast.error("Failed to load special notes", { description: err?.response?.data?.message || err.message });
+      setSpecialNotesDialogData({});
+      setSpecialNotesDialogOpen(true);
+    } finally {
+      setSpecialNotesLoading(false);
+    }
+  };
+
+  // Handler for dialog save: update textarea only
+  const handleSpecialNotesDialogSave = (dialogState) => {
+    updateForm({ specialNotes: dialogState });
+    setSpecialNotesDialogOpen(false);
+  };
+
+  // Handler for dialog close
+  const handleSpecialNotesDialogClose = () => {
+    setSpecialNotesDialogOpen(false);
+  };
 
   if (!ui.isClient) {
     return (
@@ -3221,13 +3250,13 @@ export default function Page({ params }) {
                     Hide
                   </button>
                 </div>
-                <Plus className="w-5 h-5 text-gray-600 ml-4 cursor-pointer" onClick={() => setSpecialNotesDialogOpen(true)} />
+                <Plus className="w-5 h-5 text-gray-600 ml-4 cursor-pointer" onClick={handleOpenSpecialNotesDialog} />
               </div>
 
               <div className={`transition-all duration-300 ease-in-out overflow-hidden ${ui.showSpecialNotes ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'}`}>
                 <textarea
-                  value={form.specialNotes}
-                  onChange={(e) => updateForm({ specialNotes: e.target.value })}
+                  value={typeof form.specialNotes === 'string' ? form.specialNotes : JSON.stringify(form.specialNotes, null, 2)}
+                  onChange={e => updateForm({ specialNotes: e.target.value })}
                   rows={5}
                   placeholder="Enter any special notes or additional information..."
                   className="w-full p-4 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-300 resize-vertical"
@@ -3241,7 +3270,12 @@ export default function Page({ params }) {
       {/* Floating Resend Button */}
       <FloatingResendButton />
       {/* Special Notes Dialog */}
-      <SpecialNotesDialog open={specialNotesDialogOpen} onClose={() => setSpecialNotesDialogOpen(false)} />
+      <SpecialNotesDialog
+        open={specialNotesDialogOpen}
+        initialData={specialNotesDialogData}
+        onSave={handleSpecialNotesDialogSave}
+        onClose={handleSpecialNotesDialogClose}
+      />
     </>
   );
 }

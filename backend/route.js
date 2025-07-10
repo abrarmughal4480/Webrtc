@@ -2,7 +2,7 @@ import express from 'express';
 const router = express.Router();
 import {changePassword, loadme, login, logout, register, updateUser,forgotPassword,resetPassword, verify, sendFriendLink, resetPasswordFromDashboard, sendFeedback, raiseSupportTicket, updateUserLogo, updateLandlordInfo, bookDemoMeeting, requestCallback, updateMessageSettings, getMessageSettings} from './controllers/authController.js';
 import {isAuthenticate} from "./middlewares/auth.js"
-import { create, getAllMeetings, getMeetingById, updateMeeting, deleteMeeting, getMeetingForShare, getMeetingByMeetingId, deleteRecording, deleteScreenshot, archiveMeeting, unarchiveMeeting, getArchivedCount, recordVisitorAccess, restoreMeeting, permanentDeleteMeeting, searchMeetings } from './controllers/meetingController.js';
+import { create, getAllMeetings, getMeetingById, updateMeeting, deleteMeeting, getMeetingForShare, getMeetingByMeetingId, deleteRecording, deleteScreenshot, archiveMeeting, unarchiveMeeting, getArchivedCount, recordVisitorAccess, restoreMeeting, permanentDeleteMeeting, searchMeetings, getSpecialNotes, saveSpecialNotes } from './controllers/meetingController.js';
 import { getUserRoomInfo } from './controllers/userRoomInfoController.js';
 
 // auth routes
@@ -39,6 +39,11 @@ router.route('/meetings/:id/unarchive').put(isAuthenticate, unarchiveMeeting);
 router.route('/meetings/by-meeting-id/:id').get(isAuthenticate, getMeetingByMeetingId);
 router.route('/meetings/:meetingId/recordings/:recordingId').delete(isAuthenticate, deleteRecording);
 router.route('/meetings/:meetingId/screenshots/:screenshotId').delete(isAuthenticate, deleteScreenshot);
+
+// Special Notes routes
+router.route('/meetings/:meeting_id/special-notes')
+  .get(isAuthenticate, getSpecialNotes)
+  .post(isAuthenticate, saveSpecialNotes);
 
 // Public route for sharing meetings (no authentication required)
 router.route('/meetings/share/:id').get(getMeetingForShare);

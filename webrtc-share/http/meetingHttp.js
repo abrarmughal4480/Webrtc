@@ -212,3 +212,12 @@ export const searchMeetings = async (searchParams) => {
     const response = await api.post('/meetings/search', searchParams);
     return response;
 };
+
+// Special Notes API
+export const getSpecialNotes = async (meetingId) => {
+  return await api.get(`/meetings/${meetingId}/special-notes`);
+};
+
+export const saveSpecialNotes = async (meetingId, specialNotes) => {
+  return await api.post(`/meetings/${meetingId}/special-notes`, { special_notes: specialNotes });
+};

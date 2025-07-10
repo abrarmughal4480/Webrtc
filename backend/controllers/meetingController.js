@@ -1490,5 +1490,45 @@ export const searchMeetings = catchAsyncError(async (req, res, next) => {
     });
 });
 
+// --- Special Notes API ---
+export const saveSpecialNotes = catchAsyncError(async (req, res, next) => {
+  const { meeting_id } = req.params;
+  const { special_notes } = req.body;
+  const user_id = req.user._id;
+
+  if (!special_notes) {
+    return next(new ErrorHandler("Special notes data is required", 400));
+  }
+
+  const meeting = await MeetingModel.findOne({ meeting_id });
+  if (!meeting) {
+    return next(new ErrorHandler("Meeting not found", 404));
+  }
+
+  meeting.special_notes = special_notes;
+  meeting.last_updated_by = user_id;
+  await meeting.save();
+
+  res.status(200).json({
+    success: true,
+    message: "Special notes updated successfully",
+    special_notes: meeting.special_notes,
+  });
+});
+
+export const getSpecialNotes = catchAsyncError(async (req, res, next) => {
+  const { meeting_id } = req.params;
+
+  const meeting = await MeetingModel.findOne({ meeting_id });
+  if (!meeting) {
+    return next(new ErrorHandler("Meeting not found", 404));
+  }
+
+  res.status(200).json({
+    success: true,
+    special_notes: meeting.special_notes || {},
+  });
+});
+
 
 

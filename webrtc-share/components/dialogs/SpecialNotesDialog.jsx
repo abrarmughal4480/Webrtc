@@ -1,6 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { X as XIcon, FileText, ChevronDown, ChevronDownCircle } from "lucide-react";
-import { toast } from "@/components/ui/sonner";
+import { toast } from "sonner";
 
 const sections = [
   {
@@ -383,29 +383,16 @@ function Section({ title, options, state, setState, singleSelect }) {
   );
 }
 
-export default function SpecialNotesDialog({ open, onClose }) {
-  // All sections: default checked by default
-  const [preferences, setPreferences] = useState({ default: true });
-  const [access, setAccess] = useState({ default: true });
-  const [repair, setRepair] = useState({ default: true });
-  const [safety, setSafety] = useState({ default: true });
-  const [vulnerability, setVulnerability] = useState({ default: true });
-  const [legal, setLegal] = useState({ default: true });
-  const [property, setProperty] = useState({ default: true });
-  const [noAccess, setNoAccess] = useState({ default: true });
+export default function SpecialNotesDialog({ open, onClose, initialData, onSave }) {
+  // Initialize state from initialData when dialog opens
+  const [dialogState, setDialogState] = useState(initialData || {});
+  useEffect(() => {
+    if (open) {
+      setDialogState(initialData || {});
+    }
+  }, [open, initialData]);
 
   if (!open) return null;
-
-  const stateMap = {
-    preferences, setPreferences,
-    access, setAccess,
-    repair, setRepair,
-    safety, setSafety,
-    vulnerability, setVulnerability,
-    legal, setLegal,
-    property, setProperty,
-    noAccess, setNoAccess,
-  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.10)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}>
@@ -441,51 +428,34 @@ export default function SpecialNotesDialog({ open, onClose }) {
               <Section
                 title={`${idx + 1}. ${section.title}`}
                 options={section.options}
-                state={stateMap[section.key]}
-                setState={stateMap["set" + section.key.charAt(0).toUpperCase() + section.key.slice(1)]}
+                state={dialogState[section.key] || { default: true }}
+                setState={newState => setDialogState(ds => ({ ...ds, [section.key]: newState }))}
                 singleSelect={idx === 0}
               />
             </div>
           ))}
           <div className="flex flex-row justify-end gap-4 mt-6 px-6 pt-6">
-          <button
-            className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold px-6 py-2 rounded-lg shadow transition-all duration-200"
-            onClick={() => {
-              // Clear all section states, including custom fields
-              setPreferences({ default: true, other: false, otherText: '', });
-              setAccess({
-                default: true,
-                other: false,
-                otherText: '',
-                preferredTime: false,
-                preferredTimeFrom: '',
-                preferredTimeTo: '',
-                preferredDaysEnabled: false,
-                preferredDays: { anyDay: false, mon: false, tue: false, wed: false, thu: false, fri: false, sat: false, sun: false },
-              });
-              setRepair({ default: true, other: false, otherText: '', });
-              setSafety({ default: true, other: false, otherText: '', });
-              setVulnerability({ default: true, other: false, otherText: '', });
-              setLegal({ default: true, other: false, otherText: '', });
-              setProperty({ default: true, dehumidifiers: false, dehumidifierCount: 1 });
-              setNoAccess({ default: true, other: false, otherText: '', });
-              if (onClose) onClose();
-            }}
-          >
-            Clear & Close
-          </button>
-          <button
-            className="bg-purple-600 hover:bg-purple-700 text-white font-semibold px-6 py-2 rounded-lg shadow transition-all duration-200"
-            onClick={() => {
-              // Placeholder: implement save logic here
-              // You can lift state up or call a prop function as needed
-              toast('Saved!');
-            }}
-          >
-            Save
-          </button>
+            <button
+              className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold px-6 py-2 rounded-lg shadow transition-all duration-200"
+              onClick={() => {
+                // Reset all sections to default state
+                setDialogState({});
+                if (onClose) onClose();
+              }}
+            >
+              Clear & Close
+            </button>
+            <button
+              className="bg-purple-600 hover:bg-purple-700 text-white font-semibold px-6 py-2 rounded-lg shadow transition-all duration-200"
+              onClick={() => {
+                if (onSave) onSave(dialogState);
+                if (onClose) onClose();
+              }}
+            >
+              Save
+            </button>
+          </div>
         </div>
-        </div>      
       </div>
     </div>
   );

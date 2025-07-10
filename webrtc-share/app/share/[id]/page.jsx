@@ -5,6 +5,7 @@ import { getMeetingForShare, recordVisitorAccessRequest } from "@/http/meetingHt
 import { useDialog } from "@/provider/DilogsProvider"
 import { toast } from "sonner"
 import { useUser } from "@/provider/UserProvider"
+import { sections as specialNotesSections } from "@/components/dialogs/SpecialNotesDialog";
 
 export default function SharePage({ params }) {
   const { id } = use(params);
@@ -487,6 +488,15 @@ export default function SharePage({ params }) {
     );
   }
 
+  // Parse specialNotes as object if possible
+  let parsedSpecialNotes = specialNotes;
+  try {
+    if (typeof specialNotes === 'string') {
+      const maybeObj = JSON.parse(specialNotes);
+      if (maybeObj && typeof maybeObj === 'object') parsedSpecialNotes = maybeObj;
+    }
+  } catch (e) { /* ignore */ }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       <div className="max-w-6xl mx-auto px-2 sm:px-4 md:px-6 py-6 md:py-12">
@@ -597,7 +607,7 @@ export default function SharePage({ params }) {
                     value={residentAddress}
                     readOnly
                     rows={2}
-                    className="w-full p-3 md:p-4 border-2 md:border-4 border-gray-200 rounded-2xl bg-gradient-to-r from-gray-50 to-gray-100 text-gray-800 font-medium resize-none focus:outline-none shadow-inner leading-relaxed mb-2 md:mb-3"
+                    className="w-full p-3 md:p-4 border-2 md:border-4 border-gray-200 rounded-2xl bg-gradient-to-r from-gray-50 to-gray-100 text-gray-800 font-medium resize-none focus:outline-none shadow-inner leading-relaxed mb-2"
                   />
                 )}
                 {/* Address Lines */}
@@ -638,47 +648,56 @@ export default function SharePage({ params }) {
                   )
                 ))}
               </div>
-              {/* Postcode and Phone */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 md:gap-4">
-                {postCode && (
-                  <div>
-                    <label className="block text-xs md:text-sm font-semibold text-gray-700 mb-1 md:mb-2 uppercase tracking-wide">
-                      Postcode
-                    </label>
-                    <input
-                      value={postCode}
-                      readOnly
-                      className="w-full p-2.5 md:p-3 border-2 border-gray-200 rounded-xl bg-gray-50 text-gray-800 font-medium focus:outline-none shadow-inner"
-                    />
-                  </div>
-                )}
-                {phoneNumber && (
-                  <div>
-                    <label className="block text-xs md:text-sm font-semibold text-gray-700 mb-1 md:mb-2 uppercase tracking-wide">
-                      Phone Number
-                    </label>
-                    <input
-                      value={phoneNumber}
-                      readOnly
-                      className="w-full p-2.5 md:p-3 border-2 border-gray-200 rounded-xl bg-gray-50 text-gray-800 font-medium focus:outline-none shadow-inner"
-                    />
-                  </div>
+              {/* Special Notes Section - always visible, own card */}
+              <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-4 mt-2">
+                <div className="font-bold text-yellow-900 text-lg mb-2">Special Notes</div>
+                {parsedSpecialNotes && typeof parsedSpecialNotes === 'object' && Array.isArray(specialNotesSections) ? (
+                  specialNotesSections.some(section => {
+                    const state = parsedSpecialNotes[section.key];
+                    if (!state) return false;
+                    const checked = section.options.filter(opt => state[opt.key]);
+                    return checked.length > 0 || state.otherText || state.days || state.timeRange || state.dehumidifierCount || state.waitTime;
+                  }) ? (
+                    specialNotesSections.map(section => {
+                      const state = parsedSpecialNotes[section.key];
+                      if (!state) return null;
+                      const checked = section.options.filter(opt => state[opt.key]);
+                      if (checked.length === 0 && !state.otherText && !state.days && !state.timeRange && !state.dehumidifierCount && !state.waitTime) return null;
+                      return (
+                        <div key={section.key} className="mb-3">
+                          <div className="font-semibold text-yellow-800 mb-1">{section.title.replace(/:$/, '')}</div>
+                          <ul className="list-disc ml-6 text-yellow-900 text-base">
+                            {checked.map(opt => (
+                              <li key={opt.key}>
+                                {opt.label.replace(/:$/, '')}
+                                {opt.isOther && state.otherText && (
+                                  <span className="ml-2 italic text-yellow-700">- {state.otherText}</span>
+                                )}
+                                {opt.isDays && state.days && Array.isArray(state.days) && state.days.length > 0 && (
+                                  <span className="ml-2 italic text-yellow-700">- {state.days.join(', ')}</span>
+                                )}
+                                {opt.isTimeRange && state.timeRange && (
+                                  <span className="ml-2 italic text-yellow-700">- {state.timeRange.from} to {state.timeRange.to}</span>
+                                )}
+                                {opt.isDehumidifier && state.dehumidifierCount && (
+                                  <span className="ml-2 italic text-yellow-700">- {state.dehumidifierCount}</span>
+                                )}
+                                {opt.isWait && state.waitTime && (
+                                  <span className="ml-2 italic text-yellow-700">- {state.waitTime}</span>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="text-yellow-700 italic">No special notes provided.</div>
+                  )
+                ) : (
+                  <div className="text-yellow-700 italic">No special notes provided.</div>
                 )}
               </div>
-              {/* Special Notes - Moved to Left Side */}
-              {specialNotes && (
-                <div>
-                  <label className="block text-xs md:text-sm font-semibold text-gray-700 mb-2 md:mb-3 uppercase tracking-wide">
-                    Special Notes
-                  </label>
-                  <textarea
-                    value={specialNotes}
-                    readOnly
-                    rows={3}
-                    className="w-full p-3 md:p-4 border-2 md:border-4 border-yellow-200 rounded-2xl bg-gradient-to-r from-yellow-50 to-yellow-100 text-gray-800 font-medium resize-none focus:outline-none shadow-inner leading-relaxed"
-                  />
-                </div>
-              )}
             </div>
             {/* Right Side - Ref and Work Details */}
             <div className="h-full flex flex-col space-y-4 md:space-y-6">

@@ -23,7 +23,7 @@ const meetingSchema = new mongoose.Schema({
     }],
     target_time: {type: String}, // Keep for backward compatibility
     // Special notes field
-    special_notes: {type: String, trim: true},
+    special_notes: { type: mongoose.Schema.Types.Mixed, default: {} },
     owner: {type: mongoose.Schema.ObjectId, ref: "User"},
     userId: {type: mongoose.Schema.ObjectId, ref: "User", required: true}, // Added userId field
     // New fields for media storage
