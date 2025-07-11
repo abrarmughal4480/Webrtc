@@ -70,18 +70,20 @@ export default function Page() {
   // Add state for search fields
   const [searchFields, setSearchFields] = useState({
     first_name: '',
-    last_name: '', // Surname
-    house_number: '', // House/Building number or name
-    street: '',      // Street/Road
+    last_name: '',
+    house_name_number: '', // House/Building number or name
+    flat_apartment_room: '', // Flat/Apartment/Room number
+    street_road: '',      // Street/Road
     city: '',        // Town/City
-    post_code: '',   // Postcode (one word)
+    country: '',     // Country
+    post_code: '',   // Postcode
     phone_number: '',
     email: '',
-    date_from: '', // NEW
-    date_to: '',   // NEW
+    date_from: '',
+    date_to: '',
     repair_detail: '',
-    target_time: '', // moved up
-    special_notes: '', // moved down
+    target_time: '',
+    special_notes: '',
     reference: '',
   });
 
@@ -627,40 +629,33 @@ export default function Page() {
     window.open(shareUrl, '_blank', 'noopener,noreferrer');
   };
 
-  // Helper function to format complete address based on schema
+  // Replace formatCompleteAddress with new logic for new address fields
   const formatCompleteAddress = (meeting) => {
     const addressParts = [];
-    
-    // Add all address lines from schema
-    if (meeting.address_line_1) {
-      addressParts.push(meeting.address_line_1.trim());
+    // New schema fields
+    if (meeting.house_name_number) {
+      addressParts.push(meeting.house_name_number.trim());
     }
-    if (meeting.address_line_2) {
-      addressParts.push(meeting.address_line_2.trim());
+    if (meeting.flat_apartment_room) {
+      addressParts.push(meeting.flat_apartment_room.trim());
     }
-    if (meeting.address_line_3) {
-      addressParts.push(meeting.address_line_3.trim());
+    if (meeting.street_road) {
+      addressParts.push(meeting.street_road.trim());
     }
-    
-    // Add additional address lines (array from schema)
-    if (meeting.additional_address_lines && Array.isArray(meeting.additional_address_lines)) {
-      meeting.additional_address_lines.forEach(line => {
-        if (line && line.trim()) {
-          addressParts.push(line.trim());
-        }
-      });
+    if (meeting.city) {
+      addressParts.push(meeting.city.trim());
     }
-    
-    // Add post code
+    if (meeting.country) {
+      addressParts.push(meeting.country.trim());
+    }
+    // Add post code if present
     if (meeting.post_code) {
       addressParts.push(meeting.post_code.trim());
     }
-    
     // Fallback to old address field if no structured address
     if (addressParts.length === 0 && meeting.address) {
       addressParts.push(meeting.address.trim());
     }
-    
     return addressParts.length > 0 ? addressParts.join(', ') : 'No address provided';
   };
 
@@ -838,7 +833,7 @@ export default function Page() {
                         <ul className="list-disc pl-5 space-y-1 text-left">
                           <li>Records in Trash are <b>PERMANENTLY DELETED</b> after 10 days.</li>
                           <li>This action cannot be undone.</li>
-                          <li>You can <b>RESTORE</b> records before 10 days to retain them.</li>
+                          <li>You can <b>RESTORE</b> records before 10 days to retain them.</li>
                         </ul>
                       </span>
                       <span className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-full w-0 h-0 border-l-6 border-r-6 border-b-6 border-l-transparent border-r-transparent border-b-blue-50"></span>
@@ -1135,7 +1130,11 @@ export default function Page() {
                             />
                             <span className="flex-shrink-0">{actualIndex + 1}.</span>
                             <div className="flex items-center gap-2 flex-1">
-                              <span className="break-words">{meeting.name || 'Unknown Resident'}, {formatCompleteAddress(meeting)}</span>
+                              <span className="break-words">{
+                                (meeting.first_name || meeting.last_name
+                                  ? `${meeting.first_name || ''} ${meeting.last_name || ''}`.trim()
+                                  : meeting.name || 'Unknown Resident')
+                              }, {formatCompleteAddress(meeting)}</span>
                               {/* Show archived badge if meeting is archived */}
                               {isArchived && viewMode !== 'archived' && (
                                 <span className="bg-gray-200 text-gray-700 px-2 py-1 rounded-full text-xs flex-shrink-0">
@@ -1385,20 +1384,28 @@ export default function Page() {
                   <input type="text" value={searchFields.first_name} onChange={e => handleSearchFieldChange('first_name', e.target.value)} className="w-full h-14 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-base bg-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="First name" />
                 </div>
                 <div>
-                  <input type="text" value={searchFields.last_name} onChange={e => handleSearchFieldChange('last_name', e.target.value)} className="w-full h-14 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-base bg-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="Surname" />
+                  <input type="text" value={searchFields.last_name} onChange={e => handleSearchFieldChange('last_name', e.target.value)} className="w-full h-14 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-base bg-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="Last name" />
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <div>
-                  <input type="text" value={searchFields.house_number} onChange={e => handleSearchFieldChange('house_number', e.target.value)} className="w-full h-14 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-base bg-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="House/Building number or name" />
+                  <input type="text" value={searchFields.house_name_number} onChange={e => handleSearchFieldChange('house_name_number', e.target.value)} className="w-full h-14 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-base bg-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="House/Building number or name" />
                 </div>
                 <div>
-                  <input type="text" value={searchFields.street} onChange={e => handleSearchFieldChange('street', e.target.value)} className="w-full h-14 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-base bg-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="Street/Road" />
+                  <input type="text" value={searchFields.flat_apartment_room} onChange={e => handleSearchFieldChange('flat_apartment_room', e.target.value)} className="w-full h-14 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-base bg-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="Flat/Apartment/Room number" />
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div>
+                  <input type="text" value={searchFields.street_road} onChange={e => handleSearchFieldChange('street_road', e.target.value)} className="w-full h-14 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-base bg-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="Street/Road name" />
+                </div>
                 <div>
                   <input type="text" value={searchFields.city} onChange={e => handleSearchFieldChange('city', e.target.value)} className="w-full h-14 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-base bg-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="Town/City" />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div>
+                  <input type="text" value={searchFields.country} onChange={e => handleSearchFieldChange('country', e.target.value)} className="w-full h-14 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-base bg-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="Country" />
                 </div>
                 <div>
                   <input type="text" value={searchFields.post_code} onChange={e => handleSearchFieldChange('post_code', e.target.value)} className="w-full h-14 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-base bg-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="Postcode" />
@@ -1455,7 +1462,7 @@ export default function Page() {
               </div>
               <div className="border-t border-gray-100 my-3" />
               <div className="flex justify-end gap-2 pt-2">
-                <button type="button" className="border border-gray-300 bg-white hover:bg-gray-100 text-gray-700 font-bold px-6 py-3 rounded-xl shadow-sm transition-all duration-200 outline-none focus:ring-2 focus:ring-blue-300 min-w-[160px] flex items-center justify-center gap-2" onClick={() => { setShowSearchModal(false); setSearchFields({ first_name: '', last_name: '', house_number: '', street: '', city: '', post_code: '', phone_number: '', repair_detail: '', special_notes: '', target_time: '', reference: '' }); fetchMeetings(); }}>
+                <button type="button" className="border border-gray-300 bg-white hover:bg-gray-100 text-gray-700 font-bold px-6 py-3 rounded-xl shadow-sm transition-all duration-200 outline-none focus:ring-2 focus:ring-blue-300 min-w-[160px] flex items-center justify-center gap-2" onClick={() => { setShowSearchModal(false); setSearchFields({ first_name: '', last_name: '', house_name_number: '', flat_apartment_room: '', street_road: '', city: '', country: '', post_code: '', phone_number: '', repair_detail: '', special_notes: '', target_time: '', reference: '' }); fetchMeetings(); }}>
                   <img src="/erase.svg" alt="Clear" className="w-5 h-5" />
                   Clear
                 </button>

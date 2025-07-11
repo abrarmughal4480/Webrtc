@@ -2,7 +2,7 @@ import express from 'express';
 const router = express.Router();
 import {changePassword, loadme, login, logout, register, updateUser,forgotPassword,resetPassword, verify, sendFriendLink, resetPasswordFromDashboard, sendFeedback, raiseSupportTicket, updateUserLogo, updateLandlordInfo, bookDemoMeeting, requestCallback, updateMessageSettings, getMessageSettings} from './controllers/authController.js';
 import {isAuthenticate} from "./middlewares/auth.js"
-import { create, getAllMeetings, getMeetingById, updateMeeting, deleteMeeting, getMeetingForShare, getMeetingByMeetingId, deleteRecording, deleteScreenshot, archiveMeeting, unarchiveMeeting, getArchivedCount, recordVisitorAccess, restoreMeeting, permanentDeleteMeeting, searchMeetings, getSpecialNotes, saveSpecialNotes } from './controllers/meetingController.js';
+import { create, getAllMeetings, getMeetingById, updateMeeting, deleteMeeting, getMeetingForShare, getMeetingByMeetingId, deleteRecording, deleteScreenshot, archiveMeeting, unarchiveMeeting, getArchivedCount, recordVisitorAccess, restoreMeeting, permanentDeleteMeeting, searchMeetings, getSpecialNotes, saveSpecialNotes, getStructuredSpecialNotes, saveStructuredSpecialNotes } from './controllers/meetingController.js';
 import { getUserRoomInfo } from './controllers/userRoomInfoController.js';
 
 // auth routes
@@ -44,6 +44,10 @@ router.route('/meetings/:meetingId/screenshots/:screenshotId').delete(isAuthenti
 router.route('/meetings/:meeting_id/special-notes')
   .get(isAuthenticate, getSpecialNotes)
   .post(isAuthenticate, saveSpecialNotes);
+
+// Structured Special Notes routes
+router.get('/meetings/:meeting_id/structured-special-notes', isAuthenticate, getStructuredSpecialNotes);
+router.patch('/meetings/:meeting_id/structured-special-notes', isAuthenticate, saveStructuredSpecialNotes);
 
 // Public route for sharing meetings (no authentication required)
 router.route('/meetings/share/:id').get(getMeetingForShare);

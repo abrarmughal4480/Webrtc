@@ -5,12 +5,14 @@ import mongoose from 'mongoose';
 const meetingSchema = new mongoose.Schema({
     meeting_id: {type: String, required: true, unique: true},
     name: {type: String},
-    address: {type: String},
-    // Enhanced address fields
-    address_line_1: {type: String, trim: true},
-    address_line_2: {type: String, trim: true},
-    address_line_3: {type: String, trim: true},
-    additional_address_lines: [{type: String, trim: true}], // For dynamic address lines
+    first_name: {type: String, trim: true},
+    last_name: {type: String, trim: true},
+    // Address fields removed
+    house_name_number: {type: String, trim: true},
+    flat_apartment_room: {type: String, trim: true},
+    street_road: {type: String, trim: true},
+    city: {type: String, trim: true},
+    country: {type: String, trim: true},
     post_code: {type: String, trim: true}, // Actual postcode field
     phone_number: {type: String, trim: true}, // Phone number field
     reference: {type: String, trim: true}, // Reference field (what was previously stored in post_code)
@@ -24,6 +26,8 @@ const meetingSchema = new mongoose.Schema({
     target_time: {type: String}, // Keep for backward compatibility
     // Special notes field
     special_notes: { type: mongoose.Schema.Types.Mixed, default: {} },
+    // Structured special notes (from dialog)
+    structured_special_notes: { type: mongoose.Schema.Types.Mixed, default: {} },
     owner: {type: mongoose.Schema.ObjectId, ref: "User"},
     userId: {type: mongoose.Schema.ObjectId, ref: "User", required: true}, // Added userId field
     // New fields for media storage

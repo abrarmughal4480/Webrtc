@@ -3,7 +3,7 @@ import { useState, useRef, use, useEffect, useCallback } from "react"
 import { Trash2, Plus, Maximize2, VideoIcon, PlayIcon, Save, Edit, Minimize2, Expand, ZoomIn, ZoomOut, Pencil, X, Play, ChevronDown, Eraser, Palette, RotateCcw, Loader2, Copy, Link as LinkIcon, ExternalLink, Check } from "lucide-react"
 import useWebRTC from "@/hooks/useWebRTC"
 import useDrawingTools from "@/hooks/useDrawingTools"
-import { createRequest, getMeetingByMeetingId, deleteRecordingRequest, deleteScreenshotRequest, getSpecialNotes } from "@/http/meetingHttp"
+import { createRequest, getMeetingByMeetingId, deleteRecordingRequest, deleteScreenshotRequest, getSpecialNotes, getStructuredSpecialNotes, saveStructuredSpecialNotes } from "@/http/meetingHttp"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
 import { useDialog } from "@/provider/DilogsProvider"
@@ -43,20 +43,19 @@ export default function Page({ params }) {
     targetTime: "Emergency 24 Hours",
     selectedTTValues: {},
     residentName: "",
-    residentAddress: "",
-    addressLine1: "",
-    addressLine2: "",
-    addressLine3: "",
-    addressLines: [],
-    workDetails: [],
-    workDetail1: "",
-    workDetail2: "",
-    workDetail3: "",
+    first_name: "",
+    last_name: "",
+    house_name_number: "",
+    flat_apartment_room: "",
+    street_road: "",
+    city: "",
+    country: "",
     postCode: "",
     actualPostCode: "",
     phoneNumber: "",
     repairDetails: "",
-    specialNotes: ""
+    specialNotes: "",
+    workDetails: []
   });
 
   const [media, setMedia] = useState({
@@ -89,6 +88,8 @@ export default function Page({ params }) {
     videoPanX: 0,
     videoPanY: 0
   });
+
+  const [structuredSpecialNotes, setStructuredSpecialNotes] = useState({});
 
   const {
     colors, tools, selectedColor, setSelectedColor, selectedTool, setSelectedTool,
@@ -183,17 +184,20 @@ export default function Page({ params }) {
           
           updateForm({
             residentName: meetingData.name || "",
-            residentAddress: meetingData.address || "",
-            addressLine1: meetingData.address_line_1 || "",
-            addressLine2: meetingData.address_line_2 || "",
-            addressLine3: meetingData.address_line_3 || "",
-            addressLines: meetingData.additional_address_lines || [],
+            first_name: meetingData.first_name || "",
+            last_name: meetingData.last_name || "",
+            house_name_number: meetingData.house_name_number || "",
+            flat_apartment_room: meetingData.flat_apartment_room || "",
+            street_road: meetingData.street_road || "",
+            city: meetingData.city || "",
+            country: meetingData.country || "",
             postCode: meetingData.reference || "",
             actualPostCode: meetingData.post_code || "",
             phoneNumber: meetingData.phone_number || "",
             repairDetails: meetingData.repair_detail || "",
             targetTime: meetingData.target_time || "Emergency 24 Hours",
-            specialNotes: meetingData.special_notes || ""
+            specialNotes: meetingData.special_notes || "",
+            workDetails: Array.isArray(meetingData.work_details) ? meetingData.work_details : []
           });
 
           if (meetingData.work_details && Array.isArray(meetingData.work_details)) {
@@ -453,11 +457,13 @@ export default function Page({ params }) {
     const formData = {
       meeting_id: id,
       name: form.residentName,
-      address: form.residentAddress,
-      address_line_1: form.addressLine1,
-      address_line_2: form.addressLine2,
-      address_line_3: form.addressLine3,
-      additional_address_lines: form.addressLines.filter(line => line && line.trim() !== ''),
+      first_name: form.first_name,
+      last_name: form.last_name,
+      house_name_number: form.house_name_number,
+      flat_apartment_room: form.flat_apartment_room,
+      street_road: form.street_road,
+      city: form.city,
+      country: form.country,
       post_code: form.actualPostCode,
       phone_number: form.phoneNumber,
       reference: form.postCode,
@@ -645,6 +651,15 @@ export default function Page({ params }) {
         });
       }
 
+      // Save structured special notes if present
+      try {
+        if (structuredSpecialNotes && Object.keys(structuredSpecialNotes).length > 0) {
+          await saveStructuredSpecialNotes(id, structuredSpecialNotes);
+        }
+      } catch (err) {
+        toast.error("Failed to save special notes", { description: err?.response?.data?.message || err.message });
+      }
+
     } catch (error) {
       console.error('Save failed:', error);
       
@@ -685,9 +700,16 @@ export default function Page({ params }) {
         existingMeetingData: {
           meeting_id: id,
           name: form.residentName,
-          address: form.residentAddress,
+          first_name: form.first_name,
+          last_name: form.last_name,
+          house_name_number: form.house_name_number,
+          flat_apartment_room: form.flat_apartment_room,
+          street_road: form.street_road,
+          city: form.city,
+    
+          country: form.country,
           post_code: form.actualPostCode,
-          reference: form.postCode,
+          phone_number: form.phoneNumber,
           repair_detail: form.repairDetails,
           target_time: form.targetTime
         }
@@ -697,7 +719,7 @@ export default function Page({ params }) {
     return { recordingsData, screenshotsData };
   }, [
     media.recordings, screenshots, drawingData, mergeWithBackground, deleteScreenshot,
-    id, form, app.existingMeetingData
+    id, form, app.existingMeetingData, structuredSpecialNotes
   ]);
 
   const handleZoom = (direction) => {
@@ -1163,12 +1185,14 @@ export default function Page({ params }) {
       const formData = {
         meeting_id: id,
         name: form.residentName,
-        address: form.residentAddress,
-        address_line_1: form.addressLine1,
-        address_line_2: form.addressLine2,
-        address_line_3: form.addressLine3,
-        additional_address_lines: form.addressLines,
-        post_code: form.actualPostCode,
+        first_name: form.first_name,
+        last_name: form.last_name,
+        house_name_number: form.house_name_number,
+        flat_apartment_room: form.flat_apartment_room,
+        street_road: form.street_road,
+        city: form.city,
+        country: form.country,
+        post_code: form.postCode,
         phone_number: form.phoneNumber,
         reference: form.postCode,
         repair_detail: form.repairDetails,
@@ -1428,11 +1452,13 @@ export default function Page({ params }) {
       const formData = {
         meeting_id: id,
         name: form.residentName,
-        address: form.residentAddress,
-        address_line_1: form.addressLine1,
-        address_line_2: form.addressLine2,
-        address_line_3: form.addressLine3,
-        additional_address_lines: form.addressLines,
+        first_name: form.first_name,
+        last_name: form.last_name,
+        house_name_number: form.house_name_number,
+        flat_apartment_room: form.flat_apartment_room,
+        street_road: form.street_road,
+        city: form.city,
+        country: form.country,
         post_code: form.actualPostCode,
         phone_number: form.phoneNumber,
         reference: form.postCode,
@@ -1964,25 +1990,14 @@ export default function Page({ params }) {
     // eslint-disable-next-line
   }, [firstName, lastName]);
 
-  // When opening dialog, fetch from backend
+  // When opening dialog, use local state
   const handleOpenSpecialNotesDialog = async () => {
-    setSpecialNotesLoading(true);
-    try {
-      const res = await getSpecialNotes(id);
-      setSpecialNotesDialogData(res.data.special_notes || {});
-      setSpecialNotesDialogOpen(true);
-    } catch (err) {
-      toast.error("Failed to load special notes", { description: err?.response?.data?.message || err.message });
-      setSpecialNotesDialogData({});
-      setSpecialNotesDialogOpen(true);
-    } finally {
-      setSpecialNotesLoading(false);
-    }
+    setSpecialNotesDialogOpen(true);
   };
 
-  // Handler for dialog save: update textarea only
+  // Dialog save: only update local state
   const handleSpecialNotesDialogSave = (dialogState) => {
-    updateForm({ specialNotes: dialogState });
+    setStructuredSpecialNotes(dialogState);
     setSpecialNotesDialogOpen(false);
   };
 
@@ -1990,6 +2005,20 @@ export default function Page({ params }) {
   const handleSpecialNotesDialogClose = () => {
     setSpecialNotesDialogOpen(false);
   };
+
+  // When loading meeting data, also load structured special notes from backend (if meeting exists)
+  useEffect(() => {
+    if (!ui.isClient || !id) return;
+    const fetchStructuredNotes = async () => {
+      try {
+        const res = await getStructuredSpecialNotes(id);
+        setStructuredSpecialNotes(res.data.structured_special_notes || {});
+      } catch (err) {
+        setStructuredSpecialNotes({});
+      }
+    };
+    fetchStructuredNotes();
+  }, [id, ui.isClient]);
 
   if (!ui.isClient) {
     return (
@@ -3012,8 +3041,8 @@ export default function Page({ params }) {
                 <input
                   type="text"
                   id="residentFirstName"
-                  value={firstName}
-                  onChange={e => setFirstName(e.target.value)}
+                  value={form.first_name}
+                  onChange={e => updateForm({ first_name: e.target.value })}
                   placeholder="First Name"
                   className="w-full p-3 bg-white border border-gray-300 rounded-xl shadow-sm focus:outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-200 placeholder-gray-400 transition-all duration-200 hover:bg-orange-50"
                   style={{ borderWidth: '2px' }}
@@ -3021,8 +3050,8 @@ export default function Page({ params }) {
                 <input
                   type="text"
                   id="residentLastName"
-                  value={lastName}
-                  onChange={e => setLastName(e.target.value)}
+                  value={form.last_name}
+                  onChange={e => updateForm({ last_name: e.target.value })}
                   placeholder="Last Name"
                   className="w-full p-3 bg-white border border-gray-300 rounded-xl shadow-sm focus:outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-200 placeholder-gray-400 transition-all duration-200 hover:bg-orange-50"
                   style={{ borderWidth: '2px' }}
@@ -3036,60 +3065,57 @@ export default function Page({ params }) {
                   <label htmlFor="residentAddress" className="block text-lg font-medium mb-2">Resident Address :</label>
                   
                   <div className="mb-3">
-                    <textarea
-                      placeholder="Address line 1"
-                      value={form.addressLine1}
-                      onChange={(e) => updateForm({ addressLine1: e.target.value })}
-                      rows={1}
+                    <input
+                      type="text"
+                      placeholder="House/Building Number or Name"
+                      value={form.house_name_number}
+                      onChange={e => updateForm({ house_name_number: e.target.value })}
                       className="w-full p-3 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-300"
                     />
                   </div>
 
                   <div className="mb-3">
-                    <textarea
-                      placeholder="Address line 2"
-                      value={form.addressLine2}
-                      onChange={(e) => updateForm({ addressLine2: e.target.value })}
-                      rows={1}
+                    <input
+                      type="text"
+                      placeholder="Flat/Apartment/Room Number"
+                      value={form.flat_apartment_room}
+                      onChange={e => updateForm({ flat_apartment_room: e.target.value })}
                       className="w-full p-3 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-300"
                     />
                   </div>
 
                   <div className="mb-3">
-                    <textarea
-                      placeholder="Address line 3"
-                      value={form.addressLine3}
-                      onChange={(e) => updateForm({ addressLine3: e.target.value })}
-                      rows={1}
+                    <input
+                      type="text"
+                      placeholder="Street/Road Name"
+                      value={form.street_road}
+                      onChange={e => updateForm({ street_road: e.target.value })}
                       className="w-full p-3 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-300"
                     />
                   </div>
 
-                  {form.addressLines.map((line, index) => (
-                    <div key={index} className="mb-3">
-                      <textarea
-                        placeholder={`Address line ${index + 4}`}
-                        value={line}
-                        onChange={(e) => updateAddressLine(index, e.target.value)}
-                        rows={1}
+                  <div className="mb-3">
+                    <input
+                      type="text"
+                      placeholder="Town/City"
+                      value={form.city}
+                      onChange={e => updateForm({ city: e.target.value })}
                         className="w-full p-3 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-300"
                       />
-                    </div>
-                  ))}
-
-                  <div className="flex justify-end mt-2">
-                    <span
-                      onClick={addAddressLine}
-                      className="text-gray-600 cursor-pointer hover:text-gray-800 text-sm"
-                      title="Add address line"
-                    >
-                      Address line +
-                    </span>
+                  </div>
+                  <div className="mb-3">
+                    <input
+                      type="text"
+                      placeholder="Country"
+                      value={form.country}
+                      onChange={e => updateForm({ country: e.target.value })}
+                      className="w-full p-3 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-300"
+                    />
                   </div>
                 </div>
               </div>
 
-              <div className="mb-3 -mt-[26px]">
+              <div className="mb-3 ">
                 <div className="w-[62.5%]">
                   <textarea
                     placeholder="Postcode:"
@@ -3232,8 +3258,8 @@ export default function Page({ params }) {
                   <button
                     onClick={() => updateUI({ showSpecialNotes: true })}
                     className={`px-3 py-1 rounded-full transition-colors text-sm font-medium ${ui.showSpecialNotes
-                        ? 'bg-gray-600 text-white shadow-sm'
-                        : 'bg-transparent text-gray-600 hover:bg-gray-300'
+                        ? 'bg-green-600 text-white shadow-sm'
+                        : 'bg-transparent text-gray-600 hover:bg-green-100'
                       }`}
                     title="Show Special Notes"
                   >
@@ -3250,7 +3276,9 @@ export default function Page({ params }) {
                     Hide
                   </button>
                 </div>
-                <Plus className="w-5 h-5 text-gray-600 ml-4 cursor-pointer" onClick={handleOpenSpecialNotesDialog} />
+                <button onClick={handleOpenSpecialNotesDialog} title="Support / Special Notes" className="ml-4 p-0 bg-transparent border-none cursor-pointer flex items-center">
+                  <img src="/icons/help-desk.png" alt="Support" className="object-contain" style={{ width: '34px', height: '34px', display: 'inline-block', verticalAlign: 'middle' }} />
+                </button>
               </div>
 
               <div className={`transition-all duration-300 ease-in-out overflow-hidden ${ui.showSpecialNotes ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'}`}>
@@ -3272,7 +3300,7 @@ export default function Page({ params }) {
       {/* Special Notes Dialog */}
       <SpecialNotesDialog
         open={specialNotesDialogOpen}
-        initialData={specialNotesDialogData}
+        initialData={structuredSpecialNotes}
         onSave={handleSpecialNotesDialogSave}
         onClose={handleSpecialNotesDialogClose}
       />

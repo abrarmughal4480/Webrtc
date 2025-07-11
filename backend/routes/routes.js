@@ -17,7 +17,9 @@ import {
     recordVisitorAccess,
     restoreMeeting,
     permanentDeleteMeeting,
-    searchMeetings
+    searchMeetings,
+    getStructuredSpecialNotes, 
+    saveStructuredSpecialNotes 
 } from '../controllers/meetingController.js';
 
 const router = express.Router();
@@ -37,5 +39,9 @@ router.get('/meetings/share/:id', getMeetingForShare);
 
 router.put('/meetings/restore/:id', isAuthenticated, restoreMeeting);
 router.delete('/meetings/permanent/:id', isAuthenticated, permanentDeleteMeeting);
+
+// Structured Special Notes routes
+router.get('/meetings/:meeting_id/structured-special-notes', getStructuredSpecialNotes);
+router.patch('/meetings/:meeting_id/structured-special-notes', saveStructuredSpecialNotes);
 
 export default router;

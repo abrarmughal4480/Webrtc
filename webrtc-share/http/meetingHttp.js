@@ -221,3 +221,10 @@ export const getSpecialNotes = async (meetingId) => {
 export const saveSpecialNotes = async (meetingId, specialNotes) => {
   return await api.post(`/meetings/${meetingId}/special-notes`, { special_notes: specialNotes });
 };
+
+// Structured Special Notes API
+export const getStructuredSpecialNotes = async (meetingId) =>
+  api.get(`/meetings/${meetingId}/structured-special-notes`);
+
+export const saveStructuredSpecialNotes = async (meetingId, structured_special_notes) =>
+  api.patch(`/meetings/${meetingId}/structured-special-notes`, { structured_special_notes });

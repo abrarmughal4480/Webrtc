@@ -378,10 +378,6 @@ export const create = catchAsyncError(async (req, res, next) => {
         meeting_id, 
         name, 
         address, 
-        address_line_1,
-        address_line_2, 
-        address_line_3,
-        additional_address_lines,
         post_code, 
         phone_number,
         reference, 
@@ -391,8 +387,16 @@ export const create = catchAsyncError(async (req, res, next) => {
         special_notes,
         recordings, 
         screenshots, 
-        update_mode 
+        update_mode,
+        house_name_number,
+        flat_apartment_room,
+        street_road,
+        city,
+        first_name,
+        last_name,
+        country
     } = req.body;
+    console.log('Received first_name:', first_name, 'last_name:', last_name);
     const user_id = req.user._id;
 
     const startTime = Date.now();
@@ -403,17 +407,20 @@ export const create = catchAsyncError(async (req, res, next) => {
         meeting_id, 
         name, 
         address, 
-        address_line_1,
-        address_line_2,
-        address_line_3,
-        additional_address_lines,
         post_code, 
         phone_number,
         reference, 
         repair_detail, 
         work_details,
         target_time,
-        special_notes
+        special_notes,
+        house_name_number,
+        flat_apartment_room,
+        street_road,
+        city,
+        first_name,
+        last_name,
+        country
     });
     console.log(`📊 Total files to process: ${totalFiles} (${recordings?.length || 0} recordings, ${screenshots?.length || 0} screenshots)`);
 
@@ -532,10 +539,6 @@ export const create = catchAsyncError(async (req, res, next) => {
             meeting_id,
             name,
             address,
-            address_line_1,
-            address_line_2,
-            address_line_3,
-            additional_address_lines: additional_address_lines || [],
             post_code,
             phone_number,
             reference,
@@ -550,8 +553,16 @@ export const create = catchAsyncError(async (req, res, next) => {
             recordings: savedRecordings,
             screenshots: savedScreenshots,
             total_recordings: savedRecordings.length,
-            total_screenshots: savedScreenshots.length
+            total_screenshots: savedScreenshots.length,
+            house_name_number,
+            flat_apartment_room,
+            street_road,
+            city,
+            first_name,
+            last_name,
+            country
         });
+        console.log('Saved meeting with first_name:', meeting.first_name, 'last_name:', meeting.last_name);
 
         const totalTime = Date.now() - startTime;
         const successRate = totalFiles > 0 ? Math.round(((savedRecordings.length + savedScreenshots.length) / totalFiles) * 100) : 100;
@@ -597,10 +608,6 @@ const updateMeetingWithNewMediaOnly = async (meeting, data, res, next, user_id, 
     const { 
         name, 
         address, 
-        address_line_1,
-        address_line_2,
-        address_line_3,
-        additional_address_lines,
         post_code, 
         phone_number,
         reference, 
@@ -609,8 +616,16 @@ const updateMeetingWithNewMediaOnly = async (meeting, data, res, next, user_id, 
         target_time, 
         special_notes,
         recordings, 
-        screenshots 
+        screenshots,
+        house_name_number,
+        flat_apartment_room,
+        street_road,
+        city,
+        first_name,
+        last_name,
+        country
     } = data;
+    console.log('UpdateMediaOnly first_name:', first_name, 'last_name:', last_name);
     const totalNewFiles = (recordings?.length || 0) + (screenshots?.length || 0);
 
     console.log(`🔄 Updating existing meeting with ${totalNewFiles} new files...`);
@@ -619,10 +634,6 @@ const updateMeetingWithNewMediaOnly = async (meeting, data, res, next, user_id, 
     try {
         if (name !== undefined) meeting.name = name;
         if (address !== undefined) meeting.address = address;
-        if (address_line_1 !== undefined) meeting.address_line_1 = address_line_1;
-        if (address_line_2 !== undefined) meeting.address_line_2 = address_line_2;
-        if (address_line_3 !== undefined) meeting.address_line_3 = address_line_3;
-        if (additional_address_lines !== undefined) meeting.additional_address_lines = additional_address_lines;
         if (post_code !== undefined) meeting.post_code = post_code;
         if (phone_number !== undefined) meeting.phone_number = phone_number;
         if (reference !== undefined) meeting.reference = reference;
@@ -630,6 +641,13 @@ const updateMeetingWithNewMediaOnly = async (meeting, data, res, next, user_id, 
         if (work_details !== undefined) meeting.work_details = work_details;
         if (target_time !== undefined) meeting.target_time = target_time;
         if (special_notes !== undefined) meeting.special_notes = special_notes;
+        if (house_name_number !== undefined) meeting.house_name_number = house_name_number;
+        if (flat_apartment_room !== undefined) meeting.flat_apartment_room = flat_apartment_room;
+        if (street_road !== undefined) meeting.street_road = street_road;
+        if (city !== undefined) meeting.city = city;
+        if (first_name !== undefined) meeting.first_name = first_name;
+        if (last_name !== undefined) meeting.last_name = last_name;
+        if (country !== undefined) meeting.country = country;
 
         if (!meeting.userId) {
             console.log('🔧 Setting missing userId for existing meeting...');
@@ -950,10 +968,6 @@ export const getMeetingForShare = catchAsyncError(async (req, res, next) => {
         meeting_id: meeting.meeting_id,
         name: meeting.name,
         address: meeting.address,
-        address_line_1: meeting.address_line_1,
-        address_line_2: meeting.address_line_2,
-        address_line_3: meeting.address_line_3,
-        additional_address_lines: meeting.additional_address_lines,
         post_code: meeting.post_code,
         phone_number: meeting.phone_number,
         reference: meeting.reference,
@@ -1114,33 +1128,40 @@ export const updateMeeting = catchAsyncError(async (req, res, next) => {
     const { 
         name, 
         address, 
-        address_line_1,
-        address_line_2,
-        address_line_3,
-        additional_address_lines,
         post_code, 
         phone_number,
         reference, 
         repair_detail, 
         work_details,
         target_time,
-        special_notes
+        special_notes,
+        house_name_number,
+        flat_apartment_room,
+        street_road,
+        city,
+        first_name,
+        last_name,
+        country
     } = req.body;
+    console.log('UpdateMeeting first_name:', first_name, 'last_name:', last_name);
 
     console.log('🔄 Updating meeting with fields:', { 
         name, 
         address, 
-        address_line_1,
-        address_line_2,
-        address_line_3,
-        additional_address_lines,
         post_code, 
         phone_number,
         reference, 
         repair_detail, 
         work_details,
         target_time,
-        special_notes
+        special_notes,
+        house_name_number,
+        flat_apartment_room,
+        street_road,
+        city,
+        first_name,
+        last_name,
+        country
     });
 
     const meeting = await MeetingModel.findOne({
@@ -1158,10 +1179,6 @@ export const updateMeeting = catchAsyncError(async (req, res, next) => {
 
     if (name !== undefined) meeting.name = name;
     if (address !== undefined) meeting.address = address;
-    if (address_line_1 !== undefined) meeting.address_line_1 = address_line_1;
-    if (address_line_2 !== undefined) meeting.address_line_2 = address_line_2;
-    if (address_line_3 !== undefined) meeting.address_line_3 = address_line_3;
-    if (additional_address_lines !== undefined) meeting.additional_address_lines = additional_address_lines;
     if (post_code !== undefined) meeting.post_code = post_code; // Actual postcode
     if (phone_number !== undefined) meeting.phone_number = phone_number;
     if (reference !== undefined) meeting.reference = reference; // Reference field
@@ -1169,12 +1186,20 @@ export const updateMeeting = catchAsyncError(async (req, res, next) => {
     if (work_details !== undefined) meeting.work_details = work_details;
     if (target_time !== undefined) meeting.target_time = target_time;
     if (special_notes !== undefined) meeting.special_notes = special_notes;
+    if (house_name_number !== undefined) meeting.house_name_number = house_name_number;
+    if (flat_apartment_room !== undefined) meeting.flat_apartment_room = flat_apartment_room;
+    if (street_road !== undefined) meeting.street_road = street_road;
+    if (city !== undefined) meeting.city = city;
+    if (first_name !== undefined) meeting.first_name = first_name;
+    if (last_name !== undefined) meeting.last_name = last_name;
+    if (country !== undefined) meeting.country = country;
 
     if (!meeting.userId) {
         meeting.userId = req.user._id;
     }
 
     meeting.last_updated_by = req.user._id;    await meeting.save();
+    console.log('Updated meeting with first_name:', meeting.first_name, 'last_name:', meeting.last_name);
 
     console.log(`✅ Meeting updated successfully with all new fields`);
 
@@ -1410,10 +1435,6 @@ export const searchMeetings = catchAsyncError(async (req, res, next) => {
     const {
         name,
         address,
-        address_line_1,
-        address_line_2,
-        address_line_3,
-        additional_address_lines,
         post_code,
         phone_number,
         reference,
@@ -1421,7 +1442,14 @@ export const searchMeetings = catchAsyncError(async (req, res, next) => {
         special_notes,
         target_time,
         work_details_target_time,
-        ref // support ref as alias for reference
+        ref, // support ref as alias for reference
+        house_name_number,
+        flat_apartment_room,
+        street_road,
+        city,
+        first_name,
+        last_name,
+        country
     } = req.body;
 
     // Build dynamic filter
@@ -1443,18 +1471,8 @@ export const searchMeetings = catchAsyncError(async (req, res, next) => {
         filter.$and.push({
             $or: [
                 { address: { $regex: address, $options: 'i' } },
-                { address_line_1: { $regex: address, $options: 'i' } },
-                { address_line_2: { $regex: address, $options: 'i' } },
-                { address_line_3: { $regex: address, $options: 'i' } },
-                { additional_address_lines: { $elemMatch: { $regex: address, $options: 'i' } } }
             ]
         });
-    }
-    if (address_line_1) filter.$and.push({ address_line_1: { $regex: address_line_1, $options: 'i' } });
-    if (address_line_2) filter.$and.push({ address_line_2: { $regex: address_line_2, $options: 'i' } });
-    if (address_line_3) filter.$and.push({ address_line_3: { $regex: address_line_3, $options: 'i' } });
-    if (Array.isArray(additional_address_lines) && additional_address_lines.length > 0) {
-        filter.$and.push({ additional_address_lines: { $in: additional_address_lines.filter(Boolean) } });
     }
     if (post_code) filter.$and.push({ post_code: { $regex: post_code, $options: 'i' } });
     if (phone_number) filter.$and.push({ phone_number: { $regex: phone_number, $options: 'i' } });
@@ -1472,6 +1490,13 @@ export const searchMeetings = catchAsyncError(async (req, res, next) => {
     if (work_details_target_time) {
         filter.$and.push({ 'work_details.target_time': { $regex: work_details_target_time, $options: 'i' } });
     }
+    if (house_name_number) filter.$and.push({ house_name_number: { $regex: house_name_number, $options: 'i' } });
+    if (flat_apartment_room) filter.$and.push({ flat_apartment_room: { $regex: flat_apartment_room, $options: 'i' } });
+    if (street_road) filter.$and.push({ street_road: { $regex: street_road, $options: 'i' } });
+    if (city) filter.$and.push({ city: { $regex: city, $options: 'i' } });
+    if (first_name) filter.$and.push({ first_name: { $regex: first_name, $options: 'i' } });
+    if (last_name) filter.$and.push({ last_name: { $regex: last_name, $options: 'i' } });
+    if (country) filter.$and.push({ country: { $regex: country, $options: 'i' } });
 
     // Remove $and if only user filter present (no search fields)
     if (filter.$and.length === 1) delete filter.$and;
@@ -1527,6 +1552,55 @@ export const getSpecialNotes = catchAsyncError(async (req, res, next) => {
   res.status(200).json({
     success: true,
     special_notes: meeting.special_notes || {},
+  });
+});
+
+// --- Structured Special Notes API ---
+export const saveStructuredSpecialNotes = catchAsyncError(async (req, res, next) => {
+  const { meeting_id } = req.params;
+  const { structured_special_notes } = req.body;
+  const user_id = req.user._id;
+
+  if (!structured_special_notes || typeof structured_special_notes !== 'object') {
+    return next(new ErrorHandler("Structured special notes data is required and must be an object", 400));
+  }
+
+  const meeting = await MeetingModel.findOne({ meeting_id });
+  if (!meeting) {
+    return next(new ErrorHandler("Meeting not found", 404));
+  }
+
+  try {
+    meeting.structured_special_notes = structured_special_notes;
+    meeting.last_updated_by = user_id;
+    await meeting.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Structured special notes updated successfully",
+      structured_special_notes: meeting.structured_special_notes,
+    });
+  } catch (error) {
+    console.error('❌ Error saving structured special notes:', error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to save structured special notes",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+export const getStructuredSpecialNotes = catchAsyncError(async (req, res, next) => {
+  const { meeting_id } = req.params;
+
+  const meeting = await MeetingModel.findOne({ meeting_id });
+  if (!meeting) {
+    return next(new ErrorHandler("Meeting not found", 404));
+  }
+
+  res.status(200).json({
+    success: true,
+    structured_special_notes: meeting.structured_special_notes || {},
   });
 });
 

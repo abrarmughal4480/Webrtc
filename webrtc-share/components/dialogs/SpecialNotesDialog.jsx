@@ -56,7 +56,7 @@ const sections = [
       { key: "default", label: "Default: None specified/Follow your local policy" },
       { key: "violenceFlag", label: "Resident/household have alert flag for violence" },
       { key: "twoPerson", label: "2 Person Visit only" },
-      { key: "daylightOnly", label: "Daylight visit only" },
+      { key: "daylightOnly", label: "Daylight Visit only" },
       { key: "localRiskAssessment", label: "Undertake your company local risk assessment before attending" },
       { key: "dynamicRiskAssessment", label: "Dynamic risk assessment required on visit" },
       { key: "withHousingOfficer", label: "Attend with Housing Officer/Housing Team" },
