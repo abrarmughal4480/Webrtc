@@ -1,6 +1,6 @@
 "use client"
 import { useState, useRef, use, useEffect } from "react"
-import { VideoIcon, PlayIcon, Minimize2, Expand, ZoomIn, ZoomOut, ChevronDown, ChevronUp, X, User } from "lucide-react"
+import { VideoIcon, PlayIcon, Minimize2, Expand, ZoomIn, ZoomOut, ChevronDown, ChevronUp, X, User, Smartphone, MailIcon, Home, Wrench, FileText, ChevronRight, Printer } from "lucide-react"
 import { getMeetingForShare, recordVisitorAccessRequest } from "@/http/meetingHttp"
 import { useDialog } from "@/provider/DilogsProvider"
 import { toast } from "sonner"
@@ -39,6 +39,10 @@ export default function SharePage({ params }) {
   const [expandedVideos, setExpandedVideos] = useState(new Set());
   const [expandedImages, setExpandedImages] = useState(new Set());
   const [modalImage, setModalImage] = useState(null);
+  const [expandedSpecialNotes, setExpandedSpecialNotes] = useState(new Set());
+  
+  // Auto-expand important sections (optional)
+  const autoExpandSections = ['safety', 'access']; // Safety and access sections auto-expand
   
   // Add landlord info states
   const [landlordInfo, setLandlordInfo] = useState({
@@ -57,11 +61,550 @@ export default function SharePage({ params }) {
   // Add a ref to prevent duplicate logging
   const creatorAccessLogged = useRef(false);
 
+  // Add address ref for auto-height
+  const addressRef = useRef(null);
+
   // Format recording duration
   const formatRecordingTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // Print function
+  const handlePrint = () => {
+    // Open new window for printing
+    const printWindow = window.open('', '_blank');
+    
+    // Get meeting data for print
+    const meetingDate = meetingData?.createdAt ? new Date(meetingData.createdAt).toLocaleDateString() : 'Unknown';
+    const totalRecordings = recordings?.length || 0;
+    const totalScreenshots = screenshots?.length || 0;
+    
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Meeting Report - ${id}</title>
+          <style>
+            @media print {
+              @page {
+                margin: 1in;
+                size: A4;
+              }
+              
+              * {
+                overflow: visible !important;
+                scrollbar-width: none !important;
+                -ms-overflow-style: none !important;
+                color: black !important;
+                background: white !important;
+              }
+              
+              ::-webkit-scrollbar {
+                display: none !important;
+              }
+              
+              body, html {
+                height: auto !important;
+                overflow: visible !important;
+                margin: 0;
+                padding: 0;
+              }
+              
+              * {
+                max-height: none !important;
+                height: auto !important;
+              }
+              
+              .print-hide, .media-section {
+                display: none !important;
+              }
+            }
+            
+            body {
+              font-family: 'Times New Roman', serif;
+              line-height: 1.4;
+              margin: 0;
+              padding: 0;
+              color: #333;
+              background: white;
+            }
+            
+            .print-hide, .media-section {
+              display: none;
+            }
+            
+            .print-header {
+              text-align: center;
+              border-bottom: 2px solid #333;
+              padding-bottom: 20px;
+              margin-bottom: 30px;
+            }
+            
+            .print-header h1 {
+              font-size: 24px;
+              font-weight: bold;
+              margin: 0 0 10px 0;
+              color: #333;
+            }
+            
+            .print-header .subtitle {
+              font-size: 14px;
+              color: #666;
+              margin: 0;
+            }
+            
+            .section {
+              margin-bottom: 25px;
+            }
+            
+            .work-item {
+              page-break-inside: avoid;
+              margin-bottom: 15px;
+            }
+            
+            .section-title {
+              font-size: 16px;
+              font-weight: bold;
+              border-bottom: 1px solid #ccc;
+              padding-bottom: 5px;
+              margin-bottom: 15px;
+              color: #333;
+            }
+            
+            .info-grid {
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              gap: 20px;
+              margin-bottom: 20px;
+            }
+            
+            .info-item {
+              border: 1px solid #ddd;
+              padding: 15px;
+              border-radius: 5px;
+              background: #f9f9f9;
+            }
+            
+            .info-label {
+              font-weight: bold;
+              font-size: 12px;
+              color: #666;
+              text-transform: uppercase;
+              margin-bottom: 5px;
+            }
+            
+            .info-value {
+              font-size: 14px;
+              color: #333;
+              font-weight: 500;
+            }
+            
+            .address-box {
+              border: 1px solid #ddd;
+              padding: 15px;
+              border-radius: 5px;
+              background: #f9f9f9;
+              margin-bottom: 20px;
+            }
+            
+            .special-notes {
+              border: 1px solid #ddd;
+              padding: 15px;
+              border-radius: 5px;
+              background: #f9f9f9;
+              margin-bottom: 20px;
+            }
+            
+            .notes-title {
+              font-weight: bold;
+              margin-bottom: 10px;
+              color: #333;
+            }
+            
+            .footer {
+              margin-top: 40px;
+              padding-top: 20px;
+              border-top: 1px solid #ccc;
+              text-align: center;
+              font-size: 12px;
+              color: #666;
+            }
+            
+            .summary-grid {
+              display: grid;
+              grid-template-columns: repeat(4, 1fr);
+              gap: 15px;
+              margin-top: 20px;
+            }
+            
+            .summary-item {
+              text-align: center;
+              padding: 10px;
+              border: 1px solid #ddd;
+              border-radius: 5px;
+              background: #f9f9f9;
+            }
+            
+            .summary-number {
+              font-size: 18px;
+              font-weight: bold;
+              color: #333;
+            }
+            
+            .summary-label {
+              font-size: 11px;
+              color: #666;
+              text-transform: uppercase;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="print-header">
+            <h1>MEETING REPORT</h1>
+            <p class="subtitle">Meeting ID: ${id} | Generated: ${new Date().toLocaleDateString()}</p>
+          </div>
+          
+          <div class="section">
+            <div class="section-title">RESIDENT INFORMATION</div>
+            <div class="info-grid">
+              <div class="info-item">
+                <div class="info-label">Resident Name</div>
+                <div class="info-value">${residentName || 'Not provided'}</div>
+              </div>
+              ${meetingData?.phone_number ? `
+              <div class="info-item">
+                <div class="info-label">Phone Number</div>
+                <div class="info-value">${meetingData.phone_number}</div>
+              </div>
+              ` : ''}
+              ${meetingData?.email ? `
+              <div class="info-item">
+                <div class="info-label">Email</div>
+                <div class="info-value">${meetingData.email}</div>
+              </div>
+              ` : ''}
+            </div>
+            
+            <div class="address-box">
+              <div class="info-label">Resident Address</div>
+              <div class="info-value">
+                ${(() => {
+                  const addressParts = [];
+                  if (meetingData?.house_name_number) addressParts.push(meetingData.house_name_number.trim());
+                  if (meetingData?.flat_apartment_room) addressParts.push(meetingData.flat_apartment_room.trim());
+                  if (meetingData?.street_road) addressParts.push(meetingData.street_road.trim());
+                  if (meetingData?.city) addressParts.push(meetingData.city.trim());
+                  if (meetingData?.country) addressParts.push(meetingData.country.trim());
+                  if (addressParts.length === 0 && residentAddress) addressParts.push(residentAddress.trim());
+                  const address = addressParts.length > 0 ? addressParts.join(', ') : 'No address provided';
+                  return address + (meetingData?.post_code ? `\nPostcode: ${meetingData.post_code}` : '');
+                })()}
+              </div>
+            </div>
+          </div>
+          
+          ${ref ? `
+          <div class="section">
+            <div class="section-title">REFERENCE</div>
+            <div class="info-item">
+              <div class="info-value">${ref}</div>
+            </div>
+          </div>
+          ` : ''}
+          
+          ${repairDetails ? `
+          <div class="section">
+            <div class="section-title">REPAIR DETAILS</div>
+            <div class="info-item">
+              <div class="info-value">${repairDetails}</div>
+            </div>
+          </div>
+          ` : ''}
+          
+          ${workDetails && workDetails.length > 0 ? `
+          <div class="section">
+            <div class="section-title">WORK DETAILS</div>
+            ${workDetails.map((work, index) => `
+              <div class="work-item">
+                <div class="info-item">
+                  <div class="info-label">Work Item ${index + 1}</div>
+                  <div class="info-value">${work.detail}</div>
+                  ${work.target_time ? `<div style="font-size: 12px; color: #666; margin-top: 5px;">Target Time: ${work.target_time}</div>` : ''}
+                </div>
+              </div>
+            `).join('')}
+          </div>
+          ` : ''}
+          
+          ${(() => {
+            const hasStructuredNotes = meetingData?.structured_special_notes && typeof meetingData.structured_special_notes === 'object';
+            const hasRegularNotes = specialNotes;
+            
+            if (!hasStructuredNotes && !hasRegularNotes) return '';
+            
+            let notesContent = '';
+            
+            // Add structured notes if available
+            if (hasStructuredNotes) {
+              notesContent += 'Structured Special Notes:\n';
+              
+              Object.keys(meetingData.structured_special_notes).forEach(sectionKey => {
+                const sectionData = meetingData.structured_special_notes[sectionKey];
+                if (sectionData) {
+                  // Handle each section like frontend with correct headings
+                  let sectionTitle = '';
+                  switch(sectionKey) {
+                    case 'preferences':
+                      sectionTitle = 'RESIDENT COMMUNICATION PREFERENCES:';
+                      break;
+                    case 'access':
+                      sectionTitle = 'BEST ACCESS STEPS:';
+                      break;
+                    case 'repair':
+                      sectionTitle = 'REPAIR/COMPLETION REQUESTS:';
+                      break;
+                    case 'safety':
+                      sectionTitle = 'SAFETY:';
+                      break;
+                    case 'vulnerability':
+                      sectionTitle = 'HOUSEHOLD VULNERABILITY:';
+                      break;
+                    case 'legal':
+                      sectionTitle = 'LEGAL CLAIM:';
+                      break;
+                    case 'property':
+                      sectionTitle = 'SPECIAL PROPERTY REQUESTS:';
+                      break;
+                    case 'noAccess':
+                      sectionTitle = 'NO ACCESS STEPS:';
+                      break;
+                    default:
+                      sectionTitle = sectionKey.charAt(0).toUpperCase() + sectionKey.slice(1) + ':';
+                  }
+                  notesContent += `${sectionTitle}\n`;
+                  
+                  // Check if any options are selected (excluding default)
+                  const selectedOptions = [];
+                  
+                  if (sectionData.avoidSchoolRun) selectedOptions.push('Avoid School Run');
+                  if (sectionData.callOnWay) selectedOptions.push('Call on Way');
+                  if (sectionData.preferredTime && sectionData.preferredTimeFrom && sectionData.preferredTimeTo) {
+                    selectedOptions.push(`Preferred Time: ${sectionData.preferredTimeFrom} to ${sectionData.preferredTimeTo}`);
+                  }
+                  
+                  if (sectionData.withOfficer) selectedOptions.push('With Officer');
+                  if (sectionData.residentSignature) selectedOptions.push('Resident Signature');
+                  if (sectionData.uploadToVideodesk) selectedOptions.push('Upload to Videodesk');
+                  
+                  if (sectionData.callMobile) selectedOptions.push('Call Mobile');
+                  if (sectionData.callLandline) selectedOptions.push('Call Landline');
+                  if (sectionData.sms) selectedOptions.push('SMS');
+                  if (sectionData.email) selectedOptions.push('Email');
+                  if (sectionData.other && sectionData.otherText) selectedOptions.push(`Other: ${sectionData.otherText}`);
+                  
+                  if (sectionData.withHousingOfficer) selectedOptions.push('With Housing Officer');
+                  if (sectionData.animalsPresent) selectedOptions.push('Animals Present');
+                  if (sectionData.dryHoarded) selectedOptions.push('Dry Hoarded');
+                  if (sectionData.localRiskAssessment) selectedOptions.push('Local Risk Assessment');
+                  
+                  if (sectionData.scottSchedule) selectedOptions.push('Scott Schedule');
+                  if (sectionData.currentDisrepair) selectedOptions.push('Current Disrepair');
+                  if (sectionData.potentialDisrepair) selectedOptions.push('Potential Disrepair');
+                  
+                  if (sectionData.youngChildren) selectedOptions.push('Young Children');
+                  if (sectionData.elderly) selectedOptions.push('Elderly');
+                  if (sectionData.baby) selectedOptions.push('Baby');
+                  
+                  if (sectionData.heaters) selectedOptions.push('Heaters');
+                  if (sectionData.dehumidifiers) selectedOptions.push('Dehumidifiers');
+                  if (sectionData.dehumidifierCount) selectedOptions.push(`${sectionData.dehumidifierCount} Dehumidifier(s)`);
+                  
+                  if (sectionData.other && sectionData.otherText) selectedOptions.push(`Other: ${sectionData.otherText}`);
+                  
+                  if (selectedOptions.length > 0) {
+                    selectedOptions.forEach(option => {
+                      notesContent += `  • ${option}\n`;
+                    });
+                  } else {
+                    notesContent += `  • None specified/Follow your local policy\n`;
+                  }
+                  
+                  notesContent += '\n';
+                }
+              });
+            }
+            
+            // Add regular notes if available
+            if (hasRegularNotes) {
+              if (hasStructuredNotes) {
+                notesContent += '---\n\n';
+                notesContent += 'Additional Notes:\n';
+              } else {
+                notesContent += 'Additional Notes:\n';
+              }
+              notesContent += specialNotes;
+            }
+            
+            return notesContent;
+          })() ? `
+          <div class="section">
+            <div class="section-title">SPECIAL NOTES</div>
+            <div class="special-notes">
+              <div class="info-value" style="white-space: pre-line;">${(() => {
+                const hasStructuredNotes = meetingData?.structured_special_notes && typeof meetingData.structured_special_notes === 'object';
+                const hasRegularNotes = specialNotes;
+                
+                if (!hasStructuredNotes && !hasRegularNotes) return '';
+                
+                let notesContent = '';
+                
+                // Add structured notes if available
+                if (hasStructuredNotes) {
+                  notesContent += 'Structured Special Notes:\n';
+                  
+                  Object.keys(meetingData.structured_special_notes).forEach(sectionKey => {
+                    const sectionData = meetingData.structured_special_notes[sectionKey];
+                    if (sectionData) {
+                                        // Handle each section like frontend with correct headings
+                  let sectionTitle = '';
+                  switch(sectionKey) {
+                    case 'preferences':
+                      sectionTitle = 'RESIDENT COMMUNICATION PREFERENCES:';
+                      break;
+                    case 'access':
+                      sectionTitle = 'BEST ACCESS STEPS:';
+                      break;
+                    case 'repair':
+                      sectionTitle = 'REPAIR/COMPLETION REQUESTS:';
+                      break;
+                    case 'safety':
+                      sectionTitle = 'SAFETY:';
+                      break;
+                    case 'vulnerability':
+                      sectionTitle = 'HOUSEHOLD VULNERABILITY:';
+                      break;
+                    case 'legal':
+                      sectionTitle = 'LEGAL CLAIM:';
+                      break;
+                    case 'property':
+                      sectionTitle = 'SPECIAL PROPERTY REQUESTS:';
+                      break;
+                    case 'noAccess':
+                      sectionTitle = 'NO ACCESS STEPS:';
+                      break;
+                    default:
+                      sectionTitle = sectionKey.charAt(0).toUpperCase() + sectionKey.slice(1) + ':';
+                  }
+                  notesContent += `${sectionTitle}\n`;
+                      
+                      // Check if any options are selected (excluding default)
+                      const selectedOptions = [];
+                      
+                      if (sectionData.avoidSchoolRun) selectedOptions.push('Avoid School Run');
+                      if (sectionData.callOnWay) selectedOptions.push('Call on Way');
+                      if (sectionData.preferredTime && sectionData.preferredTimeFrom && sectionData.preferredTimeTo) {
+                        selectedOptions.push(`Preferred Time: ${sectionData.preferredTimeFrom} to ${sectionData.preferredTimeTo}`);
+                      }
+                      
+                      if (sectionData.withOfficer) selectedOptions.push('With Officer');
+                      if (sectionData.residentSignature) selectedOptions.push('Resident Signature');
+                      if (sectionData.uploadToVideodesk) selectedOptions.push('Upload to Videodesk');
+                      
+                      if (sectionData.callMobile) selectedOptions.push('Call Mobile');
+                      if (sectionData.callLandline) selectedOptions.push('Call Landline');
+                      if (sectionData.sms) selectedOptions.push('SMS');
+                      if (sectionData.email) selectedOptions.push('Email');
+                      if (sectionData.other && sectionData.otherText) selectedOptions.push(`Other: ${sectionData.otherText}`);
+                      
+                      if (sectionData.withHousingOfficer) selectedOptions.push('With Housing Officer');
+                      if (sectionData.animalsPresent) selectedOptions.push('Animals Present');
+                      if (sectionData.dryHoarded) selectedOptions.push('Dry Hoarded');
+                      if (sectionData.localRiskAssessment) selectedOptions.push('Local Risk Assessment');
+                      
+                      if (sectionData.scottSchedule) selectedOptions.push('Scott Schedule');
+                      if (sectionData.currentDisrepair) selectedOptions.push('Current Disrepair');
+                      if (sectionData.potentialDisrepair) selectedOptions.push('Potential Disrepair');
+                      
+                      if (sectionData.youngChildren) selectedOptions.push('Young Children');
+                      if (sectionData.elderly) selectedOptions.push('Elderly');
+                      if (sectionData.baby) selectedOptions.push('Baby');
+                      
+                      if (sectionData.heaters) selectedOptions.push('Heaters');
+                      if (sectionData.dehumidifiers) selectedOptions.push('Dehumidifiers');
+                      if (sectionData.dehumidifierCount) selectedOptions.push(`${sectionData.dehumidifierCount} Dehumidifier(s)`);
+                      
+                      if (sectionData.other && sectionData.otherText) selectedOptions.push(`Other: ${sectionData.otherText}`);
+                      
+                      if (selectedOptions.length > 0) {
+                        selectedOptions.forEach(option => {
+                          notesContent += `  • ${option}\n`;
+                        });
+                      } else {
+                        notesContent += `  • None specified/Follow your local policy\n`;
+                      }
+                      
+                      notesContent += '\n';
+                    }
+                  });
+                }
+                
+                // Add regular notes if available
+                if (hasRegularNotes) {
+                  if (hasStructuredNotes) {
+                    notesContent += '---\n\n';
+                    notesContent += 'Additional Notes:\n';
+                  } else {
+                    notesContent += 'Additional Notes:\n';
+                  }
+                  notesContent += specialNotes;
+                }
+                
+                return notesContent;
+              })()}</div>
+            </div>
+          </div>
+          ` : ''}
+          
+          <div class="section">
+            <div class="section-title">SUMMARY</div>
+            <div class="summary-grid">
+              <div class="summary-item">
+                <div class="summary-number">${meetingDate}</div>
+                <div class="summary-label">Meeting Date</div>
+              </div>
+              <div class="summary-item">
+                <div class="summary-number">${totalRecordings}</div>
+                <div class="summary-label">Recordings</div>
+              </div>
+              <div class="summary-item">
+                <div class="summary-number">${totalScreenshots}</div>
+                <div class="summary-label">Screenshots</div>
+              </div>
+              <div class="summary-item">
+                <div class="summary-number">${targetTime || 'N/A'}</div>
+                <div class="summary-label">Target Time</div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="footer">
+            <p>Generated by Videodesk.co.uk | Meeting ID: ${id}</p>
+            <p>This report contains confidential information and should be handled appropriately.</p>
+          </div>
+        </body>
+      </html>
+    `);
+    
+    printWindow.document.close();
+    printWindow.focus();
+    
+    // Wait for content to load then print
+    printWindow.onload = () => {
+      printWindow.print();
+      printWindow.close();
+    };
   };
 
   // Function to handle visitor access - always grant access after submission
@@ -81,8 +624,25 @@ export default function SharePage({ params }) {
         if (meetingResp.success && meetingResp.meeting) {
           const meetingData = meetingResp.meeting;
           setMeetingData(meetingData);
-          setResidentName(meetingData.name || "");
-          setResidentAddress(meetingData.address || "");
+          // Use new structured name fields
+          const fullName = meetingData.first_name && meetingData.last_name 
+            ? `${meetingData.first_name} ${meetingData.last_name}`.trim()
+            : meetingData.first_name || meetingData.last_name || meetingData.name || "";
+          setResidentName(fullName);
+          
+          // Use new structured address fields
+          const addressParts = [];
+          if (meetingData.house_name_number) addressParts.push(meetingData.house_name_number);
+          if (meetingData.flat_apartment_room) addressParts.push(meetingData.flat_apartment_room);
+          if (meetingData.street_road) addressParts.push(meetingData.street_road);
+          if (meetingData.city) addressParts.push(meetingData.city);
+          if (meetingData.country) addressParts.push(meetingData.country);
+          if (meetingData.post_code) addressParts.push(meetingData.post_code);
+          
+          // Fallback to old address field if no structured address
+          const structuredAddress = addressParts.length > 0 ? addressParts.join(', ') : meetingData.address || "";
+          setResidentAddress(structuredAddress);
+          
           setAddressLine1(meetingData.address_line_1 || "");
           setAddressLine2(meetingData.address_line_2 || "");
           setAddressLine3(meetingData.address_line_3 || "");
@@ -136,8 +696,25 @@ export default function SharePage({ params }) {
         console.log('✅ Found meeting data:', meetingData);
         
         // Populate form fields with existing data (read-only)
-        setResidentName(meetingData.name || "");
-        setResidentAddress(meetingData.address || "");
+        // Use new structured name fields
+        const fullName = meetingData.first_name && meetingData.last_name 
+          ? `${meetingData.first_name} ${meetingData.last_name}`.trim()
+          : meetingData.first_name || meetingData.last_name || meetingData.name || "";
+        setResidentName(fullName);
+        
+        // Use new structured address fields
+        const addressParts = [];
+        if (meetingData.house_name_number) addressParts.push(meetingData.house_name_number);
+        if (meetingData.flat_apartment_room) addressParts.push(meetingData.flat_apartment_room);
+        if (meetingData.street_road) addressParts.push(meetingData.street_road);
+        if (meetingData.city) addressParts.push(meetingData.city);
+        if (meetingData.country) addressParts.push(meetingData.country);
+        if (meetingData.post_code) addressParts.push(meetingData.post_code);
+        
+        // Fallback to old address field if no structured address
+        const structuredAddress = addressParts.length > 0 ? addressParts.join(', ') : meetingData.address || "";
+        setResidentAddress(structuredAddress);
+        
         setAddressLine1(meetingData.address_line_1 || "");
         setAddressLine2(meetingData.address_line_2 || "");
         setAddressLine3(meetingData.address_line_3 || "");
@@ -341,6 +918,30 @@ export default function SharePage({ params }) {
     return name.charAt(0).toUpperCase();
   };
 
+  // Address value computation and auto-height effect
+  const addressValue = (() => {
+    const addressParts = [];
+    if (meetingData?.house_name_number) addressParts.push(meetingData.house_name_number.trim());
+    if (meetingData?.flat_apartment_room) addressParts.push(meetingData.flat_apartment_room.trim());
+    if (meetingData?.street_road) addressParts.push(meetingData.street_road.trim());
+    if (meetingData?.city) addressParts.push(meetingData.city.trim());
+    if (meetingData?.country) addressParts.push(meetingData.country.trim());
+    if (addressParts.length === 0 && residentAddress) addressParts.push(residentAddress.trim());
+    let addressString = addressParts.length > 0 ? addressParts.join(', ') : 'No address provided';
+    if (meetingData?.post_code) addressString += `\nPostcode: ${meetingData.post_code}`;
+    return addressString;
+  })();
+
+  // Separate postcode for right alignment
+  const postcodeValue = meetingData?.post_code || '';
+
+  useEffect(() => {
+    if (addressRef.current) {
+      addressRef.current.style.height = "auto";
+      addressRef.current.style.height = addressRef.current.scrollHeight + "px";
+    }
+  }, [addressValue]);
+
   // Effect: For unauthenticated users, open visitor modal after userLoading is false
   useEffect(() => {
     if (userLoading) return;
@@ -386,8 +987,25 @@ export default function SharePage({ params }) {
             setAccessGranted(true);
             setMeetingData(meetingData);
             // Populate all fields as before
-            setResidentName(meetingData.name || "");
-            setResidentAddress(meetingData.address || "");
+            // Use new structured name fields
+            const fullName = meetingData.first_name && meetingData.last_name 
+              ? `${meetingData.first_name} ${meetingData.last_name}`.trim()
+              : meetingData.first_name || meetingData.last_name || meetingData.name || "";
+            setResidentName(fullName);
+            
+            // Use new structured address fields
+            const addressParts = [];
+            if (meetingData.house_name_number) addressParts.push(meetingData.house_name_number);
+            if (meetingData.flat_apartment_room) addressParts.push(meetingData.flat_apartment_room);
+            if (meetingData.street_road) addressParts.push(meetingData.street_road);
+            if (meetingData.city) addressParts.push(meetingData.city);
+            if (meetingData.country) addressParts.push(meetingData.country);
+            if (meetingData.post_code) addressParts.push(meetingData.post_code);
+            
+            // Fallback to old address field if no structured address
+            const structuredAddress = addressParts.length > 0 ? addressParts.join(', ') : meetingData.address || "";
+            setResidentAddress(structuredAddress);
+            
             setAddressLine1(meetingData.address_line_1 || "");
             setAddressLine2(meetingData.address_line_2 || "");
             setAddressLine3(meetingData.address_line_3 || "");
@@ -438,12 +1056,39 @@ export default function SharePage({ params }) {
   // Only show visitor modal if not creator and userLoading is false
   useEffect(() => {
     if (!id || isCreator || userLoading) return;
-    extractLandlordInfoFromUrl();
+    
+    // If user is authenticated, close modal and grant access
+    if (isAuth) {
+      setAccessGranted(true);
+      closeVisitorAccessModal();
+      return;
+    }
+    
+    // Add a small delay to show the profile loader
     const timeout = setTimeout(() => {
-      openVisitorAccessModal(handleVisitorAccess);
-    }, 100);
+      extractLandlordInfoFromUrl();
+      const modalTimeout = setTimeout(() => {
+        openVisitorAccessModal(handleVisitorAccess);
+      }, 100);
+      return () => clearTimeout(modalTimeout);
+    }, 500); // Show loader for 500ms
+    
     return () => clearTimeout(timeout);
-  }, [id, isCreator, userLoading]);
+  }, [id, isCreator, userLoading, isAuth]);
+
+  // Effect: Handle profile loading for authenticated users
+  useEffect(() => {
+    if (userLoading) return;
+    
+    // For authenticated users, extract landlord info immediately
+    if (isAuth) {
+      const timeout = setTimeout(() => {
+        extractLandlordInfoFromUrl();
+      }, 300); // Small delay to show loader
+      
+      return () => clearTimeout(timeout);
+    }
+  }, [userLoading, isAuth]);
 
   // Effect: Log creator access if needed
   useEffect(() => {
@@ -499,9 +1144,58 @@ export default function SharePage({ params }) {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
-      <div className="max-w-6xl mx-auto px-2 sm:px-4 md:px-6 py-6 md:py-12">
-        {/* Enhanced Header */}
-        <div className="bg-white rounded-2xl shadow-lg p-4 sm:p-6 mb-4 md:mb-8 border border-gray-200">
+      <style jsx>{`
+        @media print {
+          /* Hide header and footer when printing */
+          .print-hide {
+            display: none !important;
+          }
+          
+          /* Hide scrollbars and show full content */
+          * {
+            overflow: visible !important;
+            scrollbar-width: none !important;
+            -ms-overflow-style: none !important;
+          }
+          
+          /* Hide webkit scrollbars */
+          ::-webkit-scrollbar {
+            display: none !important;
+          }
+          
+          /* Ensure all content is visible */
+          body, html {
+            height: auto !important;
+            overflow: visible !important;
+          }
+          
+          /* Remove any max-height constraints */
+          * {
+            max-height: none !important;
+            height: auto !important;
+          }
+          
+          /* Ensure content fills the page */
+          body {
+            margin: 0;
+            padding: 0;
+          }
+          
+          /* Remove background colors for better printing */
+          .bg-gradient-to-br {
+            background: white !important;
+          }
+          
+          /* Ensure text is readable */
+          * {
+            color: black !important;
+            background: white !important;
+          }
+        }
+      `}</style>
+      <div className="max-w-7xl mx-auto px-2 sm:px-4 md:px-6 py-6 md:py-12">
+        {/* Enhanced Header with better spacing */}
+        <div className="bg-white rounded-3xl shadow-xl p-4 sm:p-6 mb-6 md:mb-8 border border-gray-200 print-hide">
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 md:gap-0">
             <div className="flex items-center">
               {/* Show landlord logo if available, otherwise show default */}
@@ -510,7 +1204,7 @@ export default function SharePage({ params }) {
                   <img 
                     src={getLandlordLogo()} 
                     alt="Landlord Logo" 
-                    className="max-h-8 max-w-[120px] object-contain mr-3" 
+                    className="max-h-10 max-w-[140px] object-contain mr-4" 
                   />
                   <a href="/" className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent flex items-center hover:opacity-80 transition-opacity">
                     <VideoIcon className="mr-3 text-blue-600" size={28} />
@@ -524,25 +1218,34 @@ export default function SharePage({ params }) {
                 </a>
               )}
             </div>
-            <div className="text-xs md:text-sm text-gray-500 bg-gray-50 px-3 md:px-4 py-1.5 md:py-2 rounded-full">
-              Meeting ID: {id}
+            <div className="flex items-center gap-3">
+              <div className="text-xs md:text-sm text-gray-500 bg-gray-50 px-4 md:px-5 py-2 md:py-2.5 rounded-full border border-gray-200">
+                Meeting ID: {id}
+              </div>
+              <button
+                onClick={handlePrint}
+                className="inline-flex items-center justify-center p-2 md:p-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-full border border-blue-500 transition-all duration-200 hover:scale-105 shadow-md"
+                title="Print this page"
+              >
+                <Printer className="w-4 h-4 md:w-5 md:h-5" />
+              </button>
             </div>
           </div>
         </div>
 
-        {/* Profile Section */}
-        <div className="bg-white rounded-2xl shadow-lg p-4 sm:p-6 mb-4 md:mb-8 border border-gray-200">
+        {/* Enhanced Profile Section */}
+        <div className="bg-white rounded-3xl shadow-xl p-4 sm:p-6 mb-6 md:mb-8 border border-gray-200 print-hide">
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 md:gap-0">
             <div className="flex items-center">
               <div className="flex items-center">
                 {isLoadingProfile ? (
                   <div className="flex items-center">
-                    <div className="w-12 h-12 bg-gray-200 rounded-full animate-pulse mr-3"></div>
-                    <div className="h-8 bg-gray-200 rounded animate-pulse w-24 md:w-32"></div>
+                    <div className="w-14 h-14 bg-gray-200 rounded-full animate-pulse mr-4"></div>
+                    <div className="h-8 bg-gray-200 rounded animate-pulse w-28 md:w-36"></div>
                   </div>
                 ) : (
                   <>
-                    <div className={`w-12 h-12 overflow-hidden mr-3 ${getProfileShapeClass()} flex items-center justify-center border border-gray-300 bg-gray-50`}>
+                    <div className={`w-14 h-14 overflow-hidden mr-4 ${getProfileShapeClass()} flex items-center justify-center border-2 border-gray-300 bg-gray-50 shadow-sm`}>
                       {getProfileImage() ? (
                         <img
                           src={getProfileImage()}
@@ -555,7 +1258,7 @@ export default function SharePage({ params }) {
                         />
                       ) : (
                         <div className="w-full h-full bg-gradient-to-r from-green-500 to-blue-500 flex items-center justify-center">
-                          <span className="text-white font-semibold text-base md:text-lg">{getInitials(getDisplayName())}</span>
+                          <span className="text-white font-semibold text-lg md:text-xl">{getInitials(getDisplayName())}</span>
                         </div>
                       )}
                     </div>
@@ -566,7 +1269,7 @@ export default function SharePage({ params }) {
                 )}
               </div>
             </div>
-            <div className="text-xs md:text-sm text-gray-500 bg-gray-50 px-3 md:px-4 py-1.5 md:py-2 rounded-full">
+            <div className="text-xs md:text-sm text-gray-500 bg-gray-50 px-4 md:px-5 py-2 md:py-2.5 rounded-full border border-gray-200">
               {isLoadingProfile ? (
                 <div className="h-4 bg-gray-200 rounded animate-pulse w-12 md:w-16"></div>
               ) : landlordInfo.landlordName ? (
@@ -578,180 +1281,140 @@ export default function SharePage({ params }) {
           </div>
         </div>
 
-        {/* Enhanced Main Content Card */}
-        <div className="bg-white rounded-3xl shadow-xl p-4 sm:p-8 mb-4 md:mb-8 border-2 border-gray-200">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-8">
-            {/* Left Side - Enhanced Name and Address */}
-            <div className="space-y-4 md:space-y-6">
-              {/* Resident Name */}
-              <div>
-                <label className="block text-xs md:text-sm font-semibold text-gray-700 mb-2 md:mb-3 uppercase tracking-wide">
-                  Resident Name
-                </label>
-                <input
-                  id="residentName"
-                  type="text"
-                  value={residentName}
-                  readOnly
-                  className="w-full p-3 md:p-4 border-2 md:border-4 border-gray-200 rounded-2xl bg-gradient-to-r from-gray-50 to-gray-100 text-gray-800 font-medium text-base md:text-lg focus:outline-none shadow-inner"
-                />
-              </div>
-              {/* Enhanced Address Fields */}
-              <div>
-                <label htmlFor="residentAddress" className="block text-xs md:text-sm font-semibold text-gray-700 mb-2 md:mb-3 uppercase tracking-wide">
-                  Resident's Address
-                </label>
-                {/* Main Address */}
-                {residentAddress && (
-                  <textarea
-                    value={residentAddress}
-                    readOnly
-                    rows={2}
-                    className="w-full p-3 md:p-4 border-2 md:border-4 border-gray-200 rounded-2xl bg-gradient-to-r from-gray-50 to-gray-100 text-gray-800 font-medium resize-none focus:outline-none shadow-inner leading-relaxed mb-2"
-                  />
-                )}
-                {/* Address Lines */}
-                {addressLine1 && (
-                  <input
-                    value={addressLine1}
-                    readOnly
-                    placeholder="Address Line 1"
-                    className="w-full p-2.5 md:p-3 border-2 border-gray-200 rounded-xl bg-gray-50 text-gray-800 font-medium focus:outline-none shadow-inner mb-1.5 md:mb-2"
-                  />
-                )}
-                {addressLine2 && (
-                  <input
-                    value={addressLine2}
-                    readOnly
-                    placeholder="Address Line 2"
-                    className="w-full p-2.5 md:p-3 border-2 border-gray-200 rounded-xl bg-gray-50 text-gray-800 font-medium focus:outline-none shadow-inner mb-1.5 md:mb-2"
-                  />
-                )}
-                {addressLine3 && (
-                  <input
-                    value={addressLine3}
-                    readOnly
-                    placeholder="Address Line 3"
-                    className="w-full p-2.5 md:p-3 border-2 border-gray-200 rounded-xl bg-gray-50 text-gray-800 font-medium focus:outline-none shadow-inner mb-1.5 md:mb-2"
-                  />
-                )}
-                {/* Additional Address Lines */}
-                {additionalAddressLines.map((line, index) => (
-                  line && (
+        {/* Enhanced Main Content Card with better layout */}
+        <div className="bg-white rounded-3xl shadow-xl p-6 sm:p-8 mb-6 md:mb-8 border-2 border-gray-200">
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 md:gap-8">
+            {/* Left Side - Resident Information */}
+            <div className="xl:col-span-2">
+              {/* Resident Info & Address Section - Improved Design */}
+              <div className="bg-gradient-to-br from-white to-blue-50 border-2 border-blue-100 rounded-3xl shadow-lg p-6 md:p-8">
+                <div className="flex items-center mb-6">
+                  <span className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-blue-100 mr-3">
+                    <User className="w-6 h-6 text-blue-500" />
+                  </span>
+                  <h2 className="text-xl md:text-2xl font-bold text-blue-800 tracking-wide">Resident Information</h2>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Resident Name */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                      <User className="w-4 h-4 text-blue-400" /> Resident Name
+                    </label>
                     <input
-                      key={index}
-                      value={line}
+                      id="residentName"
+                      type="text"
+                      value={residentName}
                       readOnly
-                      placeholder={`Address Line ${index + 4}`}
-                      className="w-full p-2.5 md:p-3 border-2 border-gray-200 rounded-xl bg-gray-50 text-gray-800 font-medium focus:outline-none shadow-inner mb-1.5 md:mb-2"
+                      className="w-full p-4 border-2 border-blue-100 rounded-xl bg-blue-50 text-blue-900 font-semibold text-base focus:outline-none shadow-inner cursor-default"
                     />
-                  )
-                ))}
-              </div>
-              {/* Special Notes Section - always visible, own card */}
-              <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-4 mt-2">
-                <div className="font-bold text-yellow-900 text-lg mb-2">Special Notes</div>
-                {parsedSpecialNotes && typeof parsedSpecialNotes === 'object' && Array.isArray(specialNotesSections) ? (
-                  specialNotesSections.some(section => {
-                    const state = parsedSpecialNotes[section.key];
-                    if (!state) return false;
-                    const checked = section.options.filter(opt => state[opt.key]);
-                    return checked.length > 0 || state.otherText || state.days || state.timeRange || state.dehumidifierCount || state.waitTime;
-                  }) ? (
-                    specialNotesSections.map(section => {
-                      const state = parsedSpecialNotes[section.key];
-                      if (!state) return null;
-                      const checked = section.options.filter(opt => state[opt.key]);
-                      if (checked.length === 0 && !state.otherText && !state.days && !state.timeRange && !state.dehumidifierCount && !state.waitTime) return null;
-                      return (
-                        <div key={section.key} className="mb-3">
-                          <div className="font-semibold text-yellow-800 mb-1">{section.title.replace(/:$/, '')}</div>
-                          <ul className="list-disc ml-6 text-yellow-900 text-base">
-                            {checked.map(opt => (
-                              <li key={opt.key}>
-                                {opt.label.replace(/:$/, '')}
-                                {opt.isOther && state.otherText && (
-                                  <span className="ml-2 italic text-yellow-700">- {state.otherText}</span>
-                                )}
-                                {opt.isDays && state.days && Array.isArray(state.days) && state.days.length > 0 && (
-                                  <span className="ml-2 italic text-yellow-700">- {state.days.join(', ')}</span>
-                                )}
-                                {opt.isTimeRange && state.timeRange && (
-                                  <span className="ml-2 italic text-yellow-700">- {state.timeRange.from} to {state.timeRange.to}</span>
-                                )}
-                                {opt.isDehumidifier && state.dehumidifierCount && (
-                                  <span className="ml-2 italic text-yellow-700">- {state.dehumidifierCount}</span>
-                                )}
-                                {opt.isWait && state.waitTime && (
-                                  <span className="ml-2 italic text-yellow-700">- {state.waitTime}</span>
-                                )}
-                              </li>
-                            ))}
-                          </ul>
+                  </div>
+                  {/* Contact (if available) */}
+                  {meetingData?.phone_number && (
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                        <Smartphone className="w-4 h-4 text-green-400" /> Phone Number
+                      </label>
+                      <input
+                        type="text"
+                        value={meetingData.phone_number}
+                        readOnly
+                        className="w-full p-4 border-2 border-green-100 rounded-xl bg-green-50 text-green-900 font-semibold text-base focus:outline-none shadow-inner cursor-default"
+                      />
+                    </div>
+                  )}
+                  {/* Email (if available) */}
+                  {meetingData?.email && (
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                        <MailIcon className="w-4 h-4 text-amber-400" /> Email
+                      </label>
+                      <input
+                        type="text"
+                        value={meetingData.email}
+                        readOnly
+                        className="w-full p-4 border-2 border-amber-100 rounded-xl bg-amber-50 text-amber-900 font-semibold text-base focus:outline-none shadow-inner cursor-default"
+                      />
+                    </div>
+                  )}
+                </div>
+                <div className="my-6 border-t border-blue-100" />
+                <div className="grid grid-cols-1 gap-6">
+                  {/* Resident Address in One Line with Postcode on New Line, Right Aligned */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                      <Home className="w-4 h-4 text-blue-400" /> Resident Address
+                    </label>
+                    <div
+                      className="w-full p-4 border-2 border-blue-100 rounded-xl bg-blue-50 text-blue-900 font-medium shadow-inner cursor-default"
+                      style={{ minHeight: "40px" }}
+                    >
+                      <div className="whitespace-pre-line">
+                        {(() => {
+                          const addressParts = [];
+                          if (meetingData?.house_name_number) addressParts.push(meetingData.house_name_number.trim());
+                          if (meetingData?.flat_apartment_room) addressParts.push(meetingData.flat_apartment_room.trim());
+                          if (meetingData?.street_road) addressParts.push(meetingData.street_road.trim());
+                          if (meetingData?.city) addressParts.push(meetingData.city.trim());
+                          if (meetingData?.country) addressParts.push(meetingData.country.trim());
+                          if (addressParts.length === 0 && residentAddress) addressParts.push(residentAddress.trim());
+                          return addressParts.length > 0 ? addressParts.join(', ') : 'No address provided';
+                        })()}
+                      </div>
+                      {postcodeValue && (
+                        <div className="text-right mt-2 text-blue-900 font-medium mr-8">
+                          Postcode: {postcodeValue}
                         </div>
-                      );
-                    })
-                  ) : (
-                    <div className="text-yellow-700 italic">No special notes provided.</div>
-                  )
-                ) : (
-                  <div className="text-yellow-700 italic">No special notes provided.</div>
-                )}
+                      )}
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
-            {/* Right Side - Ref and Work Details */}
-            <div className="h-full flex flex-col space-y-4 md:space-y-6">
-              {/* Ref Field */}
+
+            {/* Right Side - Reference and Work Details with Dynamic Height */}
+            <div className="flex flex-col">
+              {/* Reference Field */}
               {ref && (
-                <div>
-                  <label className="block text-xs md:text-sm font-semibold text-gray-700 mb-2 md:mb-3 uppercase tracking-wide">
+                <div className="bg-blue-50 border-2 border-blue-200 rounded-2xl p-4 md:p-5 mb-6">
+                  <div className="text-sm md:text-base font-semibold text-blue-800 mb-2 uppercase tracking-wide">
                     Reference
-                  </label>
-                  <input
-                    type="text"
-                    value={ref}
-                    readOnly
-                    className="w-full p-3 md:p-4 border-2 md:border-4 border-gray-200 rounded-2xl bg-gradient-to-r from-gray-50 to-gray-100 text-gray-800 font-medium text-base md:text-lg focus:outline-none shadow-inner overflow-x-auto"
-                  />
+                  </div>
+                  <div className="text-gray-800 font-medium text-base md:text-lg break-all">
+                    {ref}
+                  </div>
                 </div>
               )}
+
               {/* Repair Details */}
               {repairDetails && (
-                <div>
-                  <label className="block text-xs md:text-sm font-semibold text-gray-700 mb-2 md:mb-3 uppercase tracking-wide">
+                <div className="bg-green-50 border-2 border-green-200 rounded-2xl p-4 md:p-5 mb-6">
+                  <div className="text-sm md:text-base font-semibold text-green-800 mb-3 uppercase tracking-wide">
                     Repair Details
-                  </label>
-                  <textarea
-                    value={repairDetails}
-                    readOnly
-                    rows={2}
-                    className="w-full p-3 md:p-4 border-2 md:border-4 border-gray-200 rounded-2xl bg-gradient-to-r from-gray-50 to-gray-100 text-gray-800 font-medium resize-none focus:outline-none shadow-inner leading-relaxed"
-                  />
+                  </div>
+                  <div className="text-gray-800 font-medium text-sm md:text-base leading-relaxed">
+                    {repairDetails}
+                  </div>
                 </div>
               )}
-              {/* Work Details */}
+
+              {/* Work Details with Dynamic Height */}
               {workDetails && workDetails.length > 0 && (
-                <div>
-                  <label className="block text-xs md:text-sm font-semibold text-gray-700 mb-2 md:mb-3 uppercase tracking-wide">
+                <div className="bg-purple-50 border-2 border-purple-200 rounded-2xl p-4 md:p-5">
+                  <div className="text-sm md:text-base font-semibold text-purple-800 mb-3 uppercase tracking-wide">
                     Work Details
-                  </label>
-                  <div className="space-y-2 md:space-y-3">
+                  </div>
+                  <div className="space-y-3 md:space-y-4 overflow-y-auto scrollbar-thin scrollbar-thumb-purple-300 scrollbar-track-purple-100 pr-2" style={{ maxHeight: '300px' }}>
                     {workDetails.map((work, index) => (
-                      <div key={index} className="bg-blue-50 border-2 border-blue-200 rounded-xl p-3 md:p-4">
-                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-1.5 md:mb-2">
-                          <span className="text-xs md:text-sm font-semibold text-blue-800">Work Item {index + 1}</span>
+                      <div key={index} className="bg-white border border-purple-200 rounded-xl p-3 md:p-4">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-2">
+                          <span className="text-xs md:text-sm font-semibold text-purple-800">Work Item {index + 1}</span>
                           {work.target_time && (
-                            <span className="text-xs bg-blue-200 text-blue-800 px-2 py-1 rounded-full font-medium mt-1 sm:mt-0">
+                            <span className="text-xs bg-purple-200 text-purple-800 px-2 py-1 rounded-full font-medium mt-1 sm:mt-0">
                               {work.target_time}
                             </span>
                           )}
                         </div>
-                        <p className="text-gray-800 font-medium text-sm md:text-base">{work.detail}</p>
-                        {work.timestamp && (
-                          <p className="text-xs text-gray-500 mt-1 md:mt-2">
-                            Added: {new Date(work.timestamp).toLocaleString()}
-                          </p>
-                        )}
+                        <p className="text-gray-800 font-medium text-sm md:text-base leading-relaxed">{work.detail}</p>
                       </div>
                     ))}
                   </div>
@@ -761,12 +1424,244 @@ export default function SharePage({ params }) {
           </div>
         </div>
 
+        {/* Enhanced Special Notes Section with Full Width */}
+        <div className="bg-white rounded-3xl shadow-xl p-6 sm:p-8 mb-6 md:mb-8 border-2 border-gray-200">
+          <div className="bg-yellow-50 border-2 border-yellow-200 rounded-2xl p-4 md:p-6">
+            <div className="font-bold text-yellow-900 text-lg md:text-xl mb-3 md:mb-4 flex items-center justify-between">
+              <div className="flex items-center">
+                <span className="mr-2">📝</span>
+                Special Notes
+              </div>
+              {/* Summary badge and quick actions */}
+              <div className="flex items-center gap-2">
+                {(() => {
+                  const hasStructuredNotes = meetingData?.structured_special_notes && typeof meetingData.structured_special_notes === 'object';
+                  const hasRegularNotes = specialNotes;
+                  const totalSections = hasStructuredNotes ? Object.keys(meetingData.structured_special_notes).length : 0;
+                  return (
+                    <div className="text-xs bg-yellow-200 text-yellow-800 px-2 py-1 rounded-full font-medium">
+                      {hasStructuredNotes && hasRegularNotes ? `${totalSections} sections + notes` :
+                       hasStructuredNotes ? `${totalSections} sections` :
+                       hasRegularNotes ? 'Text notes' : 'None'}
+                    </div>
+                  );
+                })()}
+                
+                {/* Quick action buttons */}
+                {(() => {
+                  const hasStructuredNotes = meetingData?.structured_special_notes && typeof meetingData.structured_special_notes === 'object';
+                  const hasRegularNotes = specialNotes;
+                  const hasAnyNotes = hasStructuredNotes || hasRegularNotes;
+                  
+                  if (!hasAnyNotes) return null;
+                  
+                  const allSections = hasStructuredNotes ? Object.keys(meetingData.structured_special_notes) : [];
+                  const allKeys = [...allSections, ...(hasRegularNotes ? ['additional-notes'] : [])];
+                  const allExpanded = allKeys.every(key => expandedSpecialNotes.has(key));
+                  
+                  return (
+                    <div className="flex gap-1">
+                      <button
+                        onClick={() => {
+                          if (allExpanded) {
+                            setExpandedSpecialNotes(new Set());
+                          } else {
+                            setExpandedSpecialNotes(new Set(allKeys));
+                          }
+                        }}
+                        className="text-xs bg-yellow-300 hover:bg-yellow-400 text-yellow-800 px-2 py-1 rounded transition-colors duration-200"
+                      >
+                        {allExpanded ? 'Collapse All' : 'Expand All'}
+                      </button>
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+            
+            {/* Show both structured special notes (popup data) and regular special notes */}
+            <div className="space-y-3">
+              {/* Structured Special Notes (Popup Data) */}
+              {meetingData?.structured_special_notes && typeof meetingData.structured_special_notes === 'object' && (
+                (() => {
+                  console.log('🔍 Structured special notes data:', meetingData?.structured_special_notes);
+                  return true;
+                })() && (
+                  <div className="space-y-3">
+                    {specialNotesSections.map(section => {
+                      const state = meetingData.structured_special_notes[section.key];
+                      console.log(`🔍 Processing section: ${section.key}`, state);
+                      if (!state) return null;
+                      
+                      // Check if any options are selected (excluding default)
+                      const checked = section.options.filter(opt => 
+                        opt.key !== 'default' && state[opt.key]
+                      );
+                      
+                      // If only default is selected or nothing is selected, show default
+                      const hasNonDefaultSelections = checked.length > 0 || 
+                        state.otherText || 
+                        state.preferredTimeFrom || 
+                        state.preferredTimeTo || 
+                        state.preferredDays || 
+                        state.dehumidifierCount || 
+                        state.waitTime;
+                      
+                      if (!hasNonDefaultSelections && !state.default) return null;
+                      
+                      const isExpanded = expandedSpecialNotes.has(section.key);
+                      const hasContent = checked.length > 0 || (!hasNonDefaultSelections && state.default);
+                      
+                      return (
+                        <div key={section.key} className="bg-white rounded-xl border border-yellow-200 overflow-hidden">
+                          {/* Collapsible Header */}
+                          <button
+                            onClick={() => {
+                              const newExpanded = new Set(expandedSpecialNotes);
+                              if (isExpanded) {
+                                newExpanded.delete(section.key);
+                              } else {
+                                newExpanded.add(section.key);
+                              }
+                              setExpandedSpecialNotes(newExpanded);
+                            }}
+                            className="w-full p-3 md:p-4 text-left hover:bg-yellow-50 transition-colors duration-200 flex items-center justify-between"
+                          >
+                            <div className="flex items-center">
+                              <ChevronRight 
+                                className={`w-4 h-4 mr-2 text-yellow-600 transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`} 
+                              />
+                              <span className="font-semibold text-yellow-800 text-sm md:text-base">
+                                {section.title}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {hasContent && (
+                                <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded-full">
+                                  {checked.length + (state.default ? 1 : 0)} items
+                                </span>
+                              )}
+                            </div>
+                          </button>
+                          
+                          {/* Collapsible Content */}
+                          {isExpanded && (
+                            <div className="px-3 md:px-4 pb-3 md:pb-4 border-t border-yellow-100">
+                              <ul className="list-disc ml-6 text-yellow-900 text-sm md:text-base space-y-1 mt-3">
+                                {/* Show default if no other selections */}
+                                {(!hasNonDefaultSelections || state.default) && (
+                                  <li className="leading-relaxed">
+                                    Default: None specified/Follow your local policy
+                                  </li>
+                                )}
+                                
+                                {/* Show selected options */}
+                                {checked.map(opt => (
+                                  <li key={opt.key} className="leading-relaxed">
+                                    {opt.label}
+                                    {opt.isOther && state.otherText && (
+                                      <span className="ml-2 italic text-yellow-700">- {state.otherText}</span>
+                                    )}
+                                    {opt.isTimeRange && state.preferredTimeFrom && state.preferredTimeTo && (
+                                      <span className="ml-2 italic text-yellow-700">
+                                        - {state.preferredTimeFrom} to {state.preferredTimeTo}
+                                      </span>
+                                    )}
+                                    {opt.isDays && state.preferredDays && (
+                                      <span className="ml-2 italic text-yellow-700">
+                                        - {(() => {
+                                          if (state.preferredDays.anyDay) {
+                                            return "Any day";
+                                          }
+                                          const selectedDays = [];
+                                          if (state.preferredDays.mon) selectedDays.push("Mon");
+                                          if (state.preferredDays.tue) selectedDays.push("Tue");
+                                          if (state.preferredDays.wed) selectedDays.push("Wed");
+                                          if (state.preferredDays.thu) selectedDays.push("Thu");
+                                          if (state.preferredDays.fri) selectedDays.push("Fri");
+                                          if (state.preferredDays.sat) selectedDays.push("Sat");
+                                          if (state.preferredDays.sun) selectedDays.push("Sun");
+                                          return selectedDays.join(", ");
+                                        })()}
+                                      </span>
+                                    )}
+                                    {opt.isDehumidifier && state.dehumidifierCount && (
+                                      <span className="ml-2 italic text-yellow-700">
+                                        - {state.dehumidifierCount} unit(s)
+                                      </span>
+                                    )}
+                                    {opt.isWait && state.waitTime && (
+                                      <span className="ml-2 italic text-yellow-700">
+                                        - Wait {state.waitTime}
+                                      </span>
+                                    )}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )
+              )}
+              
+              {/* Regular Special Notes (Text Field) */}
+              {specialNotes && (
+                <div className="bg-white rounded-xl border border-yellow-200 overflow-hidden">
+                  <button
+                    onClick={() => {
+                      const newExpanded = new Set(expandedSpecialNotes);
+                      const key = 'additional-notes';
+                      if (expandedSpecialNotes.has(key)) {
+                        newExpanded.delete(key);
+                      } else {
+                        newExpanded.add(key);
+                      }
+                      setExpandedSpecialNotes(newExpanded);
+                    }}
+                    className="w-full p-3 md:p-4 text-left hover:bg-yellow-50 transition-colors duration-200 flex items-center justify-between"
+                  >
+                    <div className="flex items-center">
+                      <ChevronRight 
+                        className={`w-4 h-4 mr-2 text-yellow-600 transition-transform duration-200 ${expandedSpecialNotes.has('additional-notes') ? 'rotate-90' : ''}`} 
+                      />
+                      <span className="font-semibold text-yellow-800 text-sm md:text-base">
+                        Additional Notes
+                      </span>
+                    </div>
+                    <div className="text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded-full">
+                      Text
+                    </div>
+                  </button>
+                  
+                  {expandedSpecialNotes.has('additional-notes') && (
+                    <div className="px-3 md:px-4 pb-3 md:pb-4 border-t border-yellow-100">
+                      <div className="text-yellow-900 text-sm md:text-base leading-relaxed mt-3">
+                        {specialNotes}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+              
+              {/* Show message if no special notes at all */}
+              {!meetingData?.structured_special_notes && !specialNotes && (
+                <div className="text-yellow-700 italic text-sm md:text-base text-center py-4">
+                  No special notes provided.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
         {/* Enhanced Video & Image Section */}
-        <div className="bg-white rounded-3xl shadow-xl p-4 sm:p-8 border-2 border-gray-200">
+        <div className="bg-white rounded-3xl shadow-xl p-4 sm:p-8 border-2 border-gray-200 mb-6 md:mb-8 media-section">
           {/* Videos Section */}
           {recordings.length > 0 && (
             <div className="mb-6 md:mb-8">
-              <div className="flex items-center gap-2 md:gap-3 mb-4 md:mb-6">
+              <div className="flex items-center gap-2 md:gap-3 mb-4 md:mb-6 pb-3">
                 <div className="w-2.5 h-2.5 md:w-3 md:h-3 bg-red-500 rounded-full animate-pulse"></div>
                 <h2 className="text-lg md:text-xl font-bold text-gray-800 uppercase tracking-wide">Videos</h2>
               </div>
@@ -840,7 +1735,7 @@ export default function SharePage({ params }) {
               </div>
             </div>
           )}
-          
+
           {/* Screenshots Section */}
           {screenshots.length > 0 && (
             <div className={recordings.length > 0 ? 'border-t border-gray-200 pt-6 md:pt-8' : ''}>
@@ -896,6 +1791,36 @@ export default function SharePage({ params }) {
               <p className="text-gray-500 text-base md:text-lg font-medium">No recordings or screenshots found</p>
             </div>
           )}
+        </div>
+
+        {/* Enhanced Footer with Meeting Info */}
+        <div className="bg-white rounded-3xl shadow-xl p-6 sm:p-8 border-2 border-gray-200 py-6 print-hide">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+            <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 md:p-5">
+              <div className="text-xs font-medium text-gray-500 mb-1">Meeting Created</div>
+              <div className="text-gray-800 font-medium text-sm md:text-base">
+                {meetingData?.createdAt ? new Date(meetingData.createdAt).toLocaleDateString() : 'Unknown'}
+              </div>
+            </div>
+            <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 md:p-5">
+              <div className="text-xs font-medium text-gray-500 mb-1">Total Recordings</div>
+              <div className="text-gray-800 font-medium text-sm md:text-base">
+                {recordings?.length || 0}
+              </div>
+            </div>
+            <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 md:p-5">
+              <div className="text-xs font-medium text-gray-500 mb-1">Total Screenshots</div>
+              <div className="text-gray-800 font-medium text-sm md:text-base">
+                {screenshots?.length || 0}
+              </div>
+            </div>
+            <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 md:p-5">
+              <div className="text-xs font-medium text-gray-500 mb-1">Target Time</div>
+              <div className="text-gray-800 font-medium text-sm md:text-base">
+                {targetTime || 'Not specified'}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 

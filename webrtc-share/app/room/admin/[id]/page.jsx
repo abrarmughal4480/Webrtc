@@ -3106,7 +3106,7 @@ export default function Page({ params }) {
                   <div className="mb-3">
                     <input
                       type="text"
-                      placeholder="Country"
+                      placeholder="County"
                       value={form.country}
                       onChange={e => updateForm({ country: e.target.value })}
                       className="w-full p-3 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-300"

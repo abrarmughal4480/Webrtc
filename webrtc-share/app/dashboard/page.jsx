@@ -87,6 +87,9 @@ export default function Page() {
     reference: '',
   });
 
+  // Add state to track if user is in search mode
+  const [isInSearchMode, setIsInSearchMode] = useState(false);
+
   const skeletonMinTimeRef = useRef(null);
 
 
@@ -210,6 +213,7 @@ export default function Page() {
       else filteredMeetings = sortedMeetings.filter(m => !m.deleted);
 
       setMeetings(filteredMeetings);
+      setIsInSearchMode(false); // Reset search mode when fetching all meetings
 
       if (showSkeleton) {
         await minTimePromise;
@@ -725,28 +729,65 @@ export default function Page() {
   // Handler for search button
   const handleSearchMeetings = async (e) => {
     if (e) e.preventDefault();
+    
+    // Validate date range
+    if (searchFields.date_from && searchFields.date_to) {
+      const fromDate = new Date(searchFields.date_from);
+      const toDate = new Date(searchFields.date_to);
+      if (fromDate > toDate) {
+        toast.error("From date cannot be after To date");
+        return;
+      }
+    }
+    
     // Only send filled fields
     const params = {};
     Object.entries(searchFields).forEach(([key, value]) => {
-      if (value && value.trim() !== '') params[key] = value.trim();
+      if (value && value.trim() !== '') {
+        // Handle date fields properly
+        if (key === 'date_from' || key === 'date_to') {
+          // Convert date to ISO string for backend
+          const date = new Date(value);
+          if (!isNaN(date.getTime())) {
+            params[key] = date.toISOString();
+          }
+        } else {
+          params[key] = value.trim();
+        }
+      }
     });
+    
+    console.log('🔍 Search parameters:', params);
+    
     setShowSearchModal(false);
     setLoading(true);
     try {
       let response;
       if (Object.keys(params).length === 0) {
         // No search fields, show all meetings
+        console.log('📋 No search criteria, showing all meetings');
+        setIsInSearchMode(false);
         await fetchMeetings();
         setLoading(false);
         return;
       } else {
+        console.log('🔍 Sending search request with params:', params);
         response = await searchMeetings(params);
+        console.log('✅ Search response:', response.data);
+        setIsInSearchMode(true);
       }
       const sortedMeetings = (response.data.meetings || []).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
       setMeetings(sortedMeetings);
       setLoading(false);
+      
+      // Show search results count
+      const searchFieldsCount = Object.keys(params).length;
+      if (searchFieldsCount > 0) {
+        toast.success(`Found ${sortedMeetings.length} meeting(s) matching your search criteria`);
+      }
     } catch (error) {
       setLoading(false);
+      console.error('❌ Search error:', error);
       toast.error(error?.response?.data?.message || error.message);
     }
   };
@@ -802,6 +843,8 @@ export default function Page() {
                   <span className="text-3xl font-bold text-blue-600 flex items-center justify-center h-full">Archive</span>
                 ) : viewMode === 'trash' ? (
                   <span className="text-3xl font-bold text-red-600 flex items-center justify-center h-full">Trash</span>
+                ) : isInSearchMode ? (
+                  <span className="text-3xl font-bold text-purple-600 flex items-center justify-center h-full">Search</span>
                 ) : (
                   <img src="/devices.svg" alt="Videodesk" className="w-40 sm:w-48 lg:w-60 h-full object-contain" />
                 )}
@@ -1022,6 +1065,27 @@ export default function Page() {
                   <span className="text-sm text-gray-500">
                     {meetings.length} {meetings.length === 1 ? 'meeting' : 'meetings'}
                   </span>
+                )}
+                {/* Clear Search Button - Show when in search mode */}
+                {isInSearchMode && (
+                  <button
+                    onClick={() => {
+                      setIsInSearchMode(false);
+                      setSearchFields({
+                        first_name: '', last_name: '', house_name_number: '', 
+                        flat_apartment_room: '', street_road: '', city: '', 
+                        country: '', post_code: '', phone_number: '', 
+                        repair_detail: '', special_notes: '', target_time: '', 
+                        reference: '', date_from: '', date_to: '', email: ''
+                      });
+                      fetchMeetings();
+                    }}
+                    className="text-purple-600 hover:text-purple-800 text-sm flex items-center gap-1 hover:bg-purple-50 px-2 py-1 rounded border border-purple-200"
+                    title="Clear search and show all meetings"
+                  >
+                    <X className="w-4 h-4" />
+                    <span>Clear Search</span>
+                  </button>
                 )}
               </div>
               {/* Right: Colored Small Boxes (replacing search/date filters) */}
@@ -1405,7 +1469,7 @@ export default function Page() {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <div>
-                  <input type="text" value={searchFields.country} onChange={e => handleSearchFieldChange('country', e.target.value)} className="w-full h-14 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-base bg-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="Country" />
+                  <input type="text" value={searchFields.country} onChange={e => handleSearchFieldChange('country', e.target.value)} className="w-full h-14 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-base bg-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="County" />
                 </div>
                 <div>
                   <input type="text" value={searchFields.post_code} onChange={e => handleSearchFieldChange('post_code', e.target.value)} className="w-full h-14 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-base bg-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="Postcode" />
@@ -1423,11 +1487,25 @@ export default function Page() {
               <div className="grid grid-cols-2 gap-2">
                 <div className="flex flex-col">
                   <label className="mb-1 text-sm font-medium text-gray-700">From</label>
-                  <input type="date" value={searchFields.date_from} onChange={e => handleSearchFieldChange('date_from', e.target.value)} className="w-full h-14 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-base bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="Date From" />
+                  <input 
+                    type="date" 
+                    value={searchFields.date_from} 
+                    onChange={e => handleSearchFieldChange('date_from', e.target.value)} 
+                    className={`w-full h-14 border rounded-xl pl-4 pr-3 py-2 text-base bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none ${searchFields.date_from ? 'border-blue-300 bg-blue-50' : 'border-gray-300'}`}
+                    placeholder="Date From"
+                    max={searchFields.date_to || undefined}
+                  />
                 </div>
                 <div className="flex flex-col">
                   <label className="mb-1 text-sm font-medium text-gray-700">To</label>
-                  <input type="date" value={searchFields.date_to} onChange={e => handleSearchFieldChange('date_to', e.target.value)} className="w-full h-14 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-base bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="Date To" />
+                  <input 
+                    type="date" 
+                    value={searchFields.date_to} 
+                    onChange={e => handleSearchFieldChange('date_to', e.target.value)} 
+                    className={`w-full h-14 border rounded-xl pl-4 pr-3 py-2 text-base bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none ${searchFields.date_to ? 'border-blue-300 bg-blue-50' : 'border-gray-300'}`}
+                    placeholder="Date To"
+                    min={searchFields.date_from || undefined}
+                  />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-2">
@@ -1462,7 +1540,7 @@ export default function Page() {
               </div>
               <div className="border-t border-gray-100 my-3" />
               <div className="flex justify-end gap-2 pt-2">
-                <button type="button" className="border border-gray-300 bg-white hover:bg-gray-100 text-gray-700 font-bold px-6 py-3 rounded-xl shadow-sm transition-all duration-200 outline-none focus:ring-2 focus:ring-blue-300 min-w-[160px] flex items-center justify-center gap-2" onClick={() => { setShowSearchModal(false); setSearchFields({ first_name: '', last_name: '', house_name_number: '', flat_apartment_room: '', street_road: '', city: '', country: '', post_code: '', phone_number: '', repair_detail: '', special_notes: '', target_time: '', reference: '' }); fetchMeetings(); }}>
+                <button type="button" className="border border-gray-300 bg-white hover:bg-gray-100 text-gray-700 font-bold px-6 py-3 rounded-xl shadow-sm transition-all duration-200 outline-none focus:ring-2 focus:ring-blue-300 min-w-[160px] flex items-center justify-center gap-2" onClick={() => { setShowSearchModal(false); setSearchFields({ first_name: '', last_name: '', house_name_number: '', flat_apartment_room: '', street_road: '', city: '', country: '', post_code: '', phone_number: '', repair_detail: '', special_notes: '', target_time: '', reference: '', date_from: '', date_to: '', email: '' }); setIsInSearchMode(false); fetchMeetings(); }}>
                   <img src="/erase.svg" alt="Clear" className="w-5 h-5" />
                   Clear
                 </button>

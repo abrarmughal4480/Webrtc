@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { X as XIcon, FileText, ChevronDown, ChevronDownCircle } from "lucide-react";
 import { toast } from "sonner";
 
-const sections = [
+export const sections = [
   {
     key: "preferences",
     title: "RESIDENT COMMUNICATION PREFERENCES:",

@@ -331,8 +331,8 @@ export const LaunchLinkSection = () => {
         phone={tempPhone}
         email={tempEmail}
         isLoading={isLoading}
-        title="Confirm Correct Details"
-        description="Please confirm the contact details before sending the video link"
+        title="Are these details correct?"
+        description="Please check the contact details before sending the video link"
         confirmText="Send Link"
         editText="Edit"
       />

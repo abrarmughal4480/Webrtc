@@ -2009,6 +2009,14 @@ ${senderName}`;
       setHistoryLoading(false);
     }
   };
+
+  const closeVisitorAccessModal = () => {
+    setVisitorAccessOpen(false);
+    setVisitorName('');
+    setVisitorEmail('');
+    visitorAccessCallbackRef.current = null;
+  };
+
   const value = {
     setResetOpen,
     setMessageOpen: (open) => {
@@ -2046,6 +2054,7 @@ ${senderName}`;
     handleCreateShareLink,
     exportLoading,
     openVisitorAccessModal,
+    closeVisitorAccessModal,
     visitorAccessOpen,
     setVisitorAccessOpen,
     checkVisitorAccess: () => true, // Add this for external checks if needed
@@ -2223,10 +2232,7 @@ ${senderName}`;
     }
   }, [faqOpen]);
 
-  const closeVisitorAccessModal = () => {
-    console.log("Modal closed!");
-    // ...existing code...
-  }
+
 
   // Add this function to log creator access automatically
   const logCreatorAccessIfNeeded = async (meetingId, user, isAuth, accessGranted, setAccessGranted, closeVisitorAccessModal) => {
@@ -3511,7 +3517,15 @@ ${senderName}`;
                       </div>
                       <div>
                         <span className="font-medium text-gray-700">Resident Name:</span>
-                        <p className="text-gray-600 mt-0.5">{selectedMeetingForHistory.name || 'Unknown'}</p>
+                        <p className="text-gray-600 mt-0.5">
+                          {(() => {
+                            // Format resident name using new structured fields
+                            const residentName = selectedMeetingForHistory.first_name || selectedMeetingForHistory.last_name
+                              ? `${selectedMeetingForHistory.first_name || ''} ${selectedMeetingForHistory.last_name || ''}`.trim()
+                              : selectedMeetingForHistory.name || 'Unknown Resident';
+                            return residentName;
+                          })()}
+                        </p>
                       </div>
                     </div>
 
@@ -3520,35 +3534,35 @@ ${senderName}`;
                       {/* Address - Left Side */}
                       <div>
                         <span className="font-medium text-gray-700">Address:</span>
-                        <div className="text-gray-600 mt-0.5">
-                          {selectedMeetingForHistory.address_line_1 && (
-                            <div>{selectedMeetingForHistory.address_line_1}</div>
-                          )}
-                          {selectedMeetingForHistory.address_line_2 && (
-                            <div>{selectedMeetingForHistory.address_line_2}</div>
-                          )}
-                          {selectedMeetingForHistory.address_line_3 && (
-                            <div>{selectedMeetingForHistory.address_line_3}</div>
-                          )}
-                          {selectedMeetingForHistory.additional_address_lines &&
-                            selectedMeetingForHistory.additional_address_lines.length > 0 &&
-                            selectedMeetingForHistory.additional_address_lines
-                              .filter(line => line && line.trim())
-                              .map((line, index) => (
-                                <div key={index}>{line}</div>
-                              ))
-                          }
-                          {selectedMeetingForHistory.post_code && (
-                            <div className="font-medium">{selectedMeetingForHistory.post_code}</div>
-                          )}
-                          {!selectedMeetingForHistory.address_line_1 &&
-                            !selectedMeetingForHistory.address_line_2 &&
-                            !selectedMeetingForHistory.address_line_3 &&
-                            (!selectedMeetingForHistory.additional_address_lines || selectedMeetingForHistory.additional_address_lines.length === 0) &&
-                            !selectedMeetingForHistory.post_code && (
-                              <div>Not provided</div>
-                            )}
-                        </div>
+                        <p className="text-gray-600 mt-0.5">
+                          {(() => {
+                            // Format address in single line like dashboard
+                            const addressParts = [];
+                            if (selectedMeetingForHistory.house_name_number) {
+                              addressParts.push(selectedMeetingForHistory.house_name_number.trim());
+                            }
+                            if (selectedMeetingForHistory.flat_apartment_room) {
+                              addressParts.push(selectedMeetingForHistory.flat_apartment_room.trim());
+                            }
+                            if (selectedMeetingForHistory.street_road) {
+                              addressParts.push(selectedMeetingForHistory.street_road.trim());
+                            }
+                            if (selectedMeetingForHistory.city) {
+                              addressParts.push(selectedMeetingForHistory.city.trim());
+                            }
+                            if (selectedMeetingForHistory.country) {
+                              addressParts.push(selectedMeetingForHistory.country.trim());
+                            }
+                            if (selectedMeetingForHistory.post_code) {
+                              addressParts.push(selectedMeetingForHistory.post_code.trim());
+                            }
+                            // Fallback to old address field if no structured address
+                            if (addressParts.length === 0 && selectedMeetingForHistory.address) {
+                              addressParts.push(selectedMeetingForHistory.address.trim());
+                            }
+                            return addressParts.length > 0 ? addressParts.join(', ') : 'No address provided';
+                          })()}
+                        </p>
                       </div>
 
                       {/* Phone and Created Date - Right Side (Vertical Stack) */}
@@ -3565,6 +3579,8 @@ ${senderName}`;
                         </div>
                       </div>
                     </div>
+
+
 
                     {/* Repair Details - Full Width if exists */}
                     {selectedMeetingForHistory.repair_detail && (

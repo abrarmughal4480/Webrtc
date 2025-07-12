@@ -966,7 +966,9 @@ export const getMeetingForShare = catchAsyncError(async (req, res, next) => {
 
     const shareData = {
         meeting_id: meeting.meeting_id,
-        name: meeting.name,
+        name: meeting.name, // Keep for backward compatibility
+        first_name: meeting.first_name,
+        last_name: meeting.last_name,
         address: meeting.address,
         post_code: meeting.post_code,
         phone_number: meeting.phone_number,
@@ -975,6 +977,7 @@ export const getMeetingForShare = catchAsyncError(async (req, res, next) => {
         repair_detail: meeting.repair_detail,
         work_details: meeting.work_details,
         special_notes: meeting.special_notes,
+        structured_special_notes: meeting.structured_special_notes, // Include structured special notes
         target_time: meeting.target_time,
         recordings: meeting.recordings,
         screenshots: meeting.screenshots,
@@ -985,7 +988,13 @@ export const getMeetingForShare = catchAsyncError(async (req, res, next) => {
         access_history: meeting.access_history || [],
         owner: meeting.owner,
         userId: meeting.userId,
-        created_by: meeting.created_by
+        created_by: meeting.created_by,
+        // Include new address fields
+        house_name_number: meeting.house_name_number,
+        flat_apartment_room: meeting.flat_apartment_room,
+        street_road: meeting.street_road,
+        city: meeting.city,
+        country: meeting.country
     };
 
     res.status(200).json({
@@ -1449,8 +1458,16 @@ export const searchMeetings = catchAsyncError(async (req, res, next) => {
         city,
         first_name,
         last_name,
-        country
+        country,
+        date_from,
+        date_to
     } = req.body;
+
+    console.log(`🔍 Search request from user ${user_id} with params:`, {
+        name, address, post_code, phone_number, reference, repair_detail,
+        special_notes, target_time, house_name_number, flat_apartment_room,
+        street_road, city, first_name, last_name, country, date_from, date_to
+    });
 
     // Build dynamic filter
     const filter = {
@@ -1498,13 +1515,42 @@ export const searchMeetings = catchAsyncError(async (req, res, next) => {
     if (last_name) filter.$and.push({ last_name: { $regex: last_name, $options: 'i' } });
     if (country) filter.$and.push({ country: { $regex: country, $options: 'i' } });
 
+    // Handle date range filtering
+    if (date_from || date_to) {
+        const dateFilter = {};
+        if (date_from) {
+            const fromDate = new Date(date_from);
+            if (!isNaN(fromDate.getTime())) {
+                dateFilter.$gte = fromDate;
+                console.log(`📅 Date from: ${fromDate.toISOString()}`);
+            }
+        }
+        if (date_to) {
+            const toDate = new Date(date_to);
+            if (!isNaN(toDate.getTime())) {
+                // Set to end of day for inclusive search
+                toDate.setHours(23, 59, 59, 999);
+                dateFilter.$lte = toDate;
+                console.log(`📅 Date to: ${toDate.toISOString()}`);
+            }
+        }
+        if (Object.keys(dateFilter).length > 0) {
+            filter.$and.push({ createdAt: dateFilter });
+            console.log(`📅 Date filter applied:`, dateFilter);
+        }
+    }
+
     // Remove $and if only user filter present (no search fields)
     if (filter.$and.length === 1) delete filter.$and;
+
+    console.log(`🔍 Final MongoDB filter:`, JSON.stringify(filter, null, 2));
 
     const meetings = await MeetingModel.find(filter)
         .populate('created_by', 'email')
         .populate('last_updated_by', 'email')
         .populate('archivedBy', 'email');
+
+    console.log(`✅ Search completed. Found ${meetings.length} meetings for user ${user_id}`);
 
     res.status(200).json({
         success: true,
