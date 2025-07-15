@@ -16,8 +16,21 @@ import cron from 'node-cron';
 import Meeting from './models/meetings.js';
 import { permanentDeleteMeeting as permanentDeleteMeetingController } from './controllers/meetingController.js';
 import mongoose from 'mongoose';
+import pino from 'pino';
+import compression from 'compression';
+import cluster from 'cluster';
+import os from 'os';
+import process from 'process';
+import Redis from 'ioredis';
 
-console.log('🚀 Starting server initialization...');
+const logger = pino({
+  transport: process.env.NODE_ENV === 'production' ? undefined : {
+    target: 'pino-pretty',
+    options: { colorize: true }
+  }
+});
+
+logger.info('🚀 Starting server initialization...');
 
 connectDB();
 const app = express();
@@ -30,20 +43,22 @@ app.use(cors({
 
 app.use(cookieParser());
 
-// Optimized payload size limits for faster uploads
-console.log('📦 Setting up optimized payload limits...');
+// Add compression middleware for gzip/brotli
+app.use(compression());
+
+// Lowered payload size limits and parameter limits for performance
 const MAX_SIZE = process.env.MAX_FILE_SIZE || '100mb';
-const TIMEOUT = parseInt(process.env.REQUEST_TIMEOUT) || 120000; // 2 minutes default
+const TIMEOUT = parseInt(process.env.REQUEST_TIMEOUT) || 60000; // 60 seconds default
 
 app.use(express.json({ 
     limit: MAX_SIZE,
-    parameterLimit: 50000
+    parameterLimit: 2000
 }));
 
 app.use(express.urlencoded({ 
     limit: MAX_SIZE,
     extended: true,
-    parameterLimit: 50000
+    parameterLimit: 2000
 }));
 
 // Optimized timeout middleware
@@ -61,7 +76,7 @@ app.use((req, res, next) => {
     // Set shorter timeout for better performance
     req.setTimeout(operationTimeout, () => {
         const duration = Date.now() - startTime;
-        console.error(`❌ Request timeout after ${duration}ms - ${req.method} ${req.path}`);
+        logger.error(`❌ Request timeout after ${duration}ms - ${req.method} ${req.path}`);
         if (!res.headersSent) {
             res.status(408).json({
                 success: false,
@@ -73,7 +88,7 @@ app.use((req, res, next) => {
     
     res.setTimeout(operationTimeout, () => {
         const duration = Date.now() - startTime;
-        console.error(`❌ Response timeout after ${duration}ms`);
+        logger.error(`❌ Response timeout after ${duration}ms`);
         if (!res.headersSent) {
             res.status(408).json({
                 success: false,
@@ -84,14 +99,14 @@ app.use((req, res, next) => {
     
     // Log request with timestamp
     const contentLength = req.get('Content-Length');
-    console.log(`📊 [${new Date().toISOString()}] ${req.method} ${req.path} - Size: ${contentLength ? (contentLength / 1024 / 1024).toFixed(2) + 'MB' : 'unknown'} - Timeout: ${operationTimeout}ms`);
+    logger.info(`📊 [${new Date().toISOString()}] ${req.method} ${req.path} - Size: ${contentLength ? (contentLength / 1024 / 1024).toFixed(2) + 'MB' : 'unknown'} - Timeout: ${operationTimeout}ms`);
     next();
 });
 
 // Enhanced error handling middleware for payload issues
 app.use((error, req, res, next) => {
     if (error.type === 'entity.too.large') {
-        console.error('❌ Payload too large error:', {
+        logger.error('❌ Payload too large error:', {
             url: req.path,
             method: req.method,
             contentLength: req.get('Content-Length')
@@ -104,7 +119,7 @@ app.use((error, req, res, next) => {
     }
     
     if (error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT') {
-        console.error('❌ Connection error:', error.code);
+        logger.error('❌ Connection error:', error.code);
         return res.status(408).json({
             success: false,
             message: 'Connection timeout. Please try again with a stable internet connection.'
@@ -116,12 +131,27 @@ app.use((error, req, res, next) => {
 
 const server = http.createServer(app);
 
-// Optimized server timeouts
+// Lowered server timeouts for better resource utilization
 server.timeout = TIMEOUT;
 server.keepAliveTimeout = TIMEOUT - 1000;
 server.headersTimeout = TIMEOUT + 1000;
 
-console.log(`🔧 Server timeouts configured: ${TIMEOUT}ms`);
+logger.info(`🔧 Server timeouts configured: ${TIMEOUT}ms`);
+
+// --- CLUSTERING: Use all CPU cores in production ---
+if (process.env.NODE_ENV === 'production' && cluster.isPrimary) {
+  const numCPUs = os.cpus().length;
+  logger.info(`🚦 Primary process running. Forking ${numCPUs} workers...`);
+  for (let i = 0; i < numCPUs; i++) {
+    cluster.fork();
+  }
+  cluster.on('exit', (worker, code, signal) => {
+    logger.error(`❌ Worker ${worker.process.pid} died. Restarting...`);
+    cluster.fork();
+  });
+  // Do not start server in primary
+  process.exit(0); // Exit primary process cleanly
+}
 
 const socketService = new SocketService(server);
 socketService.setupSocketListeners();
@@ -155,13 +185,13 @@ const getButtonColorFromTailwind = (tailwindClass) => {
         'bg-yellow-500': { bg: '#eab308', hover: '#ca8a04' }
     };
     
-    console.log(`🎨 Button color requested: "${tailwindClass}"`);
+    logger.info(`🎨 Button color requested: "${tailwindClass}"`);
     
     if (colorMap[tailwindClass]) {
-        console.log(`✅ Button color found: ${tailwindClass} -> ${colorMap[tailwindClass].bg}`);
+        logger.info(`✅ Button color found: ${tailwindClass} -> ${colorMap[tailwindClass].bg}`);
         return colorMap[tailwindClass];
     } else {
-        console.log(`⚠️ Button color not found: "${tailwindClass}", falling back to bg-green-800`);
+        logger.warn(`⚠️ Button color not found: "${tailwindClass}", falling back to bg-green-800`);
         return colorMap['bg-green-800']; // Default to green
     }
 };
@@ -173,7 +203,7 @@ const getLogoSvg = () => {
         const logoUrl = 'https://res.cloudinary.com/dvpjxumzr/image/upload/v1748924204/logo_kawbyh.png';
         return `<img src="${logoUrl}" alt="Videodesk Logo" style="width: 180px; height: auto;" />`;
     } catch (error) {
-        console.error('Error with logo:', error);
+        logger.error('Error with logo:', error);
         return `<div style="font-size: 28px; font-weight: bold; color: white;">VIDEODESK</div>`;
     }
 };
@@ -181,9 +211,9 @@ const getLogoSvg = () => {
 app.get('/send-token', async (req, res) => {
     try {
         const { number, email, senderId } = req.query;
-        console.log('📞 Received token request:', { number, email, senderId });
+        logger.info('📞 Received token request:', { number, email, senderId });
         // Log the original senderId (user's real MongoDB _id)
-        console.log('[send-token] Original senderId (user _id):', senderId);
+        logger.info('[send-token] Original senderId (user _id):', senderId);
         
         if (!number && !email) {
             return res.status(400).json({ error: 'Either phone number or email is required' });
@@ -192,7 +222,7 @@ app.get('/send-token', async (req, res) => {
             return res.status(400).json({ error: 'Sender ID is required' });
         }
         const token = uuidv4();
-        console.log('🎫 Generated meeting token:', token);
+        logger.info('🎫 Generated meeting token:', token);
 
         // Encrypt senderId
         const encryptedSenderId = encryptUserId(senderId);
@@ -222,13 +252,20 @@ app.get('/send-token', async (req, res) => {
         // Send SMS
         if (number) {
             const normalizedNumber = normalizeUKPhoneNumber(number);
-            console.log('📱 Sending SMS to:', normalizedNumber);
+            logger.info('📱 Sending SMS to:', normalizedNumber);
             const textMessage = `Please click on the link below to connect: ${url}`;
-            await sendMessage(normalizedNumber, textMessage);
+            // Respond to user immediately
+            res.json({ token, url });
+
+            // Send SMS in background
+            setImmediate(() => {
+                sendMessage(normalizedNumber, textMessage)
+                    .catch(err => logger.error('SMS send error:', err));
+            });
         }
         // Send Email with previous HTML template and branding
         if (email) {
-            console.log('📧 Sending enhanced HTML email to:', email);
+            logger.info('📧 Sending enhanced HTML email to:', email);
             const subject = "Video Call from Your Landlord";
             // Fetch user and button color
             let buttonColor = getButtonColorFromTailwind('bg-green-800'); // default
@@ -243,7 +280,7 @@ app.get('/send-token', async (req, res) => {
                     landlordDisplay = senderUser.landlordInfo.landlordName;
                 }
             } catch (err) {
-                console.error('Error fetching sender user for button color or landlord name:', err);
+                logger.error('Error fetching sender user for button color or landlord name:', err);
             }
             // Set invitation message
             let invitationMsg = '';
@@ -295,11 +332,17 @@ app.get('/send-token', async (req, res) => {
                 </div>
             `;
             const emailTextMessage = `Please click on the link below to connect: ${url}`;
-            await sendMail(email, subject, emailTextMessage, htmlMessage, buttonColor);
+            // Respond to user immediately
+            res.json({ token, url });
+
+            // Send Email in background
+            setImmediate(() => {
+                sendMail(email, subject, emailTextMessage, htmlMessage, buttonColor)
+                    .catch(err => logger.error('Email send error:', err));
+            });
         }
-        res.json({ token, url });
     } catch (error) {
-        console.error('❌ Error in send-token:', error);
+        logger.error('❌ Error in send-token:', error);
         res.status(500).json({ error: 'Internal server error', message: error.message });
     }
 });
@@ -308,7 +351,7 @@ app.get('/send-token', async (req, res) => {
 app.get('/resend-token', async (req, res) => {
     try {
         const { number, email, token, senderId } = req.query;
-        console.log('📞 Received resend token request:', { number, email, token, senderId });
+        logger.info('📞 Received resend token request:', { number, email, token, senderId });
         
         if (!number && !email) {
             return res.status(400).json({ error: 'Either phone number or email is required' });
@@ -318,7 +361,7 @@ app.get('/resend-token', async (req, res) => {
         }
 
         // Use the existing token instead of generating a new one
-        console.log('🎫 Using existing meeting token:', token);
+        logger.info('🎫 Using existing meeting token:', token);
 
         // Build URL with existing token and senderId
         let url = `${process.env.FRONTEND_URL}/room/${token}`;
@@ -327,9 +370,9 @@ app.get('/resend-token', async (req, res) => {
         if (senderId) {
             const encryptedSenderId = encryptUserId(senderId);
             url += `?sid=${encodeURIComponent(encryptedSenderId)}`;
-            console.log('🔗 Resend URL with senderId:', url);
+            logger.info('🔗 Resend URL with senderId:', url);
         } else {
-            console.log('⚠️ No senderId provided for resend, URL:', url);
+            logger.warn('⚠️ No senderId provided for resend, URL:', url);
         }
 
         // --- UK Phone Normalization Helper ---
@@ -355,14 +398,21 @@ app.get('/resend-token', async (req, res) => {
         // Send SMS
         if (number) {
             const normalizedNumber = normalizeUKPhoneNumber(number);
-            console.log('📱 Resending SMS to:', normalizedNumber);
+            logger.info('📱 Resending SMS to:', normalizedNumber);
             const textMessage = `Please click on the link below to connect: ${url}`;
-            await sendMessage(normalizedNumber, textMessage);
+            // Respond to user immediately
+            res.json({ success: true, message: 'Link resent successfully', token, url });
+
+            // Send SMS in background
+            setImmediate(() => {
+                sendMessage(normalizedNumber, textMessage)
+                    .catch(err => logger.error('SMS send error:', err));
+            });
         }
 
         // Send Email
         if (email) {
-            console.log('📧 Resending email to:', email);
+            logger.info('📧 Resending email to:', email);
             const subject = "Video Call from Your Landlord";
             
             // Fetch user and button color if senderId is provided
@@ -389,7 +439,7 @@ app.get('/resend-token', async (req, res) => {
                         }
                     }
                 } catch (err) {
-                    console.error('Error fetching sender user for button color or landlord name:', err);
+                    logger.error('Error fetching sender user for button color or landlord name:', err);
                 }
             }
             
@@ -427,12 +477,17 @@ app.get('/resend-token', async (req, res) => {
                 </div>
             `;
             const emailTextMessage = `Please click on the link below to connect: ${url}`;
-            await sendMail(email, subject, emailTextMessage, htmlMessage, buttonColor);
-        }
+            // Respond to user immediately
+            res.json({ success: true, message: 'Link resent successfully', token, url });
 
-        res.json({ success: true, message: 'Link resent successfully', token, url });
+            // Send Email in background
+            setImmediate(() => {
+                sendMail(email, subject, emailTextMessage, htmlMessage, buttonColor)
+                    .catch(err => logger.error('Email send error:', err));
+            });
+        }
     } catch (error) {
-        console.error('❌ Error in resend-token:', error);
+        logger.error('❌ Error in resend-token:', error);
         res.status(500).json({ error: 'Internal server error', message: error.message });
     }
 });
@@ -440,26 +495,53 @@ app.get('/resend-token', async (req, res) => {
 app.use("/api/v1", router);
 app.use(ErrorMiddleware);
 
+// --- REDIS CACHING SETUP (stub, ready for use) ---
+let redis;
+if (process.env.REDIS_URL) {
+  redis = new Redis(process.env.REDIS_URL);
+  logger.info('🔗 Connected to Redis for caching.');
+} else {
+  logger.warn('⚠️ No REDIS_URL set. Caching is disabled.');
+}
+// Example usage: await redis.set('key', 'value'); await redis.get('key');
+
+// --- GRACEFUL SHUTDOWN LOGIC ---
+function shutdown(signal) {
+  logger.info(`🛑 Received ${signal}. Shutting down gracefully...`);
+  server.close(() => {
+    logger.info('✅ HTTP server closed.');
+    if (redis) redis.quit();
+    process.exit(0);
+  });
+  // Force exit if not closed in 10s
+  setTimeout(() => {
+    logger.error('❌ Force exiting after 10s.');
+    process.exit(1);
+  }, 10000);
+}
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
+
 server.listen(PORT, () => {
-    console.log(`✅ Server running on port ${PORT} with AWS S3 optimized upload support`);
-    console.log(`📊 Max file size: ${MAX_SIZE}`);
-    console.log(`⏱️ Request timeout: ${TIMEOUT}ms`);
-    console.log(`☁️ S3 Upload Configuration:`);
-    console.log(`   🪣 Bucket: ${process.env.S3_BUCKET_NAME}`);
-    console.log(`   🌍 Region: ${process.env.AWS_REGION || 'us-east-1'}`);
-    console.log(`   📦 Part Size: ${parseInt(process.env.S3_PART_SIZE || 16777216) / 1024 / 1024}MB`);
-    console.log(`   🚄 Queue Size: ${process.env.S3_QUEUE_SIZE || 6} parallel uploads`);
-    console.log(`   ⚡ Transfer Acceleration: ${process.env.S3_USE_ACCELERATE === 'true' ? 'ENABLED' : 'DISABLED'}`);
+    logger.info(`✅ Server running on port ${PORT} with AWS S3 optimized upload support`);
+    logger.info(`📊 Max file size: ${MAX_SIZE}`);
+    logger.info(`⏱️ Request timeout: ${TIMEOUT}ms`);
+    logger.info(`☁️ S3 Upload Configuration:`);
+    logger.info(`   🪣 Bucket: ${process.env.S3_BUCKET_NAME}`);
+    logger.info(`   🌍 Region: ${process.env.AWS_REGION || 'us-east-1'}`);
+    logger.info(`   📦 Part Size: ${parseInt(process.env.S3_PART_SIZE || 16777216) / 1024 / 1024}MB`);
+    logger.info(`   🚄 Queue Size: ${process.env.S3_QUEUE_SIZE || 6} parallel uploads`);
+    logger.info(`   ⚡ Transfer Acceleration: ${process.env.S3_USE_ACCELERATE === 'true' ? 'ENABLED' : 'DISABLED'}`);
     
     if (process.env.S3_USE_ACCELERATE !== 'true') {
-        console.log(`💡 Tip: Enable S3 Transfer Acceleration for even faster uploads:`);
-        console.log(`   1. Enable Transfer Acceleration on your S3 bucket`);
-        console.log(`   2. Set S3_USE_ACCELERATE=true in .env`);
+        logger.info(`💡 Tip: Enable S3 Transfer Acceleration for even faster uploads:`);
+        logger.info(`   1. Enable Transfer Acceleration on your S3 bucket`);
+        logger.info(`   2. Set S3_USE_ACCELERATE=true in .env`);
     }
 });
 // --- CRON JOB: Auto-delete trashed meetings after 10 days (for auto-delete) ---
 cron.schedule('* * * * *', async () => {
-  console.log('⏰ [CRON] Auto-delete job running at', new Date().toLocaleString());
+  logger.info('⏰ [CRON] Auto-delete job running at', new Date().toLocaleString());
   try {
     const now = new Date();
     // 10 days ago (for auto-delete)
@@ -467,7 +549,7 @@ cron.schedule('* * * * *', async () => {
     // Find meetings in trash older than threshold
     const expiredMeetings = await Meeting.find({ deleted: true, deletedAt: { $lte: threshold } });
     if (expiredMeetings.length > 0) {
-      console.log(`🗑️ Auto-deleting ${expiredMeetings.length} trashed meetings...`);
+      logger.info(`🗑️ Auto-deleting ${expiredMeetings.length} trashed meetings...`);
     }
     for (const meeting of expiredMeetings) {
       // Use the controller logic for permanent delete
@@ -475,10 +557,14 @@ cron.schedule('* * * * *', async () => {
       await Meeting.deleteOne({ _id: meeting._id }); // Remove from DB
       // If you want to reuse S3 cleanup, you can refactor permanentDeleteMeeting logic into a service and call it here
       // For now, just log
-      console.log(`✅ Permanently deleted trashed meeting: ${meeting._id}`);
+      logger.info(`✅ Permanently deleted trashed meeting: ${meeting._id}`);
     }
   } catch (err) {
-    console.error('❌ Error in auto-delete cron job:', err);
+    logger.error('❌ Error in auto-delete cron job:', err);
   }
 });
+
+// --- SOCKETSERVICE OPTIMIZATION (stub) ---
+// In SocketService, tune pingInterval/pingTimeout, compress signaling, and handle disconnects efficiently.
+// Example: io.opts.pingInterval = 10000; io.opts.pingTimeout = 20000;
 

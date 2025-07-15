@@ -54,8 +54,6 @@ const createProgressTracker = (totalFiles, meetingId, userId) => {
         const successPercentage = totalFiles > 0 ? Math.round((completedFiles / totalFiles) * 100) : 100;
         const overallPercentage = totalFiles > 0 ? Math.round((totalProcessed / totalFiles) * 100) : 100;
         
-        console.log(`📊 [Meeting: ${meetingId}] [User: ${userId}] Progress: ${overallPercentage}% (${totalProcessed}/${totalFiles}) | Success: ${successPercentage}% (${completedFiles}/${totalFiles}) | Failed: ${failedFiles}`);
-        
         return {
             totalFiles,
             completedFiles,
@@ -74,8 +72,6 @@ const validateFileSize = (base64Data, maxSizeMB = 50) => {
     const sizeInBytes = (base64Data.length * 3) / 4;
     const sizeInMB = sizeInBytes / (1024 * 1024);
 
-    console.log(`📏 File size: ${sizeInMB.toFixed(2)}MB`);
-
     if (sizeInMB > maxSizeMB) {
         throw new ErrorHandler(`File size (${sizeInMB.toFixed(2)}MB) exceeds maximum (${maxSizeMB}MB)`, 413);
     }
@@ -87,7 +83,6 @@ const validateTimestamp = (timestamp) => {
     
     const date = new Date(timestamp);
     if (isNaN(date.getTime())) {
-        console.log(`⚠️ Invalid timestamp received: ${timestamp}, using current time`);
         return new Date();
     }
     return date;
@@ -104,9 +99,6 @@ const uploadToS3 = async (data, options, retries = 2, progressCallback = null) =
     
     for (let attempt = 1; attempt <= retries + 1; attempt++) {
         try {
-            console.log(`🚀 S3 Upload attempt ${attempt}... (${options.fileType})`);
-            const startTime = Date.now();
-            
             let buffer;
             let contentType;
             let fileExtension;
@@ -136,14 +128,6 @@ const uploadToS3 = async (data, options, retries = 2, progressCallback = null) =
                 fileExtension
             );
             
-            console.log(`📁 Uploading to S3 bucket: ${S3_CONFIG.bucket}`);
-            console.log(`🗂️ S3 Key: ${fileKey}`);
-            console.log(`📊 File size: ${(buffer.length / 1024 / 1024).toFixed(2)}MB`);
-            console.log(`🚀 Upload settings: ${S3_CONFIG.partSize / 1024 / 1024}MB parts, ${S3_CONFIG.queueSize} parallel`);
-            if (S3_CONFIG.useAccelerateEndpoint) {
-                console.log(`⚡ S3 Transfer Acceleration: ENABLED`);
-            }
-            
             const upload = new Upload({
                 client: currentClient,
                 params: {
@@ -172,18 +156,10 @@ const uploadToS3 = async (data, options, retries = 2, progressCallback = null) =
             upload.on('httpUploadProgress', (progress) => {
                 if (progress.total) {
                     const percentComplete = Math.round((progress.loaded / progress.total) * 100);
-                    console.log(`📈 Upload progress: ${percentComplete}% (${options.fileType})`);
                 }
             });
             
             const result = await upload.done();
-            const duration = Date.now() - startTime;
-            const speedMBps = (buffer.length / 1024 / 1024) / (duration / 1000);
-            
-            console.log(`✅ S3 Upload successful in ${duration}ms`);
-            console.log(`🚀 Upload speed: ${speedMBps.toFixed(2)} MB/s`);
-            console.log(`🔗 File URL: ${result.Location}`);
-            console.log(`☁️ Stored in S3 bucket: ${S3_CONFIG.bucket}`);
             
             if (progressCallback) {
                 progressCallback(true);
@@ -198,15 +174,12 @@ const uploadToS3 = async (data, options, retries = 2, progressCallback = null) =
             };
             
         } catch (error) {
-            console.error(`❌ S3 Upload attempt ${attempt} failed:`, error.message);
-            
             if (attempt <= retries && (
                 error.code === 'NetworkingError' || 
                 error.code === 'TimeoutError' ||
                 error.message.includes('timeout') ||
                 error.message.includes('ECONNRESET')
             )) {
-                console.log(`🔁 Retrying S3 upload in 1 second... (${retries - attempt + 1} retries left)`);
                 await new Promise(resolve => setTimeout(resolve, 1000));
                 continue;
             }
@@ -224,7 +197,6 @@ const cleanupS3Files = async (uploadedFiles) => {
     if (uploadedFiles.length === 0) return;
     
     if (!S3_CONFIG.enableDelete) {
-        console.warn(`⚠️ S3 cleanup disabled - ${uploadedFiles.length} files remain in S3`);
         return;
     }
     
@@ -274,7 +246,6 @@ const deleteFromS3WithRetry = async (fileKey, retries = 3) => {
             });
             
             await s3Client.send(deleteCommand);
-            console.log(`✅ S3 file deleted: ${fileKey.split('/').pop()}`);
             return { 
                 deleted: true, 
                 fileKey,
@@ -283,7 +254,6 @@ const deleteFromS3WithRetry = async (fileKey, retries = 3) => {
             
         } catch (error) {
             if (error.name === 'AccessDenied' || error.message.includes('not authorized to perform: s3:DeleteObject')) {
-                console.warn(`⚠️ S3 delete permission denied - file remains in S3`);
                 return { 
                     deleted: false, 
                     fileKey,
@@ -313,7 +283,6 @@ const deleteFromS3WithRetry = async (fileKey, retries = 3) => {
             }
             
             if (attempt === retries) {
-                console.error(`❌ S3 delete failed: ${error.message}`);
                 return { 
                     deleted: false, 
                     fileKey,
@@ -329,8 +298,6 @@ const deleteFromS3WithRetry = async (fileKey, retries = 3) => {
 const processFilesInParallel = async (files, fileType, meetingId, userId, uploadFunction, maxConcurrency = 3) => {
     if (!files || files.length === 0) return [];
     
-    console.log(`🚀 [${fileType.toUpperCase()}] Starting parallel processing of ${files.length} files with max concurrency: ${maxConcurrency}`);
-    
     const progressTracker = createProgressTracker(files.length, meetingId, userId);
     const results = [];
     const batches = [];
@@ -339,12 +306,8 @@ const processFilesInParallel = async (files, fileType, meetingId, userId, upload
         batches.push(files.slice(i, i + maxConcurrency));
     }
     
-    console.log(`📦 [${fileType.toUpperCase()}] Created ${batches.length} batches for processing`);
-    
-    // Process each batch
     for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
         const batch = batches[batchIndex];
-        console.log(`🔄 [${fileType.toUpperCase()}] Processing batch ${batchIndex + 1}/${batches.length} (${batch.length} files)`);
         
         const batchPromises = batch.map(async (file, localIndex) => {
             const globalIndex = batchIndex * maxConcurrency + localIndex;
@@ -352,7 +315,6 @@ const processFilesInParallel = async (files, fileType, meetingId, userId, upload
             try {
                 return await uploadFunction(file, globalIndex, progressTracker.updateProgress);
             } catch (error) {
-                console.error(`❌ [${fileType.toUpperCase()}] Failed to process file ${globalIndex + 1}:`, error.message);
                 progressTracker.updateProgress(false);
                 return null;
             }
@@ -362,13 +324,9 @@ const processFilesInParallel = async (files, fileType, meetingId, userId, upload
         results.push(...batchResults);
         
         const stats = progressTracker.getStats();
-        const batchProgress = Math.round(((batchIndex + 1) / batches.length) * 100);
-        console.log(`✅ [${fileType.toUpperCase()}] Batch ${batchIndex + 1}/${batches.length} completed (${batchProgress}%)`);
-        console.log(`📊 [${fileType.toUpperCase()}] Current stats: ${stats.completedFiles}/${stats.totalFiles} successful, ${stats.failedFiles} failed`);
     }
     
     const finalStats = progressTracker.getStats();
-    console.log(`🎯 [${fileType.toUpperCase()}] Final Results: ${finalStats.completedFiles}/${finalStats.totalFiles} successful, ${finalStats.failedFiles} failed`);
     
     return results.filter(result => result !== null);
 };
@@ -396,50 +354,24 @@ export const create = catchAsyncError(async (req, res, next) => {
         last_name,
         country
     } = req.body;
-    console.log('Received first_name:', first_name, 'last_name:', last_name);
     const user_id = req.user._id;
 
     const startTime = Date.now();
     const totalFiles = (recordings?.length || 0) + (screenshots?.length || 0);
     
-    console.log(`🎬 [${new Date().toISOString()}] Starting meeting ${update_mode || 'creation'}...`);    console.log('👤 User ID:', user_id);
-    console.log('📋 Meeting data:', { 
-        meeting_id, 
-        name, 
-        address, 
-        post_code, 
-        phone_number,
-        reference, 
-        repair_detail, 
-        work_details,
-        target_time,
-        special_notes,
-        house_name_number,
-        flat_apartment_room,
-        street_road,
-        city,
-        first_name,
-        last_name,
-        country
-    });
-    console.log(`📊 Total files to process: ${totalFiles} (${recordings?.length || 0} recordings, ${screenshots?.length || 0} screenshots)`);
-
     if (!meeting_id) {
         return next(new ErrorHandler("Meeting ID is required", 400));
     }
 
     const existingMeeting = await MeetingModel.findOne({ meeting_id });
     if (existingMeeting) {
-        console.log('⚠️ Meeting exists, updating with NEW media only...');
         if (!existingMeeting.userId) {
-            console.log('🔧 Setting missing userId for existing meeting...');
             existingMeeting.userId = user_id;
         }
         return await updateMeetingWithNewMediaOnly(existingMeeting, req.body, res, next, user_id, req);
     }
 
     const processRecording = async (recording, index, progressCallback) => {
-        console.log(`📹 Processing recording ${index + 1}/${recordings.length} for user ${user_id}...`);
         
         try {
             validateFileSize(recording.data, 100);
@@ -453,8 +385,6 @@ export const create = catchAsyncError(async (req, res, next) => {
                 fileType: 'video'
             }, 2, progressCallback);
 
-            console.log(`✅ Recording ${index + 1} uploaded to S3: ${uploadResult.secure_url.substring(0, 50)}...`);
-
             return {
                 url: uploadResult.secure_url,
                 cloudinary_id: uploadResult.public_id, // Using same field name for compatibility
@@ -466,13 +396,11 @@ export const create = catchAsyncError(async (req, res, next) => {
                 etag: uploadResult.etag
             };
         } catch (error) {
-            console.error(`❌ Recording ${index + 1} failed:`, error.message);
             throw error;
         }
     };
 
     const processScreenshot = async (screenshot, index, progressCallback) => {
-        console.log(`🖼️ Processing screenshot ${index + 1}/${screenshots.length} for user ${user_id}...`);
         
         try {
             validateFileSize(screenshot.data, 25);
@@ -485,8 +413,6 @@ export const create = catchAsyncError(async (req, res, next) => {
                 fileType: 'image'
             }, 2, progressCallback);
 
-            console.log(`✅ Screenshot ${index + 1} uploaded to S3: ${uploadResult.secure_url.substring(0, 50)}...`);
-
             return {
                 url: uploadResult.secure_url,
                 cloudinary_id: uploadResult.public_id, // Using same field name for compatibility
@@ -497,13 +423,11 @@ export const create = catchAsyncError(async (req, res, next) => {
                 etag: uploadResult.etag
             };
         } catch (error) {
-            console.error(`❌ Screenshot ${index + 1} failed:`, error.message);
             throw error;
         }
     };
 
     try {
-        console.log(`🚀 Starting parallel file processing...`);
         
         const overallProgressTracker = createProgressTracker(totalFiles, meeting_id, user_id);
         
@@ -528,13 +452,11 @@ export const create = catchAsyncError(async (req, res, next) => {
             processFilesInParallel(screenshots, 'screenshots', meeting_id, user_id, processScreenshotWithOverallProgress, 3)
         ]);
 
-        console.log(`📊 Upload Summary - Recordings: ${savedRecordings.length}/${recordings?.length || 0}, Screenshots: ${savedScreenshots.length}/${screenshots?.length || 0}`);
-        
         const finalOverallStats = overallProgressTracker.getStats();
-        console.log(`🎯 [RECORDINGS] Final Results: ${savedRecordings.length}/${recordings?.length || 0} successful, ${(recordings?.length || 0) - savedRecordings.length} failed`);
-        console.log(`🎯 [SCREENSHOTS] Final Results: ${savedScreenshots.length}/${screenshots?.length || 0} successful, ${(screenshots?.length || 0) - savedScreenshots.length} failed`);
-        console.log(`📈 Overall Success Rate: ${finalOverallStats.totalFiles > 0 ? Math.round((finalOverallStats.completedFiles / finalOverallStats.totalFiles) * 100) : 100}% (${finalOverallStats.completedFiles}/${finalOverallStats.totalFiles} files)`);
-        console.log(`⚡ Total processing time: ${Date.now() - startTime}ms`);        // Create meeting with all data
+        const totalTime = Date.now() - startTime;
+        const successRate = totalFiles > 0 ? Math.round(((savedRecordings.length + savedScreenshots.length) / totalFiles) * 100) : 100;
+        
+        // Create meeting with all data
         const meeting = await MeetingModel.create({
             meeting_id,
             name,
@@ -562,14 +484,6 @@ export const create = catchAsyncError(async (req, res, next) => {
             last_name,
             country
         });
-        console.log('Saved meeting with first_name:', meeting.first_name, 'last_name:', meeting.last_name);
-
-        const totalTime = Date.now() - startTime;
-        const successRate = totalFiles > 0 ? Math.round(((savedRecordings.length + savedScreenshots.length) / totalFiles) * 100) : 100;
-        
-        console.log(`✅ Meeting created successfully in ${totalTime}ms`);
-        console.log(`📈 Overall Success Rate: ${successRate}% (${savedRecordings.length + savedScreenshots.length}/${totalFiles} files)`);
-        console.log(`🏷️ Meeting saved with reference: "${reference}" and post_code: "${post_code}"`);
 
         res.status(201).json({
             success: true,
@@ -625,11 +539,7 @@ const updateMeetingWithNewMediaOnly = async (meeting, data, res, next, user_id, 
         last_name,
         country
     } = data;
-    console.log('UpdateMediaOnly first_name:', first_name, 'last_name:', last_name);
     const totalNewFiles = (recordings?.length || 0) + (screenshots?.length || 0);
-
-    console.log(`🔄 Updating existing meeting with ${totalNewFiles} new files...`);
-    console.log(`📋 Current state - Recordings: ${meeting.recordings.length}, Screenshots: ${meeting.screenshots.length}`);
 
     try {
         if (name !== undefined) meeting.name = name;
@@ -650,17 +560,14 @@ const updateMeetingWithNewMediaOnly = async (meeting, data, res, next, user_id, 
         if (country !== undefined) meeting.country = country;
 
         if (!meeting.userId) {
-            console.log('🔧 Setting missing userId for existing meeting...');
             meeting.userId = user_id;
         }
         meeting.last_updated_by = user_id;
 
         const globalProgressTracker = createProgressTracker(totalNewFiles, meeting.meeting_id, user_id);
-        console.log(`🎯 [UPDATE] Starting parallel processing of ${totalNewFiles} new files...`);
-
+        
         let newRecordingsCount = 0;
         if (recordings && recordings.length > 0) {
-            console.log(`🎥 Processing ${recordings.length} new recordings...`);
             
             const recordingPromises = recordings.map(async (recording, i) => {
                 try {
@@ -687,10 +594,7 @@ const updateMeetingWithNewMediaOnly = async (meeting, data, res, next, user_id, 
                     });
 
                     newRecordingsCount++;
-                    console.log(`✅ New recording ${i + 1} added successfully to S3`);
                 } catch (error) {
-                    console.error(`❌ Error uploading new recording ${i + 1}:`, error);
-                    globalProgressTracker.updateProgress(false);
                 }
             });
 
@@ -699,7 +603,6 @@ const updateMeetingWithNewMediaOnly = async (meeting, data, res, next, user_id, 
 
         let newScreenshotsCount = 0;
         if (screenshots && screenshots.length > 0) {
-            console.log(`📸 Processing ${screenshots.length} new screenshots...`);
             
             const screenshotPromises = screenshots.map(async (screenshot, i) => {
                 try {
@@ -724,10 +627,7 @@ const updateMeetingWithNewMediaOnly = async (meeting, data, res, next, user_id, 
                     });
 
                     newScreenshotsCount++;
-                    console.log(`✅ New screenshot ${i + 1} added successfully to S3`);
                 } catch (error) {
-                    console.error(`❌ Error uploading new screenshot ${i + 1}:`, error);
-                    globalProgressTracker.updateProgress(false);
                 }
             });
 
@@ -741,12 +641,6 @@ const updateMeetingWithNewMediaOnly = async (meeting, data, res, next, user_id, 
 
         const finalStats = globalProgressTracker.getStats();
         const successRate = totalNewFiles > 0 ? Math.round(((newRecordingsCount + newScreenshotsCount) / totalNewFiles) * 100) : 100;
-
-        console.log(`✅ Meeting updated successfully`);
-        console.log(`🎯 [UPDATE RECORDINGS] Final Results: ${newRecordingsCount}/${recordings?.length || 0} successful, ${(recordings?.length || 0) - newRecordingsCount} failed`);
-        console.log(`🎯 [UPDATE SCREENSHOTS] Final Results: ${newScreenshotsCount}/${screenshots?.length || 0} successful, ${(screenshots?.length || 0) - newScreenshotsCount} failed`);
-        console.log(`📈 Update Success Rate: ${successRate}% (${newRecordingsCount + newScreenshotsCount}/${totalNewFiles} new files)`);
-        console.log(`📊 Final totals - Recordings: ${meeting.total_recordings}, Screenshots: ${meeting.total_screenshots}`);
 
         res.status(200).json({
             success: true,
@@ -780,8 +674,6 @@ export const getAllMeetings = catchAsyncError(async (req, res, next) => {
     const user_id = req.user._id;
     const { archived, deleted } = req.query;
 
-    console.log(`📋 Fetching meetings for user: ${user_id}, archived: ${archived}, deleted: ${deleted}`);
-
     const filter = {
         $or: [
             { owner: user_id },
@@ -806,8 +698,6 @@ export const getAllMeetings = catchAsyncError(async (req, res, next) => {
         .populate('created_by', 'email')
         .populate('last_updated_by', 'email')
         .populate('archivedBy', 'email');
-
-    console.log(`✅ Found ${meetings.length} meetings for user ${user_id} (archived: ${archived}, deleted: ${deleted})`);
 
     res.status(200).json({
         success: true,
@@ -836,16 +726,12 @@ export const archiveMeeting = catchAsyncError(async (req, res, next) => {
         return next(new ErrorHandler("Meeting is already archived", 400));
     }
 
-    console.log(`📦 Archiving meeting: ${meeting._id} by user ${req.user._id}`);
-
     meeting.archived = true;
     meeting.archivedAt = new Date();
     meeting.archivedBy = req.user._id;
     meeting.last_updated_by = req.user._id;
 
     await meeting.save();
-
-    console.log(`✅ Meeting archived successfully: ${meeting._id}`);
 
     res.status(200).json({
         success: true,
@@ -872,16 +758,12 @@ export const unarchiveMeeting = catchAsyncError(async (req, res, next) => {
         return next(new ErrorHandler("Meeting is not archived", 400));
     }
 
-    console.log(`📤 Unarchiving meeting: ${meeting._id} by user ${req.user._id}`);
-
     meeting.archived = false;
     meeting.archivedAt = null;
     meeting.archivedBy = null;
     meeting.last_updated_by = req.user._id;
 
     await meeting.save();
-
-    console.log(`✅ Meeting unarchived successfully: ${meeting._id}`);
 
     res.status(200).json({
         success: true,
@@ -1008,12 +890,6 @@ export const recordVisitorAccess = catchAsyncError(async (req, res, next) => {
     const { visitor_name, visitor_email, creator } = req.body;
     const meetingId = req.params.id;
 
-    console.log(`👤 Recording visitor access for meeting: ${meetingId}`, {
-        visitor_name,
-        visitor_email,
-        creator
-    });
-
     // If creator flag is set, auto-log as creator
     if (creator === true || creator === 'true') {
         const meeting = await MeetingModel.findOne({
@@ -1051,13 +927,6 @@ export const recordVisitorAccess = catchAsyncError(async (req, res, next) => {
         );
 
         await meeting.save();
-
-        console.log(`✅ Creator access recorded:`, {
-            meeting_id: meetingId,
-            visitor: creatorAccess.visitor_name,
-            email: creatorAccess.visitor_email,
-            total_access: meeting.total_access_count
-        });
 
         return res.status(200).json({
             success: true,
@@ -1114,13 +983,6 @@ export const recordVisitorAccess = catchAsyncError(async (req, res, next) => {
 
     await meeting.save();
 
-    console.log(`✅ Visitor access recorded successfully:`, {
-        meeting_id: meetingId,
-        visitor: visitor_name,
-        email: visitor_email,
-        total_access: meeting.total_access_count
-    });
-
     res.status(200).json({
         success: true,
         message: "Visitor access recorded successfully",
@@ -1133,7 +995,7 @@ export const recordVisitorAccess = catchAsyncError(async (req, res, next) => {
     });
 });
 
-export const updateMeeting = catchAsyncError(async (req, res, next) => {
+export const updateMeetingController = catchAsyncError(async (req, res, next) => {
     const { 
         name, 
         address, 
@@ -1152,26 +1014,6 @@ export const updateMeeting = catchAsyncError(async (req, res, next) => {
         last_name,
         country
     } = req.body;
-    console.log('UpdateMeeting first_name:', first_name, 'last_name:', last_name);
-
-    console.log('🔄 Updating meeting with fields:', { 
-        name, 
-        address, 
-        post_code, 
-        phone_number,
-        reference, 
-        repair_detail, 
-        work_details,
-        target_time,
-        special_notes,
-        house_name_number,
-        flat_apartment_room,
-        street_road,
-        city,
-        first_name,
-        last_name,
-        country
-    });
 
     const meeting = await MeetingModel.findOne({
         _id: req.params.id,
@@ -1208,9 +1050,6 @@ export const updateMeeting = catchAsyncError(async (req, res, next) => {
     }
 
     meeting.last_updated_by = req.user._id;    await meeting.save();
-    console.log('Updated meeting with first_name:', meeting.first_name, 'last_name:', meeting.last_name);
-
-    console.log(`✅ Meeting updated successfully with all new fields`);
 
     sendResponse(true, 200, "Meeting updated successfully", res);
 });
@@ -1234,8 +1073,6 @@ export const deleteMeeting = catchAsyncError(async (req, res, next) => {
     meeting.deletedAt = new Date();
     await meeting.save();
 
-    console.log(`🗑️ Meeting moved to trash: ${meeting._id}`);
-
     sendResponse(true, 200, "Meeting moved to trash", res, {
         meeting_id: meeting.meeting_id
     });
@@ -1244,12 +1081,10 @@ export const deleteMeeting = catchAsyncError(async (req, res, next) => {
 export const getMeetingByMeetingId = async (req, res) => {
     try {
         const { id } = req.params;
-        console.log(`🔍 Looking for meeting with ID: ${id}`);
 
         const meeting = await MeetingModel.findOne({ meeting_id: id });
 
         if (!meeting) {
-            console.log(`ℹ️ No meeting found with ID: ${id} (This is normal for new meetings)`);
             return res.status(404).json({
                 success: false,
                 message: "Meeting not found",
@@ -1257,7 +1092,6 @@ export const getMeetingByMeetingId = async (req, res) => {
             });
         }
 
-        console.log(`✅ Found meeting with ID: ${id}`);
         res.status(200).json({
             success: true,
             meeting
@@ -1314,8 +1148,6 @@ export const deleteRecording = catchAsyncError(async (req, res, next) => {
     if (!s3DeleteResult.deleted && s3DeleteResult.reason === 'AccessDenied') {
         message = "Recording deleted from database (S3 file remains due to permissions)";
     }
-
-    console.log(`✅ Recording deleted. Total: ${meeting.total_recordings}`);
 
     sendResponse(true, 200, message, res);
 });
@@ -1463,12 +1295,6 @@ export const searchMeetings = catchAsyncError(async (req, res, next) => {
         date_to
     } = req.body;
 
-    console.log(`🔍 Search request from user ${user_id} with params:`, {
-        name, address, post_code, phone_number, reference, repair_detail,
-        special_notes, target_time, house_name_number, flat_apartment_room,
-        street_road, city, first_name, last_name, country, date_from, date_to
-    });
-
     // Build dynamic filter
     const filter = {
         $and: [
@@ -1522,7 +1348,6 @@ export const searchMeetings = catchAsyncError(async (req, res, next) => {
             const fromDate = new Date(date_from);
             if (!isNaN(fromDate.getTime())) {
                 dateFilter.$gte = fromDate;
-                console.log(`📅 Date from: ${fromDate.toISOString()}`);
             }
         }
         if (date_to) {
@@ -1531,26 +1356,20 @@ export const searchMeetings = catchAsyncError(async (req, res, next) => {
                 // Set to end of day for inclusive search
                 toDate.setHours(23, 59, 59, 999);
                 dateFilter.$lte = toDate;
-                console.log(`📅 Date to: ${toDate.toISOString()}`);
             }
         }
         if (Object.keys(dateFilter).length > 0) {
             filter.$and.push({ createdAt: dateFilter });
-            console.log(`📅 Date filter applied:`, dateFilter);
         }
     }
 
     // Remove $and if only user filter present (no search fields)
     if (filter.$and.length === 1) delete filter.$and;
 
-    console.log(`🔍 Final MongoDB filter:`, JSON.stringify(filter, null, 2));
-
     const meetings = await MeetingModel.find(filter)
         .populate('created_by', 'email')
         .populate('last_updated_by', 'email')
         .populate('archivedBy', 'email');
-
-    console.log(`✅ Search completed. Found ${meetings.length} meetings for user ${user_id}`);
 
     res.status(200).json({
         success: true,

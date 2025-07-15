@@ -1,4 +1,6 @@
 import { Server } from 'socket.io';
+import pino from 'pino';
+const logger = pino();
 
 let io;
 
@@ -13,9 +15,12 @@ export const initializeSocket = (server) => {
       methods: ["GET", "POST"],
       credentials: true
     },
-    transports: ['websocket', 'polling']
+    transports: ['websocket', 'polling'],
+    // --- PERFORMANCE OPTIMIZATION ---
+    pingInterval: 10000, // 10s
+    pingTimeout: 20000,  // 20s
+    perMessageDeflate: true // compress signaling
   });
-
   return io;
 };
 
@@ -25,42 +30,42 @@ export const setupSocketListeners = () => {
   }
 
   io.on('connection', (socket) => {
-    console.log('User connected:', socket.id);
+    logger.info('User connected: ' + socket.id);
 
     // Join room for WebRTC
     socket.on('join-room', (roomId) => {
       socket.join(roomId);
-      console.log(`User ${socket.id} joined room: ${roomId}`);
+      logger.info(`User ${socket.id} joined room: ${roomId}`);
     });
 
     // Admin waiting for user
     socket.on('admin-waiting', (token) => {
       socket.join(`admin-${token}`);
-      console.log(`Admin ${socket.id} waiting for token: ${token}`);
+      logger.info(`Admin ${socket.id} waiting for token: ${token}`);
     });
 
     // User opened the link
     socket.on('user-opened-link', (roomId) => {
       socket.to(`admin-${roomId}`).emit('user-joined-room', roomId);
-      console.log(`User opened link for room: ${roomId}`);
+      logger.info(`User opened link for room: ${roomId}`);
     });
 
     // User started session
     socket.on('user-started-session', (roomId) => {
       socket.to(`admin-${roomId}`).emit('user-started-session', roomId);
-      console.log(`User started session for room: ${roomId}`);
+      logger.info(`User started session for room: ${roomId}`);
     });
 
     // Add new event for meeting data availability
     socket.on('meeting-data-available', (roomId, meetingData) => {
       socket.to(`admin-${roomId}`).emit('meeting-data-updated', meetingData);
-      console.log(`Meeting data available for room: ${roomId}`);
+      logger.info(`Meeting data available for room: ${roomId}`);
     });
 
     // Add new event for message settings update
     socket.on('message-settings-updated', (roomId, messageSettings) => {
       socket.to(`admin-${roomId}`).emit('message-settings-updated', messageSettings);
-      console.log(`Message settings updated for room: ${roomId}`);
+      logger.info(`Message settings updated for room: ${roomId}`);
     });
 
     // WebRTC signaling
@@ -81,7 +86,9 @@ export const setupSocketListeners = () => {
     });
 
     socket.on('disconnect', () => {
-      console.log('User disconnected:', socket.id);
+      logger.info('User disconnected: ' + socket.id);
+      // --- DISCONNECT CLEANUP STUB ---
+      // TODO: Clean up any resources, timers, or memory leaks here if needed
     });
   });
 };
