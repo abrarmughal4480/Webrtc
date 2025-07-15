@@ -688,12 +688,10 @@ Query: ${query}`;
 
 // Book Demo Meeting with Video Link Integration
 export const bookDemoMeeting = catchAsyncError(async (req, res, next) => {
-    const { name, email, date, hour, minute, message, videoToken } = req.body;
-    
+    const { name, email, date, hour, minute, message } = req.body;
     if (!name || !email || !date || !hour || !minute) {
         return next(new ErrorHandler("Name, email, date and time are required", 400));
     }
-    
     // Format the date and time
     const selectedDate = new Date(date);
     const formattedDate = selectedDate.toLocaleDateString('en-GB', {
@@ -702,29 +700,11 @@ export const bookDemoMeeting = catchAsyncError(async (req, res, next) => {
         month: 'long',
         day: 'numeric'
     });
-    
     const formattedTime = `${hour}:${minute}`;
     const meetingId = `DEMO-${Date.now()}-${Math.random().toString(36).substr(2, 5).toUpperCase()}`;
-    
-    // Generate video links if token is provided
-    let adminVideoLink = null;
-    let userVideoLink = null;
-    
-    if (videoToken) {
-        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-        adminVideoLink = `${frontendUrl}/room/admin/${videoToken}`;
-        userVideoLink = `${frontendUrl}/room/${videoToken}`;
-        console.log('🎥 Generated video links for demo meeting:', {
-            admin: adminVideoLink,
-            user: userVideoLink,
-            token: videoToken
-        });
-    }
-    
     // Get the logo SVG
     const logoSvg = getLogoSvg();
-    
-    // Admin email content with video link
+    // Admin email content without video link
     const adminHtmlContent = `
         <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 700px; margin: 0 auto; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
             <div style="background: linear-gradient(135deg, #9452FF 0%, #8a42fc 100%); color: white; padding: 30px 20px; text-align: center;">
@@ -732,21 +712,11 @@ export const bookDemoMeeting = catchAsyncError(async (req, res, next) => {
                     ${logoSvg}
                 </div>
                 <p style="margin: 5px auto; display: inline-block; background-color: white; color: #9452FF; padding: 5px 15px; border-radius: 50px; font-size: 16px; letter-spacing: 1px; font-weight: 500;">videodesk.co.uk</p>
-                <h2 style="margin: 15px 0 0 0; font-size: 24px;">🎯 New Demo Meeting Request${videoToken ? ' with Video Link' : ''}</h2>
+                <h2 style="margin: 15px 0 0 0; font-size: 24px;">🎯 New Demo Meeting Request</h2>
                 <p style="margin: 10px 0 0 0; font-size: 18px; font-weight: bold; background-color: rgba(255,255,255,0.2); padding: 8px 16px; border-radius: 25px; display: inline-block;">${meetingId}</p>
             </div>
             <div style="padding: 40px 30px; background-color: #ffffff;">
-                ${adminVideoLink ? `
-                <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 20px; border-radius: 12px; margin-bottom: 25px; text-align: center;">
-                    <h3 style="color: white; margin: 0 0 15px 0; font-size: 18px;">🎥 Video Meeting Link (Admin Access)</h3>
-                    <a href="${adminVideoLink}" style="background: white; color: #059669; padding: 12px 24px; text-decoration: none; border-radius: 25px; display: inline-block; font-weight: bold; margin-bottom: 10px; font-size: 16px;">Join as Admin</a>
-                    <p style="color: white; margin: 10px 0 0 0; font-size: 14px; word-break: break-all;">${adminVideoLink}</p>
-                    <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0; font-size: 13px;">⚠️ Admin link - gives you full control of the meeting</p>
-                </div>
-                ` : ''}
-                
                 <h3 style="color: #333; margin-bottom: 20px; font-weight: 600; font-size: 20px; text-align: center;">📋 Meeting Request Details</h3>
-                
                 <div style="background: linear-gradient(135deg, #f8f9ff 0%, #f0f4ff 100%); padding: 25px; border-radius: 12px; margin-bottom: 25px; border: 2px solid #e5e7ff; box-shadow: 0 2px 8px rgba(148,82,255,0.1);">
                     <div style="display: grid; gap: 15px;">
                         <div style="display: flex; align-items: center; padding: 12px 0; border-bottom: 1px solid #e5e7ff;">
@@ -756,7 +726,6 @@ export const bookDemoMeeting = catchAsyncError(async (req, res, next) => {
                                 <p style="margin: 2px 0 0 0; font-size: 16px; color: #9452FF; font-weight: 600;">${name}</p>
                             </div>
                         </div>
-                        
                         <div style="display: flex; align-items: center; padding: 12px 0; border-bottom: 1px solid #e5e7ff;">
                             <span style="font-size: 18px; margin-right: 12px;">📧</span>
                             <div>
@@ -764,7 +733,6 @@ export const bookDemoMeeting = catchAsyncError(async (req, res, next) => {
                                 <p style="margin: 2px 0 0 0; font-size: 16px; color: #0066cc; font-weight: 500;">${email}</p>
                             </div>
                         </div>
-                        
                         <div style="display: flex; align-items: center; padding: 12px 0; border-bottom: 1px solid #e5e7ff;">
                             <span style="font-size: 18px; margin-right: 12px;">📅</span>
                             <div>
@@ -772,7 +740,6 @@ export const bookDemoMeeting = catchAsyncError(async (req, res, next) => {
                                 <p style="margin: 2px 0 0 0; font-size: 16px; color: #333; font-weight: 600;">${formattedDate}</p>
                             </div>
                         </div>
-                        
                         <div style="display: flex; align-items: center; padding: 12px 0;">
                             <span style="font-size: 18px; margin-right: 12px;">🕐</span>
                             <div>
@@ -782,14 +749,12 @@ export const bookDemoMeeting = catchAsyncError(async (req, res, next) => {
                         </div>
                     </div>
                 </div>
-                
                 ${message ? `
                 <h3 style="color: #333; margin-bottom: 15px; font-weight: 600; font-size: 18px;">💬 Additional Message:</h3>
                 <div style="background-color: #f7f4ff; padding: 20px; border-radius: 12px; border-left: 4px solid #9452FF; box-shadow: 0 2px 5px rgba(0,0,0,0.05); margin-bottom: 25px;">
                     <p style="font-size: 16px; line-height: 1.6; margin: 0; color: #555; font-style: italic;">"${message}"</p>
                 </div>
                 ` : ''}
-                
                 <div style="text-align: center; margin-top: 30px;">
                     <div style="background-color: #fff3cd; border: 1px solid #ffeaa7; border-radius: 8px; padding: 15px; margin-bottom: 20px;">
                         <p style="margin: 0; color: #856404; font-size: 14px; font-weight: 500;">
@@ -803,13 +768,6 @@ export const bookDemoMeeting = catchAsyncError(async (req, res, next) => {
                             })}
                         </p>
                     </div>
-                    ${adminVideoLink ? `
-                    <div style="background-color: #d1fae5; border: 1px solid #34d399; border-radius: 8px; padding: 15px;">
-                        <p style="margin: 0; color: #065f46; font-size: 14px; font-weight: 500;">
-                            <strong>🎥 Video Meeting Ready:</strong> Use the admin link above to join the meeting with full control
-                        </p>
-                    </div>
-                    ` : ''}
                 </div>
             </div>
             <div style="background-color: #f8f9fa; padding: 20px; text-align: center; border-top: 1px solid #eaeaea;">
@@ -817,8 +775,7 @@ export const bookDemoMeeting = catchAsyncError(async (req, res, next) => {
             </div>
         </div>
     `;
-    
-    // User confirmation email content with video link (removed meeting details section)
+    // User confirmation email content without video link
     const userHtmlContent = `
         <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
             <div style="background: linear-gradient(135deg, #9452FF 0%, #8a42fc 100%); color: white; padding: 30px 20px; text-align: center;">
@@ -830,40 +787,16 @@ export const bookDemoMeeting = catchAsyncError(async (req, res, next) => {
             </div>
             <div style="padding: 40px 30px; background-color: #ffffff;">
                 <h2 style="color: #333; margin-bottom: 20px; font-weight: 600; font-size: 24px; text-align: center;">Thank you, ${name}!</h2>
-                <p style="color: #555; line-height: 1.6; font-size: 16px; margin-bottom: 25px;">We have successfully received your demo meeting request. ${userVideoLink ? 'You can join the video meeting using the link below at your scheduled time.' : 'Our team will review your request and contact you shortly to confirm the meeting details.'}</p>
-                
-                ${userVideoLink ? `
-                <div style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); padding: 20px; border-radius: 12px; margin-bottom: 25px; text-align: center;">
-                    <h3 style="color: white; margin: 0 0 15px 0; font-size: 18px;">🎥 Your Video Meeting Link</h3>
-                    <a href="${userVideoLink}" style="background: white; color: #1d4ed8; padding: 12px 24px; text-decoration: none; border-radius: 25px; display: inline-block; font-weight: bold; margin-bottom: 10px; font-size: 16px;">Join Video Meeting</a>
-                    <p style="color: white; margin: 10px 0 0 0; font-size: 14px;">Click this link at your scheduled meeting time</p>
-                    <p style="color: rgba(255,255,255,0.8); margin: 10px 0 0 0; font-size: 12px; word-break: break-all;">${userVideoLink}</p>
-                    <div style="background: rgba(255,255,255,0.2); padding: 10px; border-radius: 8px; margin-top: 15px;">
-                        <p style="color: white; margin: 0; font-size: 13px;">
-                            📅 <strong>Scheduled for:</strong> ${formattedDate} at ${formattedTime}
-                        </p>
-                    </div>
-                </div>
-                ` : ''}
-                
+                <p style="color: #555; line-height: 1.6; font-size: 16px; margin-bottom: 25px;">We have successfully received your demo meeting request. Our team will review your request and contact you shortly to confirm the meeting details.</p>
                 <div style="background-color: #f0f7ff; padding: 20px; border-radius: 12px; border-left: 4px solid #3b82f6; margin-bottom: 25px;">
                     <h4 style="color: #1e40af; margin: 0 0 12px 0; font-weight: 600;">🔍 What happens next?</h4>
                     <ul style="margin: 0; padding-left: 20px; color: #555; line-height: 1.6;">
-                        ${userVideoLink ? `
-                        <li style="margin-bottom: 6px;">Use the video link above to join your meeting at the scheduled time</li>
-                        <li style="margin-bottom: 6px;">Our representative will be waiting for you in the video session</li>
-                        <li style="margin-bottom: 6px;">Save this email for easy access to your meeting link</li>
-                        <li>Make sure you have a stable internet connection and working camera/microphone</li>
-                        ` : `
                         <li style="margin-bottom: 6px;">Our team will review your request within 24 hours</li>
                         <li style="margin-bottom: 6px;">We'll contact you to confirm the meeting time and send joining details</li>
                         <li>You'll receive a calendar invitation with the meeting link</li>
-                        `}
                     </ul>
                 </div>
-                
                 <p style="color: #555; line-height: 1.6; font-size: 16px; text-align: center;">If you have any questions, feel free to reply to this email or contact our support team.</p>
-                
                 <div style="text-align: center; margin-top: 25px;">
                     <p style="color: #777; font-size: 14px; margin: 0;">We're excited to show you what Videodesk can do!</p>
                 </div>
@@ -873,50 +806,26 @@ export const bookDemoMeeting = catchAsyncError(async (req, res, next) => {
             </div>
         </div>
     `;
-    
-    const adminTextContent = `New Demo Meeting Request with Video Link - ${meetingId}
-    
+    const adminTextContent = `New Demo Meeting Request - ${meetingId}
     Client Details:
     Name: ${name}
     Email: ${email}
-    
     Preferred Schedule:
     Date: ${formattedDate}
     Time: ${formattedTime}
-    
     ${message ? `Message: ${message}` : ''}
-    
-    ${adminVideoLink ? `Admin Video Link: ${adminVideoLink}` : ''}
-    
     Please contact ${email} to confirm and schedule the demo meeting.`;
-    
     const userTextContent = `Demo Meeting Request Confirmation - ${meetingId}
-    
     Thank you ${name}! We have received your demo meeting request.
-    
-    ${userVideoLink ? `Your Video Meeting Link: ${userVideoLink}
-    
-    Scheduled for: ${formattedDate} at ${formattedTime}` : 'Our team will contact you shortly to confirm the meeting details.'}
-    
+    Our team will contact you shortly to confirm the meeting details.
     Reference: ${meetingId}`;
-    
     try {
         // Send email to admin
-        await sendMail(process.env.DEMO_MEETING_EMAIL, `🎯 Demo Meeting Request ${meetingId} - ${name} ${videoToken ? '(with Video Link)' : ''}`, adminTextContent, adminHtmlContent);
-        
+        await sendMail(process.env.DEMO_MEETING_EMAIL, `🎯 Demo Meeting Request ${meetingId} - ${name}`, adminTextContent, adminHtmlContent);
         // Send confirmation email to user
         await sendMail(email, `✅ Demo Meeting Request Confirmed - ${meetingId}`, userTextContent, userHtmlContent);
-        
-        console.log('✅ Demo meeting emails sent successfully:', {
-            meetingId,
-            hasVideoLink: !!videoToken,
-            adminEmail: process.env.DEMO_MEETING_EMAIL,
-            userEmail: email
-        });
-        
-        sendResponse(true, 200, `Demo meeting request sent successfully${videoToken ? ' with video links' : ''}! Reference: ${meetingId}`, res);
+        sendResponse(true, 200, `Demo meeting request sent successfully! Reference: ${meetingId}`, res);
     } catch (error) {
-        console.error('❌ Error sending demo meeting emails:', error);
         return next(new ErrorHandler("Failed to send demo meeting request", 500));
     }
 });
