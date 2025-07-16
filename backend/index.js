@@ -46,14 +46,11 @@ connectDB();
 const app = express();
 const PORT = process.env.PORT || 4000;
 
-// Place CORS as the first middleware
+// Allow all origins for CORS (wildcard)
 app.use(cors({
-  origin: true, // Allow all origins
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+  origin: true,
+  credentials: true
 }));
-app.options('*', cors()); // Handle preflight requests for all routes
 
 app.use(cookieParser());
 
