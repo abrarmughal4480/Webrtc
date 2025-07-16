@@ -36,8 +36,13 @@ connectDB();
 const app = express();
 const PORT = process.env.PORT || 4000;
 
+// Add CORS middleware before routes
 app.use(cors({
-  origin: ['https://videodesk.co.uk', 'http://localhost:3000', 'http://localhost:3001'], // Allow production and local frontend
+  origin: [
+    'http://localhost:3000', // local frontend
+    'https://videodesk.co.uk'
+    'https://videodesk.vercel.app' // production frontend
+  ],
   credentials: true
 }));
 
@@ -512,11 +517,6 @@ function shutdown(signal) {
     logger.info('✅ HTTP server closed.');
     if (redis) redis.quit();
     process.exit(0);
-  });
-  // Force exit if not closed in 10s
-  setTimeout(() => {
-    logger.error('❌ Force exiting after 10s.');
-    process.exit(1);
   }, 10000);
 }
 process.on('SIGTERM', () => shutdown('SIGTERM'));
