@@ -9,6 +9,7 @@ import CustomDialog from "../dialogs/CustomDialog"
 import { bookDemoMeetingRequest } from "@/http/authHttp"
 import { useUser } from "@/provider/UserProvider"
 import axios from "axios"
+import { toast } from "sonner";
 
 export function Footer() {
   const { user, isAuth } = useUser();
@@ -193,40 +194,17 @@ export function Footer() {
     e.preventDefault();
     
     if (!meetingFormData.name || !meetingFormData.email || !meetingFormData.date) {
-      alert("Please fill in all required fields");
+      toast.error("Please fill in all required fields");
       return;
     }
 
     setIsLoading(true);
     
     try {
-      console.log('🚀 Starting demo meeting booking process...');
-      
-      // Step 1: Generate video link for the demo meeting
-      let videoToken = null;
-      try {
-        console.log('📹 Generating video link...');
-        videoToken = await generateVideoLinkForDemo(meetingFormData.email);
-        console.log('✅ Video token generated:', videoToken);
-      } catch (videoError) {
-        console.warn('⚠️ Failed to generate video link, proceeding without it:', videoError);
-      }
-
-      // Step 2: Send demo meeting request with video token to backend
-      const requestData = {
-        ...meetingFormData,
-        videoToken: videoToken
-      };
-
-      console.log('📤 Sending demo meeting request to backend...');
-      const response = await bookDemoMeetingRequest(requestData);
+      const response = await bookDemoMeetingRequest(meetingFormData);
       
       if (response.data.success) {
-        const successMessage = videoToken 
-          ? "Demo meeting request sent successfully with video link!" 
-          : "Demo meeting request sent successfully!";
-        
-        alert(successMessage);
+        toast.success("Demo meeting request sent successfully!");
         console.log('✅ Demo meeting booked successfully');
         
         // Reset form
@@ -242,7 +220,7 @@ export function Footer() {
       }
     } catch (error) {
       console.error('❌ Demo meeting request error:', error);
-      alert(error.response?.data?.message || "Failed to send demo meeting request");
+      toast.error(error.response?.data?.message || "Failed to send demo meeting request");
     } finally {
       setIsLoading(false);
     }
@@ -252,7 +230,7 @@ export function Footer() {
     e.preventDefault();
     
     if (!callbackFormData.name || !callbackFormData.email || !callbackFormData.phone) {
-      alert("Please fill in all required fields");
+      toast.error("Please fill in all required fields");
       return;
     }
 
@@ -264,7 +242,7 @@ export function Footer() {
       const response = await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/request-callback`, callbackFormData);
       
       if (response.data.success) {
-        alert("Callback request sent successfully!");
+        toast.success("Callback request sent successfully!");
         console.log('✅ Callback request sent successfully');
         
         // Reset form
@@ -283,7 +261,7 @@ export function Footer() {
       }
     } catch (error) {
       console.error('❌ Callback request error:', error);
-      alert(error.response?.data?.message || "Failed to send callback request");
+      toast.error(error.response?.data?.message || "Failed to send callback request");
     } finally {
       setCallbackLoading(false);
     }
@@ -605,7 +583,7 @@ export function Footer() {
               disabled={isLoading}
               className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 w-full shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isLoading ? 'Booking Meeting & Generating Video Link...' : 'Book Meeting'}
+              {isLoading ? 'Booking Meeting...' : 'Book Meeting'}
             </button>
           </form>
         </div>

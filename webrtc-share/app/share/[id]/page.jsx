@@ -12,7 +12,6 @@ export default function SharePage({ params }) {
   const { openVisitorAccessModal, closeVisitorAccessModal } = useDialog();
   const { user, isAuth, loading: userLoading } = useUser();
   const [accessGranted, setAccessGranted] = useState(false);
-  console.log("Initial states", { userLoading, isAuth, accessGranted });
   
   const [targetTime, setTargetTime] = useState("Emergency 24 Hours")
   const [residentName, setResidentName] = useState("")
@@ -346,96 +345,6 @@ export default function SharePage({ params }) {
             
             let notesContent = '';
             
-            // Add structured notes if available
-            if (hasStructuredNotes) {
-              notesContent += 'Structured Special Notes:\n';
-              
-              Object.keys(meetingData.structured_special_notes).forEach(sectionKey => {
-                const sectionData = meetingData.structured_special_notes[sectionKey];
-                if (sectionData) {
-                  // Handle each section like frontend with correct headings
-                  let sectionTitle = '';
-                  switch(sectionKey) {
-                    case 'preferences':
-                      sectionTitle = 'RESIDENT COMMUNICATION PREFERENCES:';
-                      break;
-                    case 'access':
-                      sectionTitle = 'BEST ACCESS STEPS:';
-                      break;
-                    case 'repair':
-                      sectionTitle = 'REPAIR/COMPLETION REQUESTS:';
-                      break;
-                    case 'safety':
-                      sectionTitle = 'SAFETY:';
-                      break;
-                    case 'vulnerability':
-                      sectionTitle = 'HOUSEHOLD VULNERABILITY:';
-                      break;
-                    case 'legal':
-                      sectionTitle = 'LEGAL CLAIM:';
-                      break;
-                    case 'property':
-                      sectionTitle = 'SPECIAL PROPERTY REQUESTS:';
-                      break;
-                    case 'noAccess':
-                      sectionTitle = 'NO ACCESS STEPS:';
-                      break;
-                    default:
-                      sectionTitle = sectionKey.charAt(0).toUpperCase() + sectionKey.slice(1) + ':';
-                  }
-                  notesContent += `${sectionTitle}\n`;
-                  
-                  // Check if any options are selected (excluding default)
-                  const selectedOptions = [];
-                  
-                  if (sectionData.avoidSchoolRun) selectedOptions.push('Avoid School Run');
-                  if (sectionData.callOnWay) selectedOptions.push('Call on Way');
-                  if (sectionData.preferredTime && sectionData.preferredTimeFrom && sectionData.preferredTimeTo) {
-                    selectedOptions.push(`Preferred Time: ${sectionData.preferredTimeFrom} to ${sectionData.preferredTimeTo}`);
-                  }
-                  
-                  if (sectionData.withOfficer) selectedOptions.push('With Officer');
-                  if (sectionData.residentSignature) selectedOptions.push('Resident Signature');
-                  if (sectionData.uploadToVideodesk) selectedOptions.push('Upload to Videodesk');
-                  
-                  if (sectionData.callMobile) selectedOptions.push('Call Mobile');
-                  if (sectionData.callLandline) selectedOptions.push('Call Landline');
-                  if (sectionData.sms) selectedOptions.push('SMS');
-                  if (sectionData.email) selectedOptions.push('Email');
-                  if (sectionData.other && sectionData.otherText) selectedOptions.push(`Other: ${sectionData.otherText}`);
-                  
-                  if (sectionData.withHousingOfficer) selectedOptions.push('With Housing Officer');
-                  if (sectionData.animalsPresent) selectedOptions.push('Animals Present');
-                  if (sectionData.dryHoarded) selectedOptions.push('Dry Hoarded');
-                  if (sectionData.localRiskAssessment) selectedOptions.push('Local Risk Assessment');
-                  
-                  if (sectionData.scottSchedule) selectedOptions.push('Scott Schedule');
-                  if (sectionData.currentDisrepair) selectedOptions.push('Current Disrepair');
-                  if (sectionData.potentialDisrepair) selectedOptions.push('Potential Disrepair');
-                  
-                  if (sectionData.youngChildren) selectedOptions.push('Young Children');
-                  if (sectionData.elderly) selectedOptions.push('Elderly');
-                  if (sectionData.baby) selectedOptions.push('Baby');
-                  
-                  if (sectionData.heaters) selectedOptions.push('Heaters');
-                  if (sectionData.dehumidifiers) selectedOptions.push('Dehumidifiers');
-                  if (sectionData.dehumidifierCount) selectedOptions.push(`${sectionData.dehumidifierCount} Dehumidifier(s)`);
-                  
-                  if (sectionData.other && sectionData.otherText) selectedOptions.push(`Other: ${sectionData.otherText}`);
-                  
-                  if (selectedOptions.length > 0) {
-                    selectedOptions.forEach(option => {
-                      notesContent += `  • ${option}\n`;
-                    });
-                  } else {
-                    notesContent += `  • None specified/Follow your local policy\n`;
-                  }
-                  
-                  notesContent += '\n';
-                }
-              });
-            }
-            
             // Add regular notes if available
             if (hasRegularNotes) {
               if (hasStructuredNotes) {
@@ -459,96 +368,6 @@ export default function SharePage({ params }) {
                 if (!hasStructuredNotes && !hasRegularNotes) return '';
                 
                 let notesContent = '';
-                
-                // Add structured notes if available
-                if (hasStructuredNotes) {
-                  notesContent += 'Structured Special Notes:\n';
-                  
-                  Object.keys(meetingData.structured_special_notes).forEach(sectionKey => {
-                    const sectionData = meetingData.structured_special_notes[sectionKey];
-                    if (sectionData) {
-                                        // Handle each section like frontend with correct headings
-                  let sectionTitle = '';
-                  switch(sectionKey) {
-                    case 'preferences':
-                      sectionTitle = 'RESIDENT COMMUNICATION PREFERENCES:';
-                      break;
-                    case 'access':
-                      sectionTitle = 'BEST ACCESS STEPS:';
-                      break;
-                    case 'repair':
-                      sectionTitle = 'REPAIR/COMPLETION REQUESTS:';
-                      break;
-                    case 'safety':
-                      sectionTitle = 'SAFETY:';
-                      break;
-                    case 'vulnerability':
-                      sectionTitle = 'HOUSEHOLD VULNERABILITY:';
-                      break;
-                    case 'legal':
-                      sectionTitle = 'LEGAL CLAIM:';
-                      break;
-                    case 'property':
-                      sectionTitle = 'SPECIAL PROPERTY REQUESTS:';
-                      break;
-                    case 'noAccess':
-                      sectionTitle = 'NO ACCESS STEPS:';
-                      break;
-                    default:
-                      sectionTitle = sectionKey.charAt(0).toUpperCase() + sectionKey.slice(1) + ':';
-                  }
-                  notesContent += `${sectionTitle}\n`;
-                      
-                      // Check if any options are selected (excluding default)
-                      const selectedOptions = [];
-                      
-                      if (sectionData.avoidSchoolRun) selectedOptions.push('Avoid School Run');
-                      if (sectionData.callOnWay) selectedOptions.push('Call on Way');
-                      if (sectionData.preferredTime && sectionData.preferredTimeFrom && sectionData.preferredTimeTo) {
-                        selectedOptions.push(`Preferred Time: ${sectionData.preferredTimeFrom} to ${sectionData.preferredTimeTo}`);
-                      }
-                      
-                      if (sectionData.withOfficer) selectedOptions.push('With Officer');
-                      if (sectionData.residentSignature) selectedOptions.push('Resident Signature');
-                      if (sectionData.uploadToVideodesk) selectedOptions.push('Upload to Videodesk');
-                      
-                      if (sectionData.callMobile) selectedOptions.push('Call Mobile');
-                      if (sectionData.callLandline) selectedOptions.push('Call Landline');
-                      if (sectionData.sms) selectedOptions.push('SMS');
-                      if (sectionData.email) selectedOptions.push('Email');
-                      if (sectionData.other && sectionData.otherText) selectedOptions.push(`Other: ${sectionData.otherText}`);
-                      
-                      if (sectionData.withHousingOfficer) selectedOptions.push('With Housing Officer');
-                      if (sectionData.animalsPresent) selectedOptions.push('Animals Present');
-                      if (sectionData.dryHoarded) selectedOptions.push('Dry Hoarded');
-                      if (sectionData.localRiskAssessment) selectedOptions.push('Local Risk Assessment');
-                      
-                      if (sectionData.scottSchedule) selectedOptions.push('Scott Schedule');
-                      if (sectionData.currentDisrepair) selectedOptions.push('Current Disrepair');
-                      if (sectionData.potentialDisrepair) selectedOptions.push('Potential Disrepair');
-                      
-                      if (sectionData.youngChildren) selectedOptions.push('Young Children');
-                      if (sectionData.elderly) selectedOptions.push('Elderly');
-                      if (sectionData.baby) selectedOptions.push('Baby');
-                      
-                      if (sectionData.heaters) selectedOptions.push('Heaters');
-                      if (sectionData.dehumidifiers) selectedOptions.push('Dehumidifiers');
-                      if (sectionData.dehumidifierCount) selectedOptions.push(`${sectionData.dehumidifierCount} Dehumidifier(s)`);
-                      
-                      if (sectionData.other && sectionData.otherText) selectedOptions.push(`Other: ${sectionData.otherText}`);
-                      
-                      if (selectedOptions.length > 0) {
-                        selectedOptions.forEach(option => {
-                          notesContent += `  • ${option}\n`;
-                        });
-                      } else {
-                        notesContent += `  • None specified/Follow your local policy\n`;
-                      }
-                      
-                      notesContent += '\n';
-                    }
-                  });
-                }
                 
                 // Add regular notes if available
                 if (hasRegularNotes) {
@@ -609,15 +428,12 @@ export default function SharePage({ params }) {
 
   // Function to handle visitor access - always grant access after submission
   const handleVisitorAccess = async (visitorData) => {
-    console.log("handleVisitorAccess called", visitorData);
     try {
-      console.log(`🔐 Recording visitor access for meeting: ${id}`);
       const response = await recordVisitorAccessRequest(id, visitorData);
 
       if (response.success) {
         setAccessGranted(true);
         if (typeof closeVisitorAccessModal === 'function') closeVisitorAccessModal();
-        console.log(`✅ Visitor access recorded successfully for meeting: ${id}`);
         // Fetch meeting data for non-creators after visitor access
         setIsLoadingMeetingData(true);
         const meetingResp = await getMeetingForShare(id);
@@ -688,12 +504,10 @@ export default function SharePage({ params }) {
     if (!id) return;
     setIsLoadingMeetingData(true);
     try {
-      console.log(`🔍 Fetching meeting data for share ID: ${id}`);
       const response = await getMeetingForShare(id);
       
       if (response.success && response.meeting) {
         const meetingData = response.meeting;
-        console.log('✅ Found meeting data:', meetingData);
         
         // Populate form fields with existing data (read-only)
         // Use new structured name fields
@@ -1360,11 +1174,9 @@ export default function SharePage({ params }) {
                           return addressParts.length > 0 ? addressParts.join(', ') : 'No address provided';
                         })()}
                       </div>
-                      {postcodeValue && (
-                        <div className="text-right mt-2 text-blue-900 font-medium mr-8">
-                          Postcode: {postcodeValue}
-                        </div>
-                      )}
+                      <div className="mt-3 text-blue-900 font-medium">
+                        Postcode: {postcodeValue}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1438,13 +1250,7 @@ export default function SharePage({ params }) {
                   const hasStructuredNotes = meetingData?.structured_special_notes && typeof meetingData.structured_special_notes === 'object';
                   const hasRegularNotes = specialNotes;
                   const totalSections = hasStructuredNotes ? Object.keys(meetingData.structured_special_notes).length : 0;
-                  return (
-                    <div className="text-xs bg-yellow-200 text-yellow-800 px-2 py-1 rounded-full font-medium">
-                      {hasStructuredNotes && hasRegularNotes ? `${totalSections} sections + notes` :
-                       hasStructuredNotes ? `${totalSections} sections` :
-                       hasRegularNotes ? 'Text notes' : 'None'}
-                    </div>
-                  );
+                 
                 })()}
                 
                 {/* Quick action buttons */}
@@ -1469,7 +1275,7 @@ export default function SharePage({ params }) {
                             setExpandedSpecialNotes(new Set(allKeys));
                           }
                         }}
-                        className="text-xs bg-yellow-300 hover:bg-yellow-400 text-yellow-800 px-2 py-1 rounded transition-colors duration-200"
+                        className="text-xs bg-yellow-300 hover:bg-yellow-400 text-yellow-800 px-2 py-1 rounded transition-colors duration-200 whitespace-nowrap"
                       >
                         {allExpanded ? 'Collapse All' : 'Expand All'}
                       </button>
@@ -1481,16 +1287,53 @@ export default function SharePage({ params }) {
             
             {/* Show both structured special notes (popup data) and regular special notes */}
             <div className="space-y-3">
+              {/* Regular Special Notes (Text Field) */}
+              {specialNotes && (
+                <div className="bg-white rounded-xl border border-yellow-200 overflow-hidden">
+                  <button
+                    onClick={() => {
+                      const newExpanded = new Set(expandedSpecialNotes);
+                      const key = 'additional-notes';
+                      if (expandedSpecialNotes.has(key)) {
+                        newExpanded.delete(key);
+                      } else {
+                        newExpanded.add(key);
+                      }
+                      setExpandedSpecialNotes(newExpanded);
+                    }}
+                    className="w-full p-3 md:p-4 text-left hover:bg-orange-100 transition-colors duration-200 flex items-center justify-between"
+                  >
+                    <div className="flex items-center">
+                      <ChevronRight 
+                        className={`w-4 h-4 mr-2 text-yellow-600 transition-transform duration-200 ${expandedSpecialNotes.has('additional-notes') ? 'rotate-90' : ''}`} 
+                      />
+                      <span className="font-semibold text-yellow-800 text-sm md:text-base">
+                        Additional Notes
+                      </span>
+                    </div>
+                    <div className="text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded-full">
+                      Text
+                    </div>
+                  </button>
+                  
+                  {expandedSpecialNotes.has('additional-notes') && (
+                    <div className="px-3 md:px-4 pb-3 md:pb-4 border-t border-yellow-100">
+                      <div className="text-yellow-900 text-sm md:text-base leading-relaxed mt-3">
+                        {specialNotes}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+              
               {/* Structured Special Notes (Popup Data) */}
               {meetingData?.structured_special_notes && typeof meetingData.structured_special_notes === 'object' && (
                 (() => {
-                  console.log('🔍 Structured special notes data:', meetingData?.structured_special_notes);
                   return true;
                 })() && (
                   <div className="space-y-3">
                     {specialNotesSections.map(section => {
                       const state = meetingData.structured_special_notes[section.key];
-                      console.log(`🔍 Processing section: ${section.key}`, state);
                       if (!state) return null;
                       
                       // Check if any options are selected (excluding default)
@@ -1525,7 +1368,7 @@ export default function SharePage({ params }) {
                               }
                               setExpandedSpecialNotes(newExpanded);
                             }}
-                            className="w-full p-3 md:p-4 text-left hover:bg-yellow-50 transition-colors duration-200 flex items-center justify-between"
+                            className="w-full p-3 md:p-4 text-left hover:bg-orange-100 transition-colors duration-200 flex items-center justify-between"
                           >
                             <div className="flex items-center">
                               <ChevronRight 
@@ -1537,7 +1380,7 @@ export default function SharePage({ params }) {
                             </div>
                             <div className="flex items-center gap-2">
                               {hasContent && (
-                                <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded-full">
+                                <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded-full whitespace-nowrap">
                                   {checked.length + (state.default ? 1 : 0)} items
                                 </span>
                               )}
@@ -1605,45 +1448,6 @@ export default function SharePage({ params }) {
                     })}
                   </div>
                 )
-              )}
-              
-              {/* Regular Special Notes (Text Field) */}
-              {specialNotes && (
-                <div className="bg-white rounded-xl border border-yellow-200 overflow-hidden">
-                  <button
-                    onClick={() => {
-                      const newExpanded = new Set(expandedSpecialNotes);
-                      const key = 'additional-notes';
-                      if (expandedSpecialNotes.has(key)) {
-                        newExpanded.delete(key);
-                      } else {
-                        newExpanded.add(key);
-                      }
-                      setExpandedSpecialNotes(newExpanded);
-                    }}
-                    className="w-full p-3 md:p-4 text-left hover:bg-yellow-50 transition-colors duration-200 flex items-center justify-between"
-                  >
-                    <div className="flex items-center">
-                      <ChevronRight 
-                        className={`w-4 h-4 mr-2 text-yellow-600 transition-transform duration-200 ${expandedSpecialNotes.has('additional-notes') ? 'rotate-90' : ''}`} 
-                      />
-                      <span className="font-semibold text-yellow-800 text-sm md:text-base">
-                        Additional Notes
-                      </span>
-                    </div>
-                    <div className="text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded-full">
-                      Text
-                    </div>
-                  </button>
-                  
-                  {expandedSpecialNotes.has('additional-notes') && (
-                    <div className="px-3 md:px-4 pb-3 md:pb-4 border-t border-yellow-100">
-                      <div className="text-yellow-900 text-sm md:text-base leading-relaxed mt-3">
-                        {specialNotes}
-                      </div>
-                    </div>
-                  )}
-                </div>
               )}
               
               {/* Show message if no special notes at all */}
@@ -1795,7 +1599,7 @@ export default function SharePage({ params }) {
 
         {/* Enhanced Footer with Meeting Info */}
         <div className="bg-white rounded-3xl shadow-xl p-6 sm:p-8 border-2 border-gray-200 py-6 print-hide">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+          <div className="grid gap-4 md:gap-6" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
             <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 md:p-5">
               <div className="text-xs font-medium text-gray-500 mb-1">Meeting Created</div>
               <div className="text-gray-800 font-medium text-sm md:text-base">
@@ -1812,12 +1616,6 @@ export default function SharePage({ params }) {
               <div className="text-xs font-medium text-gray-500 mb-1">Total Screenshots</div>
               <div className="text-gray-800 font-medium text-sm md:text-base">
                 {screenshots?.length || 0}
-              </div>
-            </div>
-            <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 md:p-5">
-              <div className="text-xs font-medium text-gray-500 mb-1">Target Time</div>
-              <div className="text-gray-800 font-medium text-sm md:text-base">
-                {targetTime || 'Not specified'}
               </div>
             </div>
           </div>
