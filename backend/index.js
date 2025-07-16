@@ -36,13 +36,9 @@ connectDB();
 const app = express();
 const PORT = process.env.PORT || 4000;
 
-// Add CORS middleware before routes
+// Allow all origins for CORS (wildcard)
 app.use(cors({
-  origin: [
-    'http://localhost:3000', // local frontend
-    'https://videodesk.co.uk',
-    'https://videodesk.vercel.app' // production frontend
-  ],
+  origin: true,
   credentials: true
 }));
 
