@@ -150,18 +150,33 @@ server.headersTimeout = TIMEOUT + 1000;
 logger.info(`🔧 Server timeouts configured: ${TIMEOUT}ms`);
 
 // --- CLUSTERING: Use all CPU cores in production ---
-if (process.env.NODE_ENV === 'production' && cluster.isPrimary) {
-  const numCPUs = os.cpus().length;
-  logger.info(`🚦 Primary process running. Forking ${numCPUs} workers...`);
-  for (let i = 0; i < numCPUs; i++) {
-    cluster.fork();
+if (
+  process.env.NODE_ENV === 'development' ||
+  process.env.ENABLE_CLUSTER === 'true'
+) {
+  // Clustering logic for local/dev or if explicitly enabled
+  if (cluster.isPrimary) {
+    const numCPUs = os.cpus().length;
+    logger.info(`🚦 Primary process running. Forking ${numCPUs} workers...`);
+    for (let i = 0; i < numCPUs; i++) {
+      cluster.fork();
+    }
+    cluster.on('exit', (worker, code, signal) => {
+      logger.error(`❌ Worker ${worker.process.pid} died. Restarting...`);
+      cluster.fork();
+    });
+    // Do not start server in primary
+  } else {
+    // Worker process: start server
+    server.listen(PORT, () => {
+      logger.info(`🚀 Server running on port ${PORT}`);
+    });
   }
-  cluster.on('exit', (worker, code, signal) => {
-    logger.error(`❌ Worker ${worker.process.pid} died. Restarting...`);
-    cluster.fork();
+} else {
+  // Production/cloud: single process
+  server.listen(PORT, () => {
+    logger.info(`🚀 Server running on port ${PORT}`);
   });
-  // Do not start server in primary
-  process.exit(0); // Exit primary process cleanly
 }
 
 const socketService = new SocketService(server);
@@ -528,23 +543,6 @@ function shutdown(signal) {
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
 
-server.listen(PORT, () => {
-    logger.info(`✅ Server running on port ${PORT} with AWS S3 optimized upload support`);
-    logger.info(`📊 Max file size: ${MAX_SIZE}`);
-    logger.info(`⏱️ Request timeout: ${TIMEOUT}ms`);
-    logger.info(`☁️ S3 Upload Configuration:`);
-    logger.info(`   🪣 Bucket: ${process.env.S3_BUCKET_NAME}`);
-    logger.info(`   🌍 Region: ${process.env.AWS_REGION || 'us-east-1'}`);
-    logger.info(`   📦 Part Size: ${parseInt(process.env.S3_PART_SIZE || 16777216) / 1024 / 1024}MB`);
-    logger.info(`   🚄 Queue Size: ${process.env.S3_QUEUE_SIZE || 6} parallel uploads`);
-    logger.info(`   ⚡ Transfer Acceleration: ${process.env.S3_USE_ACCELERATE === 'true' ? 'ENABLED' : 'DISABLED'}`);
-    
-    if (process.env.S3_USE_ACCELERATE !== 'true') {
-        logger.info(`💡 Tip: Enable S3 Transfer Acceleration for even faster uploads:`);
-        logger.info(`   1. Enable Transfer Acceleration on your S3 bucket`);
-        logger.info(`   2. Set S3_USE_ACCELERATE=true in .env`);
-    }
-});
 // --- CRON JOB: Auto-delete trashed meetings after 10 days (for auto-delete) ---
 cron.schedule('* * * * *', async () => {
   logger.info('⏰ [CRON] Auto-delete job running at', new Date().toLocaleString());
