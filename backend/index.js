@@ -23,6 +23,16 @@ import os from 'os';
 import process from 'process';
 import Redis from 'ioredis';
 
+// Add global error handlers for better debugging
+process.on('uncaughtException', err => {
+  console.error('Uncaught Exception:', err);
+  process.exit(1);
+});
+process.on('unhandledRejection', err => {
+  console.error('Unhandled Rejection:', err);
+  process.exit(1);
+});
+
 const logger = pino({
   transport: process.env.NODE_ENV === 'production' ? undefined : {
     target: 'pino-pretty',
