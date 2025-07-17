@@ -401,10 +401,6 @@ export default function SharePage({ params }) {
                 <div class="summary-number">${totalScreenshots}</div>
                 <div class="summary-label">Screenshots</div>
               </div>
-              <div class="summary-item">
-                <div class="summary-number">${targetTime || 'N/A'}</div>
-                <div class="summary-label">Target Time</div>
-              </div>
             </div>
           </div>
           
@@ -1095,6 +1091,24 @@ export default function SharePage({ params }) {
           </div>
         </div>
 
+        {/* Meeting Summary Section - after profile info, without Target Time */}
+        <div className="bg-white rounded-3xl shadow-xl p-4 sm:p-6 mb-6 md:mb-8 border border-blue-200 print-hide">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+            <div className="flex flex-col items-center">
+              <span className="text-lg font-bold text-blue-800">{meetingData?.createdAt ? new Date(meetingData.createdAt).toLocaleDateString() : 'N/A'}</span>
+              <span className="text-xs text-gray-500 mt-1">Meeting Date</span>
+            </div>
+            <div className="flex flex-col items-center">
+              <span className="text-lg font-bold text-blue-800">{recordings.length}</span>
+              <span className="text-xs text-gray-500 mt-1">Recordings</span>
+            </div>
+            <div className="flex flex-col items-center">
+              <span className="text-lg font-bold text-blue-800">{screenshots.length}</span>
+              <span className="text-xs text-gray-500 mt-1">Screenshots</span>
+            </div>
+          </div>
+        </div>
+
         {/* Enhanced Main Content Card with better layout */}
         <div className="bg-white rounded-3xl shadow-xl p-6 sm:p-8 mb-6 md:mb-8 border-2 border-gray-200">
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 md:gap-8">
@@ -1597,29 +1611,6 @@ export default function SharePage({ params }) {
           )}
         </div>
 
-        {/* Enhanced Footer with Meeting Info */}
-        <div className="bg-white rounded-3xl shadow-xl p-6 sm:p-8 border-2 border-gray-200 py-6 print-hide">
-          <div className="grid gap-4 md:gap-6" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
-            <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 md:p-5">
-              <div className="text-xs font-medium text-gray-500 mb-1">Meeting Created</div>
-              <div className="text-gray-800 font-medium text-sm md:text-base">
-                {meetingData?.createdAt ? new Date(meetingData.createdAt).toLocaleDateString() : 'Unknown'}
-              </div>
-            </div>
-            <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 md:p-5">
-              <div className="text-xs font-medium text-gray-500 mb-1">Total Recordings</div>
-              <div className="text-gray-800 font-medium text-sm md:text-base">
-                {recordings?.length || 0}
-              </div>
-            </div>
-            <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 md:p-5">
-              <div className="text-xs font-medium text-gray-500 mb-1">Total Screenshots</div>
-              <div className="text-gray-800 font-medium text-sm md:text-base">
-                {screenshots?.length || 0}
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
 
       {/* Image Modal */}
