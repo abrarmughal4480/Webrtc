@@ -176,3 +176,23 @@ html::-webkit-scrollbar-track, body::-webkit-scrollbar-track, .custom-scrollbar:
 .dialog-content::-webkit-scrollbar-track, .CustomDialog::-webkit-scrollbar-track, .dialog-content .custom-scrollbar::-webkit-scrollbar-track {
   background: transparent !important;
 }
+
+
+.bg-hero-section-bg {
+  background-image: url('/hero-section-bg.png');
+}
+.bg-slide-2-bg {
+  background-image: url('/slide-2-bg.jpg');
+}
+.bg-slide-3-bg {
+  background-image: url('/slide-3-bg.png');
+}
+
+@media (max-width: 767px) {
+  .bg-slide-2-bg {
+    background-image: url('/mobile_2.jpg') !important;
+  }
+  .bg-slide-3-bg {
+    background-image: url('/mobile_3.jpg') !important;
+  }
+}

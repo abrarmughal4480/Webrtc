@@ -3,6 +3,15 @@ import React, { useState, useEffect } from 'react';
 
 export const HeroSection = () => {
   const [activeSlide, setActiveSlide] = useState(0);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Detect screen size for mobile
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth <= 768);
+    checkMobile(); // initial check
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   const slides = [
     {
@@ -41,19 +50,41 @@ export const HeroSection = () => {
     },
     {
       id: 2,
-      backgroundImage: "url('/slide-2-bg.jpg')",
+      backgroundImage: isMobile ? "url('/mobile_2.jpg')" : "url('/slide-2-bg.jpg')",
       content: (
         <div className="mx-auto relative z-10 px-10 flex flex-col justify-start pt-5">
-          
+          {/* Add your slide 2 content here if needed */}
         </div>
       )
     },
     {
       id: 3,
-      backgroundImage: "url('/slide-3-bg.png')",
+      backgroundImage: isMobile ? "url('/mobile_3.jpg')" : "url('/slide-3-bg.png')",
       content: (
-        <div className="mx-auto relative z-10 h-[85vh] flex flex-row ">
+        <div className="mx-auto relative z-10 h-[85vh] flex flex-row">
+          {/* Built for Social Landlords - Top (Mobile only) */}
+          {isMobile && (
+            <div className="absolute top-10 left-4 right-4 w-full">
+              <div className="max-w-2xl">
+                <h2 className="text-xl md:text-2xl lg:text-3xl font-bold text-black">
+                  Built for Social Landlords
+                </h2>
+              </div>
+            </div>
+          )}
           
+          {/* Reduce service calls - Bottom (Mobile only) */}
+          {isMobile && (
+            <div className="absolute bottom-20 left-4 right-4 w-full">
+              <div className="max-w-2xl">
+                <h4 className="text-xl md:text-2xl lg:text-3xl font-normal text-black">
+                  Reduce service calls and improve <br />
+                  <span className="font-bold">first-time resolution</span> for <br />
+                  repairs reporting.
+                </h4>
+              </div>
+            </div>
+          )}
         </div>
       )
     }
@@ -68,37 +99,35 @@ export const HeroSection = () => {
   }, [slides.length]);
 
   return (
-    <>
-      <section className="relative bg-gray-800 text-white min-h-[85vh] overflow-hidden">
-        {slides.map((slide, index) => (
-          <div
-            key={slide.id}
-            className={`absolute inset-0 w-full h-full transition-opacity duration-1000 ease-in-out bg-cover bg-center ${
-              index === activeSlide ? 'opacity-100 z-10' : 'opacity-0 z-0'
-            }`}
-            style={{
-              backgroundImage: slide.backgroundImage.startsWith('url') ? slide.backgroundImage : '',
-              backgroundSize: "cover",
-              backgroundRepeat: "no-repeat",
-              backgroundPosition: slide.id === 2 ? "center 100%" : "center"
-            }}
-          >
-            {slide.content}
-          </div>
-        ))}
-
-        <div className="flex space-x-2 mt-12 absolute bottom-10 left-[50%] -translate-x-[50%] z-20">
-          {slides.map((_, index) => (
-            <button
-              key={index}
-              onClick={() => setActiveSlide(index)}
-              className={`w-3 h-3 rounded-full transition-colors ${
-                activeSlide === index ? 'bg-amber-500' : 'bg-gray-300 bg-opacity-50'
-              }`}
-            />
-          ))}
+    <section className="relative bg-gray-800 text-white min-h-[85vh] overflow-hidden">
+      {slides.map((slide, index) => (
+        <div
+          key={slide.id}
+          className={`absolute inset-0 w-full h-full transition-opacity duration-1000 ease-in-out bg-cover bg-center ${
+            index === activeSlide ? 'opacity-100 z-10' : 'opacity-0 z-0'
+          }`}
+          style={{
+            backgroundImage: slide.backgroundImage,
+            backgroundSize: "cover",
+            backgroundRepeat: "no-repeat",
+            backgroundPosition: slide.id === 2 ? "center 100%" : "center"
+          }}
+        >
+          {slide.content}
         </div>
-      </section>
-    </>
+      ))}
+
+      <div className="flex space-x-2 mt-12 absolute bottom-10 left-[50%] -translate-x-[50%] z-20">
+        {slides.map((_, index) => (
+          <button
+            key={index}
+            onClick={() => setActiveSlide(index)}
+            className={`w-3 h-3 rounded-full transition-colors ${
+              activeSlide === index ? 'bg-amber-500' : 'bg-gray-300 bg-opacity-50'
+            }`}
+          />
+        ))}
+      </div>
+    </section>
   );
 };
