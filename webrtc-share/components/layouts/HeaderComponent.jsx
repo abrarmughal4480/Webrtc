@@ -30,14 +30,33 @@ import Link from 'next/link';
 import { evaluatePasswordStrength } from '@/lib/utils';
 import useIntersectionObserver from '@/hooks/useInserctionObserver';
 import CustomDialog from '../dialogs/CustomDialog';
-
+import { useDialog } from "@/provider/DilogsProvider";
 
 
 const NavLink = ({ targetId, label, rootMargin = "0px" }) => {
   const { isIntersecting } = useIntersectionObserver(targetId, { rootMargin: rootMargin });
-  return <a href={`#${targetId}`} className={`text-gray-700 hover:bg-amber-500 hover:!text-black hover:pl-6 transition-colors border-r-2 border-purple pr-5 ${isIntersecting ? "bg-amber-500 !text-black pl-6" : "bg-transparent"}`}>
-    {label}
-  </a>
+  // Always show purple left border, only change bg/text on hover/active
+  return (
+    <a
+      href={`#${targetId}`}
+      className={`
+        text-gray-700
+        pl-6
+        pr-5
+        border-r-2
+        border-purple
+        transition-colors
+        hover:bg-amber-500
+        hover:!text-black
+        focus:bg-amber-500
+        focus:!text-black
+        ${isIntersecting ? "bg-amber-500 !text-black" : "bg-transparent"}
+      `}
+      style={{ minWidth: 0 }}
+    >
+      {label}
+    </a>
+  );
 }
 
 export const Header = () => {
@@ -62,6 +81,7 @@ export const Header = () => {
   const [showSignInPassword, setShowSignInPassword] = useState(false);
   const [signUpPasswordTimer, setSignUpPasswordTimer] = useState(null);
   const [signInPasswordTimer, setSignInPasswordTimer] = useState(null);
+  const { isCallbackOpen, setIsCallbackOpen, isMeetingOpen, setISMeetingOpen } = useDialog();
 
   // Reset resend states when OTP dialog opens
   useEffect(() => {
@@ -401,18 +421,34 @@ const handleLogout = async () => {
             <span className="text-2xl md:text-4xl font-bold text-gray-900">Videodesk</span>
           </div>
 
-          <nav className="hidden md:flex items-center space-x-5">
+          <nav className="hidden md:flex items-center gap-1">
             <NavLink label={"About"} targetId={"about"} rootMargin={"-10% 0px -90% 0px"} />
             <NavLink label={"Benefits"} targetId={"benefit"} rootMargin={"-20% 0px -80% 0px"} />
             <NavLink label={"How it works"} targetId={"how-it-works"} rootMargin={"-20% 0px -80% 0px"} />
             <NavLink label={"Launch new video link"} targetId={"launch-link"} rootMargin={"-20% 0px -80% 0px"} />
             <NavLink label={"Pricing and Plans"} targetId={"pricing"} rootMargin={"-20% 0px -80% 0px"} />
+            <span className="inline-block w-3 md:w-4"></span>
+            <button
+              className="bg-purple-500 hover:bg-purple-600 text-white font-medium py-2 px-4 rounded-full transition-colors mr-2"
+              type="button"
+              onClick={() => setIsCallbackOpen(true)}
+            >
+              Request a Callback
+            </button>
+            <button
+              className="bg-purple-500 hover:bg-purple-600 text-white font-medium py-2 px-4 rounded-full transition-colors"
+              type="button"
+              onClick={() => setISMeetingOpen(true)}
+            >
+              Book a Demo Meeting
+            </button>
 
             {
               isAuth == false && <>
                 <button href="#login" className="bg-green-500 hover:bg-green-600 text-white font-medium py-2 px-4 rounded-full transition-colors" onClick={() => setSignInOpen(true)}>
                   Log In
                 </button>
+                {/*
                 <button
                   href="#signup"
                   className="bg-amber-500 hover:bg-amber-600 text-white font-medium py-2 px-4 rounded-full transition-colors"
@@ -420,6 +456,7 @@ const handleLogout = async () => {
                 >
                   Sign up in 3 easy steps!
                 </button>
+                */}
               </>
             }
 
@@ -502,12 +539,14 @@ const handleLogout = async () => {
                   >
                     Log In
                   </button>
+                  {/*
                   <button
                     className="w-full bg-amber-500 hover:bg-amber-600 text-white font-medium py-2 px-4 rounded-full transition-colors"
                     onClick={() => { setSignUpOpen(true); setMobileMenuOpen(false); }}
                   >
                     Sign up in 3 easy steps!
                   </button>
+                  */}
                 </div>
               )}
 

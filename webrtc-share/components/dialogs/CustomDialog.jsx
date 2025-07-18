@@ -8,7 +8,7 @@ import {
 const CustomDialog = ({open,setOpen,children,heading}) => {
     return (
         <Dialog open={open} onOpenChange={setOpen}>
-            <DialogContent className="sm:max-w-[600px] bg-white dialog-content rounded-xl border-none outline-none shadow-none ring-0 p-0 overflow-hidden">
+            <DialogContent className="max-w-[95vw] w-full sm:max-w-[600px] bg-white dialog-content rounded-xl border-none outline-none shadow-none ring-0 p-0 overflow-hidden">
                 <DialogHeader className={'bg-purple-500 text-white absolute top-0 left-0 right-0 h-auto py-4 flex items-center justify-between px-6 rounded-t-xl border-none m-0 z-10'}>
                     <div className="w-full">
                         {typeof heading === 'string' ? (

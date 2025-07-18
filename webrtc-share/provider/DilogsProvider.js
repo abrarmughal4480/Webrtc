@@ -3,11 +3,13 @@ import { DialogComponent } from '@/components/dialogs/DialogCompnent';
 import React, { createContext, useState, useContext, useRef, useEffect } from 'react';
 import { FileText, Archive, Trash2, Monitor, Smartphone, Save, History, ArchiveRestore, ExternalLink, FileSearch, MailIcon, Loader2, LockIcon, XIcon, Link, Copy, Eye, EyeOff } from "lucide-react"
 import { Disclosure } from "@headlessui/react";
-import { ChevronDownIcon } from "@heroicons/react/20/solid";
+import { ChevronDownIcon, ChevronDown } from "@heroicons/react/20/solid";
 import { sendFriendLinkRequest, resetPasswordFromDashboardRequest, sendFeedbackRequest, raiseSupportTicketRequest, forgotPasswordRequest, updateLandlordInfoRequest, updateMessageSettingsRequest, getMessageSettingsRequest } from '@/http/authHttp';
 import { getMeetingById } from '@/http/meetingHttp';
 import { useUser } from './UserProvider';
 import { toast } from 'sonner';
+import CustomDialog from "@/components/dialogs/CustomDialog";
+import { X } from "lucide-react";
 
 const DialogContext = createContext();
 
@@ -123,6 +125,152 @@ export const DialogProvider = ({ children }) => {
   // Add new state for share link dialog
   const [shareLinkOpen, setShareLinkOpen] = useState(false);
   const [selectedMeetingForShare, setSelectedMeetingForShare] = useState(null);
+
+  const [addUserOpen, setAddUserOpen] = useState(false);
+
+  const [isCallbackOpen, setIsCallbackOpen] = useState(false);
+  const [isMeetingOpen, setISMeetingOpen] = useState(false);
+
+  // Add state and handlers for callback and meeting forms (from FooterComponent)
+  const [callbackFormData, setCallbackFormData] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    day: '',
+    customDate: '',
+    timeSlot: '',
+    customHour: '09',
+    customMinute: '00',
+    message: ''
+  });
+  const [meetingFormData, setMeetingFormData] = useState({
+    name: '',
+    email: '',
+    date: '',
+    hour: '08',
+    minute: '00',
+    message: ''
+  });
+  const [callbackLoading, setCallbackLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    if (!isCallbackOpen) {
+      setCallbackFormData({
+        name: '',
+        email: '',
+        phone: '',
+        day: '',
+        customDate: '',
+        timeSlot: '',
+        customHour: '09',
+        customMinute: '00',
+        message: ''
+      });
+    }
+  }, [isCallbackOpen]);
+
+  useEffect(() => {
+    if (!isMeetingOpen) {
+      setMeetingFormData({
+        name: '',
+        email: '',
+        date: '',
+        hour: '08',
+        minute: '00',
+        message: ''
+      });
+    }
+  }, [isMeetingOpen]);
+
+  const handleCallbackInputChange = (e) => {
+    const { name, value } = e.target;
+    setCallbackFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleMeetingInputChange = (e) => {
+    const { name, value } = e.target;
+    setMeetingFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleCallbackSubmit = async (e) => {
+    e.preventDefault();
+    if (!callbackFormData.name || !callbackFormData.email || !callbackFormData.phone) {
+      toast.error("Please fill in all required fields");
+      return;
+    }
+    setCallbackLoading(true);
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/request-callback`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(callbackFormData)
+      });
+      const data = await response.json();
+      if (data.success) {
+        toast.success("Callback request sent successfully!");
+        setCallbackFormData({
+          name: '',
+          email: '',
+          phone: '',
+          day: '',
+          customDate: '',
+          timeSlot: '',
+          customHour: '09',
+          customMinute: '00',
+          message: ''
+        });
+        setIsCallbackOpen(false);
+      } else {
+        throw new Error(data.message || "Failed to send callback request");
+      }
+    } catch (error) {
+      toast.error(error.message || "Failed to send callback request");
+    } finally {
+      setCallbackLoading(false);
+    }
+  };
+
+  const handleMeetingSubmit = async (e) => {
+    e.preventDefault();
+    if (!meetingFormData.name || !meetingFormData.email || !meetingFormData.date) {
+      toast.error("Please fill in all required fields");
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/book-demo-meeting`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(meetingFormData)
+      });
+      const data = await response.json();
+      if (data.success) {
+        toast.success("Demo meeting request sent successfully!");
+        setMeetingFormData({
+          name: '',
+          email: '',
+          date: '',
+          hour: '08',
+          minute: '00',
+          message: ''
+        });
+        setISMeetingOpen(false);
+      } else {
+        throw new Error(data.message || "Failed to send demo meeting request");
+      }
+    } catch (error) {
+      toast.error(error.message || "Failed to send demo meeting request");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const addEmailField = () => {
     setInviteEmails([...inviteEmails, '']);
@@ -2099,7 +2247,12 @@ ${senderName}`;
       };
       console.log('🎨 getUserMessageSettings returning:', settings);
       return settings;
-    }
+    },
+    setAddUserOpen,
+    isCallbackOpen,
+    setIsCallbackOpen,
+    isMeetingOpen,
+    setISMeetingOpen,
   };
 
   useEffect(() => {
@@ -3334,60 +3487,60 @@ ${senderName}`;
       </DialogComponent>
 
       {/* Visitor Access Modal */}
-      <DialogComponent open={visitorAccessOpen} setOpen={() => { }} isCloseable={false}>
-        <div className="w-[400px] max-h-[90vh] rounded-2xl bg-purple-500 shadow-md overflow-hidden">
-          {/* Header */}
-          <div className="flex items-center justify-center bg-purple-500 text-white p-4 m-0 relative">
-            <div className="flex items-center gap-2">
-              <h2 className="text-base font-semibold">To Access Shared Link</h2>
-            </div>
+      <CustomDialog 
+        open={visitorAccessOpen} 
+        setOpen={setVisitorAccessOpen} 
+        heading={
+          <div className="w-full relative flex items-center justify-center">
+            <h2 className="text-[1.3rem] md:text-[1.8rem] font-bold text-white">To Access Shared Link</h2>
             <button
-              onClick={() => window.close()}
-              aria-label="Close tab"
-              className="absolute right-4 text-white hover:text-gray-200"
+              onClick={() => setVisitorAccessOpen(false)}
+              className="absolute right-2 md:right-0 text-white hover:text-gray-200 transition-colors p-1 rounded-full hover:bg-white/10"
+              aria-label="Close dialog"
             >
-              <XIcon className="w-4 h-4" />
+              <X className="w-5 h-5" />
             </button>
           </div>
+        }
+        className="max-w-[95vw] w-full sm:max-w-[600px]"
+      >
+        <div className="p-5 bg-white rounded-b-2xl max-h-[calc(90vh-4rem)] overflow-y-auto">
+          <form onSubmit={handleVisitorAccess}>
+            <div className="space-y-4">
+              <input
+                type="text"
+                placeholder="Enter your name"
+                className="w-full px-4 py-3 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                value={visitorName}
+                onChange={(e) => setVisitorName(e.target.value)}
+                required
+              />
+              <input
+                type="email"
+                placeholder="Enter your work email address"
+                className="w-full px-4 py-3 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                value={visitorEmail}
+                onChange={(e) => setVisitorEmail(e.target.value)}
+                required
+              />
+            </div>
 
-          <div className="p-5 bg-white rounded-b-2xl max-h-[calc(90vh-4rem)] overflow-y-auto">
-            <form onSubmit={handleVisitorAccess}>
-              <div className="space-y-4">
-                <input
-                  type="text"
-                  placeholder="Enter your name"
-                  className="w-full px-4 py-3 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  value={visitorName}
-                  onChange={(e) => setVisitorName(e.target.value)}
-                  required
-                />
-                <input
-                  type="email"
-                  placeholder="Enter your work email address"
-                  className="w-full px-4 py-3 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  value={visitorEmail}
-                  onChange={(e) => setVisitorEmail(e.target.value)}
-                  required
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={visitorLoading}
-                className="mt-6 w-full bg-green-500 hover:bg-green-600 disabled:bg-gray-400 text-white py-3 rounded-full text-sm font-medium flex items-center justify-center gap-2"
-              >
-                {visitorLoading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  </>
-                ) : (
-                  'Access Shared Link'
-                )}
-              </button>
-            </form>
-          </div>
+            <button
+              type="submit"
+              disabled={visitorLoading}
+              className="mt-6 w-full bg-green-500 hover:bg-green-600 disabled:bg-gray-400 text-white py-3 rounded-full text-sm font-medium flex items-center justify-center gap-2"
+            >
+              {visitorLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                </>
+              ) : (
+                'Access Shared Link'
+              )}
+            </button>
+          </form>
         </div>
-      </DialogComponent>
+      </CustomDialog>
 
       {/* History Modal */}
       <DialogComponent open={historyOpen} setOpen={setHistoryOpen} isCloseable={true}>
@@ -3867,6 +4020,173 @@ ${senderName}`;
           </div>
         </div>
       </DialogComponent>
+      <DialogComponent open={addUserOpen} setOpen={setAddUserOpen} isCloseable={true} heading={"Add User"}>
+        <div className="w-[500px] p-4 flex flex-col items-center max-h-[80vh] overflow-y-auto">
+          <form className='w-full relative py-0 space-y-5 mt-2'>
+            <input
+              type="email"
+              placeholder="Enter user email address"
+              className={`w-full px-4 py-4 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white`}
+              // value, onChange to be implemented
+              autoComplete="off"
+            />
+            <div>
+              <label className='font-medium text-black mb-2 block'>Select a role</label>
+              <div className="relative">
+                <select className="w-full bg-amber-500 text-white flex items-center justify-center text-xl font-semibold rounded-md py-2 px-3 appearance-none">
+                  <option value="landlord">Social Landlord</option>
+                  <option value="automotive">Automotive</option>
+                  <option value="charity">Charity</option>
+                  <option value="hotel">Hotel/Resort/Accomodation Provider</option>
+                  <option value="nhs">NHS/Health Provider</option>
+                </select>
+                <ChevronDownIcon className="w-5 h-5 text-white absolute right-4 top-1/2 -translate-y-1/2 mr-3 pointer-events-none" />
+              </div>
+            </div>
+            <button
+              type="submit"
+              className="bg-green-500 hover:bg-green-600 text-white font-medium py-2 px-4 rounded-3xl transition-colors w-full cursor-pointer mb-2 flex items-center justify-center"
+            >
+              Add User
+            </button>
+          </form>
+        </div>
+      </DialogComponent>
+      <CustomDialog 
+        open={isCallbackOpen} 
+        setOpen={setIsCallbackOpen} 
+        heading={
+          <div className="w-full relative flex items-center justify-center">
+            <h2 className="text-[1.3rem] md:text-[1.8rem] font-bold text-white">Request a Callback</h2>
+            <button
+              onClick={() => setIsCallbackOpen(false)}
+              className="absolute right-2 md:right-0 text-white hover:text-gray-200 transition-colors p-1 rounded-full hover:bg-white/10"
+              aria-label="Close dialog"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        }
+      >
+        <div className="max-h-[73vh] overflow-y-auto pb-3">
+          <form className="space-y-6 max-w-lg mx-auto" onSubmit={handleCallbackSubmit}>
+            <div className="flex items-start flex-col gap-3">
+              <label className="text-gray-800 font-semibold text-sm">Best time to call</label>
+              <div className="flex flex-col gap-3 w-full px-4 md:px-8 mx-auto">
+                <label className="flex items-center gap-2 bg-gray-50 p-2 rounded-md">
+                  <input type="radio" name="day" value="today" checked={callbackFormData.day === 'today'} onChange={e => setCallbackFormData(prev => ({ ...prev, day: 'today', customDate: '' }))} className="w-4 h-4 text-purple-600" />
+                  <span className="text-gray-700 text-sm">Today</span>
+                </label>
+                <label className="flex items-center gap-2 bg-gray-50 p-2 rounded-md">
+                  <input type="radio" name="day" value="tomorrow" checked={callbackFormData.day === 'tomorrow'} onChange={e => setCallbackFormData(prev => ({ ...prev, day: 'tomorrow', customDate: '' }))} className="w-4 h-4 text-purple-600" />
+                  <span className="text-gray-700 text-sm">Tomorrow</span>
+                </label>
+                <label className="flex items-center gap-2 bg-gray-50 p-2 rounded-md">
+                  <input type="radio" name="day" value="custom" checked={callbackFormData.day === 'custom'} onChange={e => setCallbackFormData(prev => ({ ...prev, day: 'custom' }))} className="w-4 h-4 text-purple-600" />
+                  <span className="text-gray-700 text-sm">Or pick a date:</span>
+                  <input type="date" name="customDate" value={callbackFormData.customDate} onChange={e => setCallbackFormData(prev => ({ ...prev, customDate: e.target.value, day: 'custom' }))} className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:border-purple-500 text-sm" />
+                </label>
+                <div className="flex flex-col bg-gray-50 p-2 rounded-lg w-full mt-2">
+                  <span className="text-gray-700 text-xs font-medium mb-2">Pick a time</span>
+                  <div className="flex items-center gap-2">
+                    <select name="customHour" value={callbackFormData.customHour} onChange={handleCallbackInputChange} className="flex-1 px-2 py-2 border border-gray-300 rounded-md focus:outline-none focus:border-purple-500 text-xs bg-white">
+                      {Array.from({ length: 12 }, (_, i) => {
+                        const hour = i + 8;
+                        const display = hour.toString().padStart(2, '0');
+                        return <option key={hour} value={display}>{display}</option>;
+                      })}
+                    </select>
+                    <select name="customMinute" value={callbackFormData.customMinute} onChange={handleCallbackInputChange} className="flex-1 px-2 py-2 border border-gray-300 rounded-md focus:outline-none focus:border-purple-500 text-xs bg-white">
+                      {Array.from({ length: 60 }, (_, i) => {
+                        const minute = i;
+                        const display = minute.toString().padStart(2, '0');
+                        return <option key={minute} value={display}>{display}</option>;
+                      })}
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="flex items-start flex-col gap-3">
+              <label className="text-gray-800 font-semibold text-sm">Message</label>
+              <textarea name="message" value={callbackFormData.message} onChange={handleCallbackInputChange} placeholder="Enter your message" className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition-all duration-200 bg-white shadow-sm h-24 resize-none" />
+            </div>
+            <div className="flex items-start flex-col gap-3">
+              <label className="text-gray-800 font-semibold text-sm">Your Name *</label>
+              <input type="text" name="name" value={callbackFormData.name} onChange={handleCallbackInputChange} placeholder="Enter your name" className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition-all duration-200 bg-white shadow-sm" required />
+            </div>
+            <div className="flex items-start flex-col gap-3">
+              <label className="text-gray-800 font-semibold text-sm">Your email address *</label>
+              <input type="email" name="email" value={callbackFormData.email} onChange={handleCallbackInputChange} placeholder="Enter your email address" className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition-all duration-200 bg-white shadow-sm" required />
+            </div>
+            <div className="flex items-start flex-col gap-3">
+              <label className="text-gray-800 font-semibold text-sm">Your phone *</label>
+              <input type="tel" name="phone" value={callbackFormData.phone} onChange={handleCallbackInputChange} placeholder="Enter your phone number" className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition-all duration-200 bg-white shadow-sm" required />
+            </div>
+            <button type="submit" disabled={callbackLoading} className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 w-full shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed">
+              {callbackLoading ? 'Sending Request...' : 'Send Request'}
+            </button>
+          </form>
+        </div>
+      </CustomDialog>
+      <CustomDialog 
+        open={isMeetingOpen} 
+        setOpen={setISMeetingOpen} 
+        heading={
+          <div className="w-full relative flex items-center justify-center">
+            <h2 className="text-[1.3rem] md:text-[1.8rem] font-bold text-white">Book a Demo Meeting</h2>
+            <button
+              onClick={() => setISMeetingOpen(false)}
+              className="absolute right-2 md:right-0 text-white hover:text-gray-200 transition-colors p-1 rounded-full hover:bg-white/10"
+              aria-label="Close dialog"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        }
+      >
+        <div className="max-h-[73vh] overflow-y-auto pb-3">
+          <form className="space-y-6 max-w-lg mx-auto" onSubmit={handleMeetingSubmit}>
+            <div className="flex items-start flex-col gap-3">
+              <label className="text-gray-800 font-semibold text-sm">Your Name *</label>
+              <input type="text" name="name" value={meetingFormData.name} onChange={handleMeetingInputChange} placeholder="Enter your name" className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition-all duration-200 bg-white shadow-sm" required />
+            </div>
+            <div className="flex items-start flex-col gap-3">
+              <label className="text-gray-800 font-semibold text-sm">Your email address *</label>
+              <input type="email" name="email" value={meetingFormData.email} onChange={handleMeetingInputChange} placeholder="Enter your email address" className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition-all duration-200 bg-white shadow-sm" required />
+            </div>
+            <div className="flex items-start flex-col gap-3">
+              <label className="text-gray-800 font-semibold text-sm">Pick a date & time *</label>
+              <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+                <div className="grid grid-cols-3 gap-3 w-full">
+                  <input type="date" name="date" value={meetingFormData.date} onChange={handleMeetingInputChange} className="w-full px-3 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition-all duration-200 bg-white text-sm" required />
+                  <select name="hour" value={meetingFormData.hour} onChange={handleMeetingInputChange} className="w-full px-3 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition-all duration-200 bg-white text-sm">
+                    {Array.from({ length: 12 }, (_, i) => {
+                      const hour = i + 8;
+                      const display = hour.toString().padStart(2, '0');
+                      return <option key={hour} value={display}>{display}:00</option>;
+                    })}
+                  </select>
+                  <select name="minute" value={meetingFormData.minute} onChange={handleMeetingInputChange} className="w-full px-3 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition-all duration-200 bg-white text-sm">
+                    {Array.from({ length: 60 }, (_, i) => {
+                      const minute = i;
+                      const display = minute.toString().padStart(2, '0');
+                      return <option key={minute} value={display}>{display}</option>;
+                    })}
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div className="flex items-start flex-col gap-3">
+              <label className="text-gray-800 font-semibold text-sm">Message</label>
+              <textarea name="message" value={meetingFormData.message} onChange={handleMeetingInputChange} placeholder="Enter your message" className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition-all duration-200 bg-white shadow-sm h-24 resize-none" />
+            </div>
+            <button type="submit" disabled={isLoading} className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 w-full shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed">
+              {isLoading ? 'Booking Meeting...' : 'Book Meeting'}
+            </button>
+          </form>
+        </div>
+      </CustomDialog>
     </DialogContext.Provider>
   );
 };

@@ -840,9 +840,9 @@ export default function Page() {
               <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold mt-8 sm:mt-12">Dashboard</h1>
               <div className="mt-0 flex items-center justify-center" style={{ minHeight: '7rem', height: '7rem' }}>
                 {viewMode === 'archived' ? (
-                  <span className="text-3xl font-bold text-blue-600 flex items-center justify-center h-full">Archive</span>
+                  <span className="text-3xl font-bold text-blue-600 flex items-center justify-center h-full">Archive View</span>
                 ) : viewMode === 'trash' ? (
-                  <span className="text-3xl font-bold text-red-600 flex items-center justify-center h-full">Trash</span>
+                  <span className="text-3xl font-bold text-red-600 flex items-center justify-center h-full">Trash View</span>
                 ) : isInSearchMode ? (
                   <span className="text-3xl font-bold text-purple-600 flex items-center justify-center h-full">Search</span>
                 ) : (
@@ -1554,7 +1554,6 @@ export default function Page() {
     </>
   )
 }
-
 
 
 
