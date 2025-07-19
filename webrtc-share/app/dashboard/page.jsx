@@ -822,6 +822,18 @@ export default function Page() {
     }
   };
 
+  // Prevent background scroll when search modal is open
+  useEffect(() => {
+    if (showSearchModal) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [showSearchModal]);
+
   return (
     <>
       <div className="min-h-screen bg-white p-2">
