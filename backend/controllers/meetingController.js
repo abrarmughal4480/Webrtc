@@ -9,6 +9,7 @@ import path from "path"
 import fs from "fs"
 import os from "os"
 import crypto from 'crypto';
+import UserModel from '../models/user.js';
 
 const s3Client = new S3Client({
     region: process.env.AWS_REGION || 'ap-southeast-2',
@@ -764,6 +765,17 @@ export const unarchiveMeeting = catchAsyncError(async (req, res, next) => {
     meeting.last_updated_by = req.user._id;
 
     await meeting.save();
+
+    // Remove meeting from folder assignment (meetingFolders) for the owner
+    // Try all possible owner fields (owner, userId, created_by)
+    const ownerId = meeting.owner || meeting.userId || meeting.created_by;
+    if (ownerId) {
+        const ownerUser = await UserModel.findById(ownerId);
+        if (ownerUser && ownerUser.meetingFolders) {
+            ownerUser.meetingFolders.delete(meeting._id.toString());
+            await ownerUser.save();
+        }
+    }
 
     res.status(200).json({
         success: true,
