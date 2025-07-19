@@ -1,6 +1,6 @@
 "use client"
 import { Button } from "@/components/ui/button"
-import { FileText, Archive, Trash2, Monitor, Smartphone, Save, History, ArchiveRestore, ExternalLink, FileSearch, MailIcon, Loader2, Maximize2, Home, RotateCcw, XCircle, Undo2, Info, Search, X, User, Wrench, Clock, ChevronDown } from "lucide-react"
+import { FileText, Archive, Trash2, Monitor, Smartphone, Save, History, ArchiveRestore, ExternalLink, FileSearch, MailIcon, Loader2, Maximize2, Home, RotateCcw, XCircle, Undo2, Info, Search, X, User, Wrench, Clock, ChevronDown, Plus, Check } from "lucide-react"
 import Image from "next/image"
 import {
   DropdownMenu,
@@ -9,6 +9,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { logoutRequest } from "@/http/authHttp"
+import { createFolderRequest, updateFolderRequest, deleteFolderRequest, getFoldersRequest, assignMeetingToFolderRequest, getMeetingFoldersRequest } from "@/http/authHttp"
 import { getAllMeetings, deleteMeeting, archiveMeeting, unarchiveMeeting, getArchivedCount, restoreMeeting, permanentDeleteMeeting, searchMeetings } from "@/http/meetingHttp"
 import { useUser } from "@/provider/UserProvider"
 import { useEffect, useRef, useState } from "react"
@@ -57,6 +58,44 @@ export default function Page() {
   const [selectAll, setSelectAll] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // Add state for folders and selected folder (archive view only)
+  const [folders, setFolders] = useState([]);
+  const [selectedFolder, setSelectedFolder] = useState('all'); // 'all' means show all
+  const [newFolderName, setNewFolderName] = useState('');
+
+  // Add state for mapping meetingId -> folderId
+  const [meetingFolders, setMeetingFolders] = useState({});
+  const [createFolderLoading, setCreateFolderLoading] = useState(false);
+  const [updateFolderLoading, setUpdateFolderLoading] = useState(null); // folderId when updating
+  const [deleteFolderLoading, setDeleteFolderLoading] = useState(null); // folderId when deleting
+
+  // Load folders and meeting assignments from backend
+  useEffect(() => {
+    if (isAuth && user) {
+      loadFolders();
+      loadMeetingFolders();
+    }
+  }, [isAuth, user]);
+
+  const loadFolders = async () => {
+    try {
+      const response = await getFoldersRequest();
+      setFolders(response.data.folders || []);
+    } catch (error) {
+      console.error('Error loading folders:', error);
+      toast.error('Failed to load folders');
+    }
+  };
+
+  const loadMeetingFolders = async () => {
+    try {
+      const response = await getMeetingFoldersRequest();
+      setMeetingFolders(response.data.meetingFolders || {});
+    } catch (error) {
+      console.error('Error loading meeting folders:', error);
+    }
+  };
+
   const { setResetOpen, setMessageOpen, setLandlordDialogOpen, setTickerOpen, setFeedbackOpen, setFaqOpen, setExportOpen, setHistoryOpen, setInviteOpen } = useDialog();
 
   // Add state for permanent delete dialog
@@ -91,6 +130,10 @@ export default function Page() {
   const [isInSearchMode, setIsInSearchMode] = useState(false);
 
   const skeletonMinTimeRef = useRef(null);
+
+  const [showFolderInput, setShowFolderInput] = useState(false);
+  const [renamingFolderId, setRenamingFolderId] = useState(null);
+  const [renameFolderName, setRenameFolderName] = useState('');
 
 
 
@@ -663,32 +706,19 @@ export default function Page() {
     return addressParts.length > 0 ? addressParts.join(', ') : 'No address provided';
   };
 
-  // Remove filteredMeetings logic, use meetings directly
-  // const filteredMeetings = meetings.filter(m => {
-  //   const nameMatch = searchValue.trim()
-  //     ? (m.name || '').toLowerCase().includes(searchValue.trim().toLowerCase())
-  //     : true;
-  //   let dateMatch = true;
-  //   if (fromDate) {
-  //     const created = new Date(m.createdAt);
-  //     const from = new Date(fromDate);
-  //     from.setHours(0,0,0,0);
-  //     dateMatch = dateMatch && created >= from;
-  //   }
-  //   if (toDate) {
-  //     const created = new Date(m.createdAt);
-  //     const to = new Date(toDate);
-  //     to.setHours(23,59,59,999);
-  //     dateMatch = dateMatch && created <= to;
-  //   }
-  //   return nameMatch && dateMatch;
-  // });
+  // Filter meetings by selected folder in archive view
+  const filteredMeetings = viewMode === 'archived'
+    ? meetings.filter(m => {
+        if (selectedFolder === 'all') return true;
+        return meetingFolders[m._id] === selectedFolder;
+      })
+    : meetings;
 
   // Calculate pagination
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentMeetings = meetings.slice(indexOfFirstItem, indexOfLastItem);
-  const totalPages = Math.ceil(meetings.length / itemsPerPage);
+  const currentMeetings = filteredMeetings.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(filteredMeetings.length / itemsPerPage);
 
   // Update select all when individual selections change
   useEffect(() => {
@@ -844,7 +874,7 @@ export default function Page() {
                 ) : viewMode === 'trash' ? (
                   <span className="text-3xl font-bold text-red-600 flex items-center justify-center h-full">Trash View</span>
                 ) : isInSearchMode ? (
-                  <span className="text-3xl font-bold text-purple-600 flex items-center justify-center h-full">Search</span>
+                  <span className="text-3xl font-bold text-purple-600 flex items-center justify-center h-full">Search View</span>
                 ) : (
                   <img src="/devices.svg" alt="Videodesk" className="w-40 sm:w-48 lg:w-60 h-full object-contain" />
                 )}
@@ -1102,6 +1132,155 @@ export default function Page() {
               </div>
             </div>
 
+            {/* Archive Folders UI - only show in archive view */}
+            {viewMode === 'archived' && (
+              <div className="mb-4 bg-purple-50 border border-purple-200 rounded-lg p-4 flex flex-col gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    className={`px-3 py-1 rounded-full text-sm font-semibold border ${selectedFolder === 'all' ? 'bg-purple-600 text-white border-purple-600' : 'bg-white text-purple-700 border-purple-300'} transition`}
+                    onClick={() => setSelectedFolder('all')}
+                  >
+                    All
+                  </button>
+                  {folders.map(folder => (
+                    <div key={folder.id} className="flex items-center gap-1">
+                      {renamingFolderId === folder.id ? (
+                        <form
+                          onSubmit={async (e) => {
+                            e.preventDefault();
+                            if (!renameFolderName.trim()) return;
+                            setUpdateFolderLoading(folder.id);
+                            try {
+                              await updateFolderRequest(folder.id, renameFolderName.trim());
+                              await loadFolders();
+                              setRenamingFolderId(null);
+                              setRenameFolderName('');
+                              toast.success('Folder renamed successfully');
+                            } catch (error) {
+                              toast.error(error?.response?.data?.message || 'Failed to rename folder');
+                            } finally {
+                              setUpdateFolderLoading(null);
+                            }
+                          }}
+                          className="flex items-center gap-1"
+                        >
+                          <input
+                            type="text"
+                            value={renameFolderName}
+                            onChange={e => setRenameFolderName(e.target.value)}
+                            placeholder="Rename folder"
+                            className="px-4 py-2 rounded-lg border border-purple-300 text-sm bg-purple-50 focus:bg-white focus:border-purple-500 focus:shadow-lg focus:outline-none transition-all duration-200 w-48 shadow-sm"
+                            style={{ minWidth: 120, maxWidth: 220 }}
+                            autoFocus
+                            disabled={updateFolderLoading === folder.id}
+                            onKeyDown={e => {
+                              if (e.key === 'Escape') {
+                                setRenamingFolderId(null);
+                                setRenameFolderName('');
+                              }
+                            }}
+                          />
+                          <button type="submit" className="text-green-600 hover:text-green-800" disabled={updateFolderLoading === folder.id}>
+                            {updateFolderLoading === folder.id ? <Loader2 className="w-5 h-5 animate-spin" /> : <Check className="w-5 h-5" />}
+                          </button>
+                          <button type="button" className="text-gray-400 hover:text-red-600" onClick={() => { setRenamingFolderId(null); setRenameFolderName(''); }}><X className="w-5 h-5" /></button>
+                        </form>
+                      ) : (
+                        <div
+                          className={`px-3 py-1 rounded-full text-sm font-semibold border ${selectedFolder === folder.id ? 'bg-purple-600 text-white border-purple-600' : 'bg-white text-purple-700 border-purple-300'} transition flex items-center gap-1 hover:shadow-md`}
+                          onClick={() => setSelectedFolder(folder.id)}
+                          onDoubleClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setRenamingFolderId(folder.id);
+                            setRenameFolderName(folder.name);
+                          }}
+                          style={{ position: 'relative', userSelect: 'none' }}
+                          title="Click to select, Double-click to rename"
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.cursor = 'pointer';
+                          }}
+                          tabIndex={0}
+                          role="button"
+                        >
+                          {folder.name}
+                          <span
+                            className="ml-1 text-gray-400 hover:text-red-600 cursor-pointer flex items-center"
+                            title="Delete folder"
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              setDeleteFolderLoading(folder.id);
+                              try {
+                                await deleteFolderRequest(folder.id);
+                                await loadFolders();
+                                await loadMeetingFolders();
+                                if (selectedFolder === folder.id) setSelectedFolder('all');
+                                toast.success('Folder deleted successfully');
+                              } catch (error) {
+                                toast.error(error?.response?.data?.message || 'Failed to delete folder');
+                              } finally {
+                                setDeleteFolderLoading(null);
+                              }
+                            }}
+                          >
+                            {deleteFolderLoading === folder.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <X className="w-4 h-4" />}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  {/* Folder create button and input */}
+                  {showFolderInput ? (
+                    <form
+                      onSubmit={async (e) => {
+                        e.preventDefault();
+                        if (!newFolderName.trim()) return;
+                        setCreateFolderLoading(true);
+                        try {
+                          await createFolderRequest(newFolderName.trim());
+                          await loadFolders();
+                          setNewFolderName('');
+                          setShowFolderInput(false);
+                          toast.success('Folder created successfully');
+                        } catch (error) {
+                          toast.error(error?.response?.data?.message || 'Failed to create folder');
+                        } finally {
+                          setCreateFolderLoading(false);
+                        }
+                      }}
+                      className="flex items-center gap-1"
+                    >
+                      <input
+                        type="text"
+                        value={newFolderName}
+                        onChange={e => setNewFolderName(e.target.value)}
+                        placeholder="Type name of new folder here"
+                        className="px-4 py-2 rounded-lg border border-purple-300 text-sm bg-purple-50 focus:bg-white focus:border-purple-500 focus:shadow-lg focus:outline-none transition-all duration-200 w-64 shadow-sm"
+                        style={{ minWidth: 180, maxWidth: 260 }}
+                        autoFocus
+                        disabled={createFolderLoading}
+                      />
+                      <button type="submit" className="text-green-600 hover:text-green-800" disabled={createFolderLoading}>
+                        {createFolderLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Check className="w-5 h-5" />}
+                      </button>
+                      <button type="button" className="text-gray-400 hover:text-red-600" onClick={() => { setShowFolderInput(false); setNewFolderName(''); }}><X className="w-5 h-5" /></button>
+                    </form>
+                  ) : (
+                    <button
+                      className="flex items-center gap-1 px-3 py-1 rounded-full text-sm font-semibold border bg-white text-purple-700 border-purple-300 hover:bg-purple-100 transition"
+                      onClick={() => setShowFolderInput(true)}
+                      type="button"
+                    >
+                      <Plus className="w-4 h-4" /> Create New Folder
+                    </button>
+                  )}
+                </div>
+                {selectedFolder !== 'all' && (
+                  <div className="text-xs text-purple-700 font-medium">Showing: {folders.find(f => f.id === selectedFolder)?.name || ''}</div>
+                )}
+              </div>
+            )}
+
             <table className="min-w-full text-left text-xs sm:text-sm">
               <thead className="sticky top-0 bg-white">
                 <tr className="h-14 align-middle">
@@ -1163,6 +1342,12 @@ export default function Page() {
                       </td>
                     </tr>
                   ))
+                ) : (selectedFolder !== 'all' && viewMode === 'archived' && filteredMeetings.length === 0) ? (
+                  <tr>
+                    <td colSpan="4" className="text-center py-8 text-gray-500 align-middle" style={{ height: '72px' }}>
+                      This folder has no records yet
+                    </td>
+                  </tr>
                 ) : meetings.length === 0 ? (
                   <tr>
                     <td colSpan="4" className="text-center py-8 text-gray-500 align-middle" style={{ height: '72px' }}>
@@ -1310,6 +1495,31 @@ export default function Page() {
                             )}
                           </div>
                         </td>
+                        {viewMode === 'archived' && (
+                          <td className="px-4 py-3 w-1/6">
+                            <div className="flex items-center gap-2">
+                              <select
+                                value={meetingFolders[meeting._id] || ''}
+                                onChange={async (e) => {
+                                  const folderId = e.target.value;
+                                  try {
+                                    await assignMeetingToFolderRequest(meeting._id, folderId || null);
+                                    await loadMeetingFolders();
+                                    toast.success(folderId ? 'Meeting assigned to folder' : 'Meeting removed from folder');
+                                  } catch (error) {
+                                    toast.error(error?.response?.data?.message || 'Failed to assign meeting to folder');
+                                  }
+                                }}
+                                className="border border-purple-300 rounded px-2 py-1 text-xs"
+                              >
+                                <option value="">No Folder</option>
+                                {folders.map(folder => (
+                                  <option key={folder.id} value={folder.id}>{folder.name}</option>
+                                ))}
+                              </select>
+                            </div>
+                          </td>
+                        )}
                       </tr>
                     );
                   })

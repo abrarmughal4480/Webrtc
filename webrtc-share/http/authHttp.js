@@ -21,3 +21,67 @@ export const getMessageSettingsRequest = async () => await api.get("/user/messag
 export const getLandlordInfoRequest = async () => await api.get("/user/landlord-info");
 // The existing bookDemoMeetingRequest function will handle the new videoToken parameter
 export const bookDemoMeetingRequest = async (formData) => await api.post("/book-demo-meeting", formData);
+
+// Folder Management Functions
+export const createFolderRequest = async (folderName) => {
+    console.log('📁 [createFolderRequest] Sending request:', folderName);
+    try {
+        const response = await api.post("/folders", { name: folderName });
+        console.log('✅ [createFolderRequest] Success:', response.data);
+        return response;
+    } catch (error) {
+        console.error('❌ [createFolderRequest] Error:', error.response?.data || error.message);
+        throw error;
+    }
+};
+
+export const updateFolderRequest = async (folderId, folderName) => {
+    try {
+        const response = await api.put(`/folders/${folderId}`, { name: folderName });
+        return response;
+    } catch (error) {
+        throw error;
+    }
+};
+
+export const deleteFolderRequest = async (folderId) => {
+    try {
+        const response = await api.delete(`/folders/${folderId}`);
+        return response;
+    } catch (error) {
+        throw error;
+    }
+};
+
+export const getFoldersRequest = async () => {
+    console.log('📁 [getFoldersRequest] Sending request');
+    try {
+        const response = await api.get("/folders");
+        console.log('✅ [getFoldersRequest] Success:', response.data);
+        return response;
+    } catch (error) {
+        console.error('❌ [getFoldersRequest] Error:', error.response?.data || error.message);
+        throw error;
+    }
+};
+
+export const assignMeetingToFolderRequest = async (meetingId, folderId) => {
+    try {
+        const response = await api.post("/folders/assign-meeting", { 
+            meetingId, 
+            folderId: folderId || null 
+        });
+        return response;
+    } catch (error) {
+        throw error;
+    }
+};
+
+export const getMeetingFoldersRequest = async () => {
+    try {
+        const response = await api.get("/folders/meeting-assignments");
+        return response;
+    } catch (error) {
+        throw error;
+    }
+};

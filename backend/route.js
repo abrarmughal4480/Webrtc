@@ -1,6 +1,6 @@
 import express from 'express';
 const router = express.Router();
-import {changePassword, loadme, login, logout, register, updateUser,forgotPassword,resetPassword, verify, sendFriendLink, resetPasswordFromDashboard, sendFeedback, raiseSupportTicket, updateUserLogo, updateLandlordInfo, bookDemoMeeting, requestCallback, updateMessageSettings, getMessageSettings} from './controllers/authController.js';
+import {changePassword, loadme, login, logout, register, updateUser,forgotPassword,resetPassword, verify, sendFriendLink, resetPasswordFromDashboard, sendFeedback, raiseSupportTicket, updateUserLogo, updateLandlordInfo, bookDemoMeeting, requestCallback, updateMessageSettings, getMessageSettings, createFolder, updateFolder, deleteFolder, getFolders, assignMeetingToFolder, getMeetingFolders} from './controllers/authController.js';
 import {isAuthenticate} from "./middlewares/auth.js"
 import { create, getAllMeetings, getMeetingById, updateMeetingController, deleteMeeting, getMeetingForShare, getMeetingByMeetingId, deleteRecording, deleteScreenshot, archiveMeeting, unarchiveMeeting, getArchivedCount, recordVisitorAccess, restoreMeeting, permanentDeleteMeeting, searchMeetings, getSpecialNotes, saveSpecialNotes, getStructuredSpecialNotes, saveStructuredSpecialNotes } from './controllers/meetingController.js';
 import { getUserRoomInfo } from './controllers/userRoomInfoController.js';
@@ -25,6 +25,14 @@ router.route('/user/update-landlord-info').put(isAuthenticate, updateLandlordInf
 router.route('/user/message-settings').put(isAuthenticate, updateMessageSettings);
 router.route('/user/message-settings').get(isAuthenticate, getMessageSettings);
 router.route('/book-demo-meeting').post(bookDemoMeeting);
+
+// Folder management routes
+router.route('/folders').get(isAuthenticate, getFolders);
+router.route('/folders').post(isAuthenticate, createFolder);
+router.route('/folders/:folderId').put(isAuthenticate, updateFolder);
+router.route('/folders/:folderId').delete(isAuthenticate, deleteFolder);
+router.route('/folders/assign-meeting').post(isAuthenticate, assignMeetingToFolder);
+router.route('/folders/meeting-assignments').get(isAuthenticate, getMeetingFolders);
 
 // meeting routes
 router.route('/meetings/create').post(isAuthenticate, create);

@@ -53,6 +53,13 @@ const userSchema = new mongoose.Schema({
         tailoredTextSize: { type: String, default: '14px' },
         selectedButtonColor: { type: String, default: 'bg-green-800' }
     },
+    // Folder management for archive organization
+    folders: [{
+        id: { type: String, required: true },
+        name: { type: String, required: true },
+        createdAt: { type: Date, default: Date.now }
+    }],
+    meetingFolders: { type: Map, of: String, default: {} }, // meetingId -> folderId mapping
     resetPasswordToken: String,
     resetPasswordExpire: Date
 }, {

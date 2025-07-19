@@ -1236,3 +1236,219 @@ export const getMessageSettings = catchAsyncError(async (req, res, next) => {
         }
     });
 });
+
+// Folder Management Functions
+export const createFolder = catchAsyncError(async (req, res) => {
+    console.log('📁 [createFolder] Request received:', { body: req.body, user: req.user._id });
+    const { name } = req.body;
+    
+    if (!name || name.trim() === '') {
+        console.log('❌ [createFolder] Validation failed: empty name');
+        return res.status(400).json({
+            success: false,
+            message: 'Folder name is required'
+        });
+    }
+
+    const user = await UserModel.findById(req.user._id);
+    if (!user) {
+        console.log('❌ [createFolder] User not found:', req.user._id);
+        return res.status(404).json({
+            success: false,
+            message: 'User not found'
+        });
+    }
+
+    // Check if folder name already exists
+    const existingFolder = user.folders.find(folder => 
+        folder.name.toLowerCase() === name.trim().toLowerCase()
+    );
+    
+    if (existingFolder) {
+        console.log('❌ [createFolder] Folder already exists:', name);
+        return res.status(400).json({
+            success: false,
+            message: 'Folder with this name already exists'
+        });
+    }
+
+    const newFolder = {
+        id: Date.now().toString(),
+        name: name.trim(),
+        createdAt: new Date()
+    };
+
+    user.folders.push(newFolder);
+    await user.save();
+
+    console.log('✅ [createFolder] Folder created successfully:', newFolder);
+    res.status(201).json({
+        success: true,
+        message: 'Folder created successfully',
+        folder: newFolder
+    });
+});
+
+export const updateFolder = catchAsyncError(async (req, res) => {
+    const { folderId } = req.params;
+    const { name } = req.body;
+
+    if (!name || name.trim() === '') {
+        return res.status(400).json({
+            success: false,
+            message: 'Folder name is required'
+        });
+    }
+
+    const user = await UserModel.findById(req.user._id);
+    if (!user) {
+        return res.status(404).json({
+            success: false,
+            message: 'User not found'
+        });
+    }
+
+    const folder = user.folders.find(f => f.id === folderId);
+    if (!folder) {
+        return res.status(404).json({
+            success: false,
+            message: 'Folder not found'
+        });
+    }
+
+    // Check if new name conflicts with existing folder
+    const existingFolder = user.folders.find(f => 
+        f.id !== folderId && f.name.toLowerCase() === name.trim().toLowerCase()
+    );
+    
+    if (existingFolder) {
+        return res.status(400).json({
+            success: false,
+            message: 'Folder with this name already exists'
+        });
+    }
+
+    folder.name = name.trim();
+    await user.save();
+
+    res.json({
+        success: true,
+        message: 'Folder updated successfully',
+        folder
+    });
+});
+
+export const deleteFolder = catchAsyncError(async (req, res) => {
+    const { folderId } = req.params;
+
+    const user = await UserModel.findById(req.user._id);
+    if (!user) {
+        return res.status(404).json({
+            success: false,
+            message: 'User not found'
+        });
+    }
+
+    const folderIndex = user.folders.findIndex(f => f.id === folderId);
+    if (folderIndex === -1) {
+        return res.status(404).json({
+            success: false,
+            message: 'Folder not found'
+        });
+    }
+
+    // Remove folder
+    user.folders.splice(folderIndex, 1);
+
+    // Remove all meeting assignments for this folder
+    const meetingFolders = user.meetingFolders.toObject();
+    Object.keys(meetingFolders).forEach(meetingId => {
+        if (meetingFolders[meetingId] === folderId) {
+            user.meetingFolders.delete(meetingId);
+        }
+    });
+
+    await user.save();
+
+    res.json({
+        success: true,
+        message: 'Folder deleted successfully'
+    });
+});
+
+export const getFolders = catchAsyncError(async (req, res) => {
+    console.log('📁 [getFolders] Request received from user:', req.user._id);
+    const user = await UserModel.findById(req.user._id);
+    if (!user) {
+        console.log('❌ [getFolders] User not found:', req.user._id);
+        return res.status(404).json({
+            success: false,
+            message: 'User not found'
+        });
+    }
+
+    console.log('✅ [getFolders] Returning folders:', user.folders?.length || 0);
+    res.json({
+        success: true,
+        folders: user.folders || []
+    });
+});
+
+export const assignMeetingToFolder = catchAsyncError(async (req, res) => {
+    const { meetingId, folderId } = req.body;
+
+    if (!meetingId) {
+        return res.status(400).json({
+            success: false,
+            message: 'Meeting ID is required'
+        });
+    }
+
+    const user = await UserModel.findById(req.user._id);
+    if (!user) {
+        return res.status(404).json({
+            success: false,
+            message: 'User not found'
+        });
+    }
+
+    // If folderId is provided, verify it exists
+    if (folderId) {
+        const folder = user.folders.find(f => f.id === folderId);
+        if (!folder) {
+            return res.status(404).json({
+                success: false,
+                message: 'Folder not found'
+            });
+        }
+    }
+
+    // Assign or remove assignment
+    if (folderId) {
+        user.meetingFolders.set(meetingId, folderId);
+    } else {
+        user.meetingFolders.delete(meetingId);
+    }
+
+    await user.save();
+
+    res.json({
+        success: true,
+        message: folderId ? 'Meeting assigned to folder' : 'Meeting removed from folder'
+    });
+});
+
+export const getMeetingFolders = catchAsyncError(async (req, res) => {
+    const user = await UserModel.findById(req.user._id);
+    if (!user) {
+        return res.status(404).json({
+            success: false,
+            message: 'User not found'
+        });
+    }
+
+    res.json({
+        success: true,
+        meetingFolders: Object.fromEntries(user.meetingFolders)
+    });
+});
