@@ -80,7 +80,9 @@ export default function Page() {
   const loadFolders = async () => {
     try {
       const response = await getFoldersRequest();
-      setFolders(response.data.folders || []);
+      // Add trashed property if missing
+      const foldersWithTrashed = (response.data.folders || []).map(f => ({ ...f, trashed: f.trashed || false }));
+      setFolders(foldersWithTrashed);
     } catch (error) {
       console.error('Error loading folders:', error);
       toast.error('Failed to load folders');
@@ -135,8 +137,9 @@ export default function Page() {
   const [renamingFolderId, setRenamingFolderId] = useState(null);
   const [renameFolderName, setRenameFolderName] = useState('');
 
-
-
+  // State for folder delete confirmation
+  const [showFolderDeleteDialog, setShowFolderDeleteDialog] = useState(false);
+  const [folderToDelete, setFolderToDelete] = useState(null);
 
   useEffect(() => {
     fetchMeetings();
@@ -709,8 +712,15 @@ export default function Page() {
   // Filter meetings by selected folder in archive view
   const filteredMeetings = viewMode === 'archived'
     ? meetings.filter(m => {
-        if (selectedFolder === 'all') return true;
-        return meetingFolders[m._id] === selectedFolder;
+        if (selectedFolder === 'all') {
+          // Only show meetings whose folder is not trashed
+          const folderId = meetingFolders[m._id];
+          if (!folderId) return true;
+          const folder = folders.find(f => f.id === folderId);
+          return !folder || !folder.trashed;
+        }
+        // Only show if assigned to selectedFolder and not trashed
+        return meetingFolders[m._id] === selectedFolder && !folders.find(f => f.id === selectedFolder && f.trashed);
       })
     : meetings;
 
@@ -1154,7 +1164,7 @@ export default function Page() {
                   >
                     All
                   </button>
-                  {folders.map(folder => (
+                  {folders.filter(f => !f.trashed).map(folder => (
                     <div key={folder.id} className="flex items-center gap-1">
                       {renamingFolderId === folder.id ? (
                         <form
@@ -1219,20 +1229,10 @@ export default function Page() {
                           <span
                             className="ml-1 text-gray-400 hover:text-red-600 cursor-pointer flex items-center"
                             title="Delete folder"
-                            onClick={async (e) => {
+                            onClick={(e) => {
                               e.stopPropagation();
-                              setDeleteFolderLoading(folder.id);
-                              try {
-                                await deleteFolderRequest(folder.id);
-                                await loadFolders();
-                                await loadMeetingFolders();
-                                if (selectedFolder === folder.id) setSelectedFolder('all');
-                                toast.success('Folder deleted successfully');
-                              } catch (error) {
-                                toast.error(error?.response?.data?.message || 'Failed to delete folder');
-                              } finally {
-                                setDeleteFolderLoading(null);
-                              }
+                              setFolderToDelete(folder);
+                              setShowFolderDeleteDialog(true);
                             }}
                           >
                             {deleteFolderLoading === folder.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <X className="w-4 h-4" />}
@@ -1299,7 +1299,7 @@ export default function Page() {
                   <th className="px-4 py-2 font-semibold text-black text-left w-1/3 h-14 align-middle">Resident name and address</th>
                   <th className="px-4 py-2 font-semibold text-black text-left w-1/3 h-14 align-middle">Video Link</th>
                   <th className="px-4 py-2 font-semibold text-black text-left w-1/6 h-14 align-middle">Time and Date</th>
-                  <th className="px-4 py-2 font-semibold text-black text-left w-1/6 h-14 align-middle">
+                  <th className="px-4 py-2 font-semibold text-black text-left w-1/6 h-14 align-middle whitespace-nowrap">
                     <div>
                       {viewMode === 'trash' ? (
                         <span className="block">Restore/Delete Permanently</span>
@@ -1311,6 +1311,9 @@ export default function Page() {
                       )}
                     </div>
                   </th>
+                  {viewMode === 'archived' && (
+                    <th className="px-4 py-2 font-semibold text-black text-left w-1/6 h-14 align-middle whitespace-nowrap">Folder Location</th>
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -1352,6 +1355,11 @@ export default function Page() {
                           </div>
                         )}
                       </td>
+                      {viewMode === 'archived' && (
+                        <td className="px-4 py-3 w-1/6">
+                          <div className="h-4 bg-gray-200 rounded animate-pulse w-full"></div>
+                        </td>
+                      )}
                     </tr>
                   ))
                 ) : (selectedFolder !== 'all' && viewMode === 'archived' && filteredMeetings.length === 0) ? (
@@ -1525,7 +1533,7 @@ export default function Page() {
                                 className="border border-purple-300 rounded px-2 py-1 text-xs"
                               >
                                 <option value="">No Folder</option>
-                                {folders.map(folder => (
+                                {folders.filter(f => !f.trashed).map(folder => (
                                   <option key={folder.id} value={folder.id}>{folder.name}</option>
                                 ))}
                               </select>
@@ -1540,10 +1548,10 @@ export default function Page() {
             </table>
 
             {/* Pagination Controls */}
-            {meetings.length > itemsPerPage && (
+            {!loading && !isActionLoading && filteredMeetings.length > itemsPerPage && (
               <div className="flex items-center justify-between mt-6 px-4">
                 <div className="text-sm text-gray-600">
-                  Showing {indexOfFirstItem + 1} to {Math.min(indexOfLastItem, meetings.length)} of {meetings.length} results
+                  Showing {indexOfFirstItem + 1} to {Math.min(indexOfLastItem, filteredMeetings.length)} of {filteredMeetings.length} results
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -1771,6 +1779,43 @@ export default function Page() {
             </form>
           </div>
           <style>{`.animate-fade-in-up{animation:fadeInUp .4s cubic-bezier(.39,.575,.565,1) both;}@keyframes fadeInUp{0%{opacity:0;transform:translateY(40px);}100%{opacity:1;transform:translateY(0);}}`}</style>
+        </div>
+      )}
+
+      {showFolderDeleteDialog && folderToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
+          <div className="bg-white rounded-xl shadow-2xl p-7 w-full max-w-md border border-gray-200">
+            <h2 className="text-xl font-bold text-red-600 mb-3">Move Folder to Trash?</h2>
+            <p className="mb-4 text-gray-800">Are you sure you want to move the folder <span className="font-semibold">"{folderToDelete.name}"</span> to trash?</p>
+            <div className="flex justify-end gap-3">
+              <button
+                className="px-5 py-2 bg-gray-100 text-gray-900 rounded-full shadow-sm hover:bg-gray-200 transition-all font-semibold"
+                onClick={() => {
+                  setShowFolderDeleteDialog(false);
+                  setFolderToDelete(null);
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                className="px-5 py-2 bg-red-600 text-white rounded-full shadow-sm hover:bg-red-700 transition-all font-semibold"
+                onClick={() => {
+                  setDeleteFolderLoading(folderToDelete.id);
+                  // Mark folder as trashed in state
+                  setFolders(prev => prev.map(f => f.id === folderToDelete.id ? { ...f, trashed: true } : f));
+                  // If selected, deselect
+                  if (selectedFolder === folderToDelete.id) setSelectedFolder('all');
+                  setDeleteFolderLoading(null);
+                  setShowFolderDeleteDialog(false);
+                  setFolderToDelete(null);
+                  toast.success('Folder moved to trash');
+                }}
+                disabled={deleteFolderLoading === folderToDelete.id}
+              >
+                {deleteFolderLoading === folderToDelete.id ? 'Moving...' : 'Move to Trash'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </>

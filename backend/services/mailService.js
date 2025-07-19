@@ -8,10 +8,7 @@ const transporter = nodemailer.createTransport({
         user: process.env.MAIL_USER,
         pass: process.env.MAIL_PASS,
     },
-    pool: true,
-    maxConnections: 5, // Increase for higher concurrency if needed
-    maxMessages: 100,  // Number of messages per connection
-    rateLimit: 10      // Messages per second (tune as needed)
+    secure: process.env.MAIL_PORT == 465 // true for 465, false for 587
 });
 
 export const sendMail = async (to, subject, text, html = null, buttonColor = null) => {

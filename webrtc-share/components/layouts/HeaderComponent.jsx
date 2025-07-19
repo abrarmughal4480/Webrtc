@@ -483,9 +483,9 @@ const handleLogout = async () => {
                       <DropdownMenuItem>
                         <Link href={"/dashboard"}>Dashboard</Link>
                       </DropdownMenuItem>
-                      <DropdownMenuItem>Billing</DropdownMenuItem>
+                      {/* <DropdownMenuItem>Billing</DropdownMenuItem>
                       <DropdownMenuItem>Team</DropdownMenuItem>
-                      <DropdownMenuItem>Subscription</DropdownMenuItem>
+                      <DropdownMenuItem>Subscription</DropdownMenuItem> */}
                       <DropdownMenuItem>
                         <button className='bg-none border-none cursor-pointer' onClick={handleLogout}>Logout</button>
                       </DropdownMenuItem>
