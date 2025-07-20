@@ -82,6 +82,10 @@ const meetingSchema = new mongoose.Schema({
     deletedAt: {
         type: Date,
         default: null
+    },
+    trashed: {
+        type: Boolean,
+        default: false
     }
 }, {timestamps: true});
 

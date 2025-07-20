@@ -1291,7 +1291,7 @@ export const createFolder = catchAsyncError(async (req, res) => {
 
 export const updateFolder = catchAsyncError(async (req, res) => {
     const { folderId } = req.params;
-    const { name } = req.body;
+    const { name, trashed } = req.body;
 
     if (!name || name.trim() === '') {
         return res.status(400).json({
@@ -1329,6 +1329,12 @@ export const updateFolder = catchAsyncError(async (req, res) => {
     }
 
     folder.name = name.trim();
+    
+    // Update trashed status if provided
+    if (typeof trashed === 'boolean') {
+        folder.trashed = trashed;
+    }
+    
     await user.save();
 
     res.json({
@@ -1373,6 +1379,120 @@ export const deleteFolder = catchAsyncError(async (req, res) => {
     res.json({
         success: true,
         message: 'Folder deleted successfully'
+    });
+});
+
+// Move folder to trash (soft delete)
+export const moveFolderToTrash = catchAsyncError(async (req, res) => {
+    const { folderId } = req.params;
+
+    const user = await UserModel.findById(req.user._id);
+    if (!user) {
+        return res.status(404).json({
+            success: false,
+            message: 'User not found'
+        });
+    }
+
+    const folder = user.folders.find(f => f.id === folderId);
+    if (!folder) {
+        return res.status(404).json({
+            success: false,
+            message: 'Folder not found'
+        });
+    }
+
+    // Mark folder as trashed
+    folder.trashed = true;
+    
+    // Get all meeting IDs assigned to this folder
+    const meetingFolders = user.meetingFolders.toObject();
+    console.log('🔍 [moveFolderToTrash] Meeting folders:', meetingFolders);
+    console.log('🔍 [moveFolderToTrash] Looking for folderId:', folderId);
+    
+    const recordsInFolder = Object.entries(meetingFolders)
+        .filter(([meetingId, assignedFolderId]) => {
+            console.log(`🔍 [moveFolderToTrash] Checking: meetingId=${meetingId}, assignedFolderId=${assignedFolderId}, folderId=${folderId}, match=${assignedFolderId === folderId}`);
+            return assignedFolderId === folderId;
+        })
+        .map(([meetingId]) => meetingId);
+    
+    console.log('🔍 [moveFolderToTrash] Records in folder:', recordsInFolder);
+
+    await user.save();
+
+    // Import MeetingModel for updating meeting records
+    const MeetingModel = (await import('../models/meetings.js')).default;
+    
+    // Update all meetings in this folder to be deleted
+    if (recordsInFolder.length > 0) {
+        await MeetingModel.updateMany(
+            { _id: { $in: recordsInFolder } },
+            { $set: { deleted: true } }
+        );
+    }
+
+    res.json({
+        success: true,
+        message: `Folder "${folder.name}" and ${recordsInFolder.length} records moved to trash`,
+        recordsAffected: recordsInFolder.length
+    });
+});
+
+// Restore folder from trash
+export const restoreFolderFromTrash = catchAsyncError(async (req, res) => {
+    const { folderId } = req.params;
+
+    const user = await UserModel.findById(req.user._id);
+    if (!user) {
+        return res.status(404).json({
+            success: false,
+            message: 'User not found'
+        });
+    }
+
+    const folder = user.folders.find(f => f.id === folderId);
+    if (!folder) {
+        return res.status(404).json({
+            success: false,
+            message: 'Folder not found'
+        });
+    }
+
+    // Mark folder as not trashed
+    folder.trashed = false;
+    
+    // Get all meeting IDs assigned to this folder
+    const meetingFolders = user.meetingFolders.toObject();
+    console.log('🔍 [restoreFolderFromTrash] Meeting folders:', meetingFolders);
+    console.log('🔍 [restoreFolderFromTrash] Looking for folderId:', folderId);
+    
+    const recordsInFolder = Object.entries(meetingFolders)
+        .filter(([meetingId, assignedFolderId]) => {
+            console.log(`🔍 [restoreFolderFromTrash] Checking: meetingId=${meetingId}, assignedFolderId=${assignedFolderId}, folderId=${folderId}, match=${assignedFolderId === folderId}`);
+            return assignedFolderId === folderId;
+        })
+        .map(([meetingId]) => meetingId);
+    
+    console.log('🔍 [restoreFolderFromTrash] Records in folder:', recordsInFolder);
+
+    await user.save();
+
+    // Import MeetingModel for updating meeting records
+    const MeetingModel = (await import('../models/meetings.js')).default;
+    
+    // Update all meetings in this folder to be not deleted
+    if (recordsInFolder.length > 0) {
+        await MeetingModel.updateMany(
+            { _id: { $in: recordsInFolder } },
+            { $set: { deleted: false } }
+        );
+    }
+
+    res.json({
+        success: true,
+        message: `Folder "${folder.name}" and ${recordsInFolder.length} records restored successfully`,
+        recordsAffected: recordsInFolder.length
     });
 });
 
@@ -1450,5 +1570,60 @@ export const getMeetingFolders = catchAsyncError(async (req, res) => {
     res.json({
         success: true,
         meetingFolders: Object.fromEntries(user.meetingFolders)
+    });
+});
+
+// Update pagination settings
+export const updatePaginationSettings = catchAsyncError(async (req, res) => {
+    const { itemsPerPage } = req.body;
+    
+    if (!itemsPerPage || ![10, 20, 30, 40, 50].includes(itemsPerPage)) {
+        return res.status(400).json({
+            success: false,
+            message: 'Invalid items per page value'
+        });
+    }
+
+    const user = await UserModel.findById(req.user._id);
+    if (!user) {
+        return res.status(404).json({
+            success: false,
+            message: 'User not found'
+        });
+    }
+
+    // Update pagination settings
+    user.paginationSettings = {
+        itemsPerPage: itemsPerPage
+    };
+    
+    await user.save();
+    
+    console.log('✅ Pagination settings updated for user:', user.email);
+    console.log('📊 Items per page set to:', itemsPerPage);
+    
+    res.status(200).json({
+        success: true,
+        message: "Pagination settings saved successfully",
+        paginationSettings: user.paginationSettings
+    });
+});
+
+// Get pagination settings
+export const getPaginationSettings = catchAsyncError(async (req, res) => {
+    const user = await UserModel.findById(req.user._id);
+    
+    if (!user) {
+        return res.status(404).json({
+            success: false,
+            message: 'User not found'
+        });
+    }
+
+    res.status(200).json({
+        success: true,
+        paginationSettings: user.paginationSettings || {
+            itemsPerPage: 10
+        }
     });
 });

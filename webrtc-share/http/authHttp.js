@@ -35,9 +35,13 @@ export const createFolderRequest = async (folderName) => {
     }
 };
 
-export const updateFolderRequest = async (folderId, folderName) => {
+export const updateFolderRequest = async (folderId, folderName, trashed = null) => {
     try {
-        const response = await api.put(`/folders/${folderId}`, { name: folderName });
+        const requestData = { name: folderName };
+        if (typeof trashed === 'boolean') {
+            requestData.trashed = trashed;
+        }
+        const response = await api.put(`/folders/${folderId}`, requestData);
         return response;
     } catch (error) {
         throw error;
@@ -47,6 +51,24 @@ export const updateFolderRequest = async (folderId, folderName) => {
 export const deleteFolderRequest = async (folderId) => {
     try {
         const response = await api.delete(`/folders/${folderId}`);
+        return response;
+    } catch (error) {
+        throw error;
+    }
+};
+
+export const moveFolderToTrashRequest = async (folderId) => {
+    try {
+        const response = await api.put(`/folders/${folderId}/trash`);
+        return response;
+    } catch (error) {
+        throw error;
+    }
+};
+
+export const restoreFolderFromTrashRequest = async (folderId) => {
+    try {
+        const response = await api.put(`/folders/${folderId}/restore`);
         return response;
     } catch (error) {
         throw error;
@@ -80,6 +102,25 @@ export const assignMeetingToFolderRequest = async (meetingId, folderId) => {
 export const getMeetingFoldersRequest = async () => {
     try {
         const response = await api.get("/folders/meeting-assignments");
+        return response;
+    } catch (error) {
+        throw error;
+    }
+};
+
+// Pagination Settings Functions
+export const updatePaginationSettings = async (data) => {
+    try {
+        const response = await api.put("/user/pagination-settings", data);
+        return response;
+    } catch (error) {
+        throw error;
+    }
+};
+
+export const getPaginationSettings = async () => {
+    try {
+        const response = await api.get("/user/pagination-settings");
         return response;
     } catch (error) {
         throw error;

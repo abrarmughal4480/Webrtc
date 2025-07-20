@@ -9,8 +9,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { logoutRequest } from "@/http/authHttp"
-import { createFolderRequest, updateFolderRequest, deleteFolderRequest, getFoldersRequest, assignMeetingToFolderRequest, getMeetingFoldersRequest } from "@/http/authHttp"
+import { createFolderRequest, updateFolderRequest, deleteFolderRequest, moveFolderToTrashRequest, restoreFolderFromTrashRequest, getFoldersRequest, assignMeetingToFolderRequest, getMeetingFoldersRequest } from "@/http/authHttp"
 import { getAllMeetings, deleteMeeting, archiveMeeting, unarchiveMeeting, getArchivedCount, restoreMeeting, permanentDeleteMeeting, searchMeetings } from "@/http/meetingHttp"
+import { getPaginationSettings, updatePaginationSettings } from "@/http/authHttp"
 import { useUser } from "@/provider/UserProvider"
 import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
@@ -44,7 +45,7 @@ export default function Page() {
   const [isActionLoading, setIsActionLoading] = useState(false);
   const [userLoading, setUserLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(10);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
   const [viewMode, setViewMode] = useState('active');
   const [archivedCount, setArchivedCount] = useState(0);
   // Add state for VideoLinkSender
@@ -74,8 +75,17 @@ export default function Page() {
     if (isAuth && user) {
       loadFolders();
       loadMeetingFolders();
+      loadPaginationSettings();
     }
   }, [isAuth, user]);
+
+  // Get trashed folders for trash view
+  const getTrashedFolders = () => {
+    console.log('🔍 [getTrashedFolders] All folders:', folders);
+    const trashedFolders = folders.filter(folder => folder.trashed);
+    console.log('🔍 [getTrashedFolders] Trashed folders:', trashedFolders);
+    return trashedFolders;
+  };
 
   const loadFolders = async () => {
     try {
@@ -140,6 +150,8 @@ export default function Page() {
   // State for folder delete confirmation
   const [showFolderDeleteDialog, setShowFolderDeleteDialog] = useState(false);
   const [folderToDelete, setFolderToDelete] = useState(null);
+
+
 
   useEffect(() => {
     fetchMeetings();
@@ -303,6 +315,8 @@ export default function Page() {
       toast.success(`"${meetingName || 'Meeting'}" unarchived successfully`);
       fetchMeetings(false);
       fetchArchivedCount();
+      // Reload meeting folders to reflect the removal from folder assignment
+      await loadMeetingFolders();
     } catch (error) {
       toast.error("Failed to unarchive meeting", {
         description: error?.response?.data?.message || error.message
@@ -722,7 +736,38 @@ export default function Page() {
         // Only show if assigned to selectedFolder and not trashed
         return meetingFolders[m._id] === selectedFolder && !folders.find(f => f.id === selectedFolder && f.trashed);
       })
-    : meetings;
+    : viewMode === 'trash'
+    ? (() => {
+        console.log('🔍 [Trash Filter] All meetings:', meetings.length);
+        console.log('🔍 [Trash Filter] All meetings with trashed status:', meetings.map(m => ({ id: m._id, trashed: m.trashed, name: m.name })));
+        console.log('🔍 [Trash Filter] Meeting folders mapping:', meetingFolders);
+        
+        const trashedFolders = getTrashedFolders();
+        console.log('🔍 [Trash Filter] Trashed folders:', trashedFolders);
+        
+        const trashedIndividualRecords = meetings.filter(m => m.deleted && !meetingFolders[m._id]);
+        const trashedRecordsInFolders = meetings.filter(m => m.deleted && meetingFolders[m._id]);
+        console.log('🔍 [Trash Filter] Trashed individual records (not in folders):', trashedIndividualRecords.length);
+        console.log('🔍 [Trash Filter] Trashed records in folders:', trashedRecordsInFolders.length);
+        
+        return [
+          // Show trashed folders
+          ...trashedFolders.map(folder => ({
+            _id: `folder_${folder.id}`,
+            isFolder: true,
+            folder: folder,
+            name: folder.name,
+            createdAt: folder.createdAt,
+            recordCount: Object.values(meetingFolders).filter(folderId => folderId === folder.id).length
+          })),
+          // Add ALL trashed individual records (both in folders and not in folders)
+          ...meetings.filter(m => m.deleted).map(meeting => ({
+            ...meeting,
+            isFolder: false
+          }))
+        ];
+      })()
+    : meetings.filter(m => !m.deleted); // Show only non-deleted meetings for other views
 
   // Calculate pagination
   const indexOfLastItem = currentPage * itemsPerPage;
@@ -754,6 +799,32 @@ export default function Page() {
   const handlePageClick = (pageNumber) => {
     setCurrentPage(pageNumber);
   };
+
+  // Load pagination settings from backend
+  const loadPaginationSettings = async () => {
+    try {
+      const response = await getPaginationSettings();
+      if (response.data.success) {
+        setItemsPerPage(response.data.paginationSettings.itemsPerPage);
+      }
+    } catch (error) {
+      console.error('Error loading pagination settings:', error);
+    }
+  };
+
+  // Handler for changing items per page
+  const handleItemsPerPageChange = async (newItemsPerPage) => {
+    setItemsPerPage(newItemsPerPage);
+    setCurrentPage(1); // Reset to first page when changing items per page
+    
+    // Save to backend silently (no toast)
+    try {
+      await updatePaginationSettings({ itemsPerPage: newItemsPerPage });
+    } catch (error) {
+      console.error('Error saving pagination settings:', error);
+    }
+  };
+
   // Reset to first page when meetings change
   useEffect(() => {
     setCurrentPage(1);
@@ -1115,7 +1186,10 @@ export default function Page() {
                   </>
                 ) : (
                   <span className="text-sm text-gray-500">
-                    {meetings.length} {meetings.length === 1 ? 'meeting' : 'meetings'}
+                    {viewMode === 'trash' 
+                      ? `${filteredMeetings.length} ${filteredMeetings.length === 1 ? 'item' : 'items'} (${getTrashedFolders().length} folders, ${meetings.filter(m => m.deleted).length} records)`
+                      : `${meetings.length} ${meetings.length === 1 ? 'meeting' : 'meetings'}`
+                    }
                   </span>
                 )}
                 {/* Clear Search Button - Show when in search mode */}
@@ -1293,12 +1367,28 @@ export default function Page() {
               </div>
             )}
 
+            {/* Trash View Info - Only show in trash view */}
+            {viewMode === 'trash' && (
+              <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-4">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold text-red-700">Trash View</span>
+                  <span className="text-xs text-red-600">Showing both trashed folders and individual records</span>
+                </div>
+              </div>
+            )}
+
             <table className="min-w-full text-left text-xs sm:text-sm">
               <thead className="sticky top-0 bg-white">
                 <tr className="h-14 align-middle">
-                  <th className="px-4 py-2 font-semibold text-black text-left w-1/3 h-14 align-middle">Resident name and address</th>
-                  <th className="px-4 py-2 font-semibold text-black text-left w-1/3 h-14 align-middle">Video Link</th>
-                  <th className="px-4 py-2 font-semibold text-black text-left w-1/6 h-14 align-middle">Time and Date</th>
+                  <th className="px-4 py-2 font-semibold text-black text-left w-1/3 h-14 align-middle">
+                    {viewMode === 'trash' ? 'Name/Address' : 'Resident name and address'}
+                  </th>
+                  <th className="px-4 py-2 font-semibold text-black text-left w-1/3 h-14 align-middle">
+                    {viewMode === 'trash' ? 'Details' : 'Video Link'}
+                  </th>
+                  <th className="px-4 py-2 font-semibold text-black text-left w-1/6 h-14 align-middle">
+                    Time and Date
+                  </th>
                   <th className="px-4 py-2 font-semibold text-black text-left w-1/6 h-14 align-middle whitespace-nowrap">
                     <div>
                       {viewMode === 'trash' ? (
@@ -1368,35 +1458,110 @@ export default function Page() {
                       This folder has no records yet
                     </td>
                   </tr>
-                ) : meetings.length === 0 ? (
+                ) : filteredMeetings.length === 0 ? (
                   <tr>
                     <td colSpan="4" className="text-center py-8 text-gray-500 align-middle" style={{ height: '72px' }}>
                       {viewMode === 'archived'
                         ? 'No archived meetings found.'
                         : viewMode === 'trash'
-                          ? 'No trashed meetings found.'
+                          ? 'No trashed items found.'
                           : 'No meetings found. Create your first video link to get started!'}
                     </td>
                   </tr>
                 ) : (
-                  currentMeetings.map((meeting, index) => {
-                    const { time, date } = formatMeetingDate(meeting.createdAt);
-                    const shareUrl = generateShareUrl(meeting.meeting_id);
+                  currentMeetings.map((item, index) => {
                     const actualIndex = indexOfFirstItem + index;
+                    
+                    console.log('🔍 [Table Render] Item:', item);
+                    console.log('🔍 [Table Render] Item isFolder:', item.isFolder);
+                    console.log('🔍 [Table Render] ViewMode:', viewMode);
+                    
+                    // Handle folders in trash view
+                    if (viewMode === 'trash' && item.isFolder) {
+                      const folder = item.folder;
+                      const { time, date } = formatMeetingDate(folder.createdAt);
+                      return (
+                        <tr key={item._id} className="hover:bg-gray-50 border-b group">
+                          <td className="px-4 py-3 w-1/3">
+                            <div className="flex items-start gap-2">
+                              <span className="flex-shrink-0">{actualIndex + 1}.</span>
+                              <div className="flex items-center gap-2 flex-1">
+                                <span className="break-words font-medium">{folder.name}</span>
+                                <span className="bg-red-200 text-red-700 px-2 py-1 rounded-full text-xs flex-shrink-0">
+                                  Trashed Folder
+                                </span>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 w-1/3">
+                            <span className="text-gray-700 font-medium">
+                              {item.recordCount} records
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 w-1/6">
+                            <div className="flex items-center">
+                              <span className="font-mono" style={{ whiteSpace: 'pre' }}>{time}</span>
+                              <span className="mx-2"></span>
+                              <span className="font-mono">{date}</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 w-1/6">
+                            <div className="flex justify-start gap-3">
+                              <button
+                                title="Restore Folder"
+                                onClick={async () => {
+                                  try {
+                                    const response = await restoreFolderFromTrashRequest(folder.id);
+                                    await loadFolders();
+                                    await fetchMeetings(false);
+                                    await loadMeetingFolders();
+                                    // Calculate the actual number of records in the folder
+                                    const recordsInFolder = Object.values(meetingFolders).filter(folderId => String(folderId) === String(folder.id)).length;
+                                    toast.success(`Folder "${folder.name}" and ${recordsInFolder} records restored successfully`);
+                                  } catch (error) {
+                                    toast.error("Failed to restore folder", { description: error?.response?.data?.message || error.message });
+                                  }
+                                }}
+                                className="hover:bg-green-50 p-1 rounded"
+                              >
+                                <Undo2 className="w-5 h-5 text-green-600" />
+                              </button>
+                              <button
+                                title="Permanently Delete Folder"
+                                onClick={() => {
+                                  setFolderToDelete(folder);
+                                  setShowFolderDeleteDialog(true);
+                                }}
+                                className="hover:bg-red-50 p-1 rounded"
+                              >
+                                <Trash2 className="w-5 h-5 text-red-600" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    }
+                    
+                    // Handle individual meetings (both in trash and other views)
+                    const meeting = item;
+                    const { time, date } = formatMeetingDate(meeting.createdAt);
+                    const shareUrl = meeting.meeting_id ? generateShareUrl(meeting.meeting_id) : null;
                     const isArchived = meeting.archived || false;
                     return (
                       <tr key={meeting._id} className="hover:bg-gray-50 border-b group">
                         <td className="px-4 py-3 w-1/3">
                           <div className="flex items-start gap-2">
-                            <input
-                              type="checkbox"
-                              checked={selectedMeetings.includes(meeting._id)}
-                              onChange={(e) => handleSelectMeeting(meeting._id, e.target.checked)}
-                              className="rounded border-gray-300 mt-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                              style={{
-                                opacity: selectedMeetings.includes(meeting._id) ? 1 : undefined
-                              }}
-                            />
+                            {!meeting.deleted && (
+                              <input
+                                type="checkbox"
+                                checked={selectedMeetings.includes(meeting._id)}
+                                onChange={(e) => handleSelectMeeting(meeting._id, e.target.checked)}
+                                className="rounded border-gray-300 mt-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                                style={{
+                                  opacity: selectedMeetings.includes(meeting._id) ? 1 : undefined
+                                }}
+                              />
+                            )}
                             <span className="flex-shrink-0">{actualIndex + 1}.</span>
                             <div className="flex items-center gap-2 flex-1">
                               <span className="break-words">{
@@ -1414,12 +1579,12 @@ export default function Page() {
                           </div>
                         </td>
                         <td className="px-4 py-3 w-1/3">
-                          {meeting.deleted ? (
+                          {meeting.deleted || !meeting.meeting_id ? (
                             <span
                               className="text-gray-400 line-through cursor-not-allowed text-left"
-                              title="Link disabled for trashed meetings"
+                              title="Link disabled for deleted meetings"
                             >
-                              www.Videodesk.co.uk/share/{meeting.meeting_id.substring(0, 8)}...
+                              {meeting.meeting_id ? `www.Videodesk.co.uk/share/${meeting.meeting_id.substring(0, 8)}...` : 'No link available'}
                             </span>
                           ) : (
                             <button
@@ -1548,44 +1713,68 @@ export default function Page() {
             </table>
 
             {/* Pagination Controls */}
-            {!loading && !isActionLoading && filteredMeetings.length > itemsPerPage && (
+            {!loading && !isActionLoading && filteredMeetings.length > 0 && (
               <div className="flex items-center justify-between mt-6 px-4">
-                <div className="text-sm text-gray-600">
-                  Showing {indexOfFirstItem + 1} to {Math.min(indexOfLastItem, filteredMeetings.length)} of {filteredMeetings.length} results
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={handlePrevPage}
-                    disabled={currentPage === 1}
-                    className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Previous
-                  </button>
-
-                  <div className="flex gap-1">
-                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNumber) => (
-                      <button
-                        key={pageNumber}
-                        onClick={() => handlePageClick(pageNumber)}
-                        className={`px-3 py-1 text-sm border border-gray-300 rounded-md ${currentPage === pageNumber
-                            ? 'bg-blue-500 text-white border-blue-500'
-                            : 'hover:bg-gray-50'
-                          }`}
+                {/* Left side - Items per page selector and results info */}
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-600">Show:</span>
+                    <div className="relative">
+                      <select
+                        value={itemsPerPage}
+                        onChange={(e) => handleItemsPerPageChange(Number(e.target.value))}
+                        className="px-2 py-1 pr-8 text-sm border border-gray-300 rounded-md bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none"
                       >
-                        {pageNumber}
-                      </button>
-                    ))}
+                        <option value={10}>10</option>
+                        <option value={20}>20</option>
+                        <option value={30}>30</option>
+                        <option value={40}>40</option>
+                        <option value={50}>50</option>
+                      </select>
+                      <ChevronDown className="w-3 h-3 text-gray-900 absolute right-2 top-1/2 transform -translate-y-1/2 pointer-events-none" strokeWidth={2} />
+                    </div>
+                    <span className="text-sm text-gray-600">per page</span>
                   </div>
-
-                  <button
-                    onClick={handleNextPage}
-                    disabled={currentPage === totalPages}
-                    className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Next
-                  </button>
+                  <div className="text-sm text-gray-600">
+                    Showing {indexOfFirstItem + 1} to {Math.min(indexOfLastItem, filteredMeetings.length)} of {filteredMeetings.length} results
+                  </div>
                 </div>
+
+                {/* Right side - Pagination buttons (only show if more than one page) */}
+                {filteredMeetings.length > itemsPerPage && (
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handlePrevPage}
+                      disabled={currentPage === 1}
+                      className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Previous
+                    </button>
+
+                    <div className="flex gap-1">
+                      {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNumber) => (
+                        <button
+                          key={pageNumber}
+                          onClick={() => handlePageClick(pageNumber)}
+                          className={`px-3 py-1 text-sm border border-gray-300 rounded-md ${currentPage === pageNumber
+                              ? 'bg-blue-500 text-white border-blue-500'
+                              : 'hover:bg-gray-50'
+                            }`}
+                        >
+                          {pageNumber}
+                        </button>
+                      ))}
+                    </div>
+
+                    <button
+                      onClick={handleNextPage}
+                      disabled={currentPage === totalPages}
+                      className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Next
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1799,16 +1988,27 @@ export default function Page() {
               </button>
               <button
                 className="px-5 py-2 bg-red-600 text-white rounded-full shadow-sm hover:bg-red-700 transition-all font-semibold"
-                onClick={() => {
+                onClick={async () => {
                   setDeleteFolderLoading(folderToDelete.id);
-                  // Mark folder as trashed in state
-                  setFolders(prev => prev.map(f => f.id === folderToDelete.id ? { ...f, trashed: true } : f));
-                  // If selected, deselect
-                  if (selectedFolder === folderToDelete.id) setSelectedFolder('all');
-                  setDeleteFolderLoading(null);
-                  setShowFolderDeleteDialog(false);
-                  setFolderToDelete(null);
-                  toast.success('Folder moved to trash');
+                  
+                  try {
+                    // Move folder to trash using backend function
+                    const response = await moveFolderToTrashRequest(folderToDelete.id);
+                    
+                    // Reload folders and meetings to get updated data
+                    await loadFolders();
+                    await fetchMeetings(false);
+                    
+                    // If selected, deselect
+                    if (selectedFolder === folderToDelete.id) setSelectedFolder('all');
+                    setDeleteFolderLoading(null);
+                    setShowFolderDeleteDialog(false);
+                    setFolderToDelete(null);
+                    toast.success(response.data.message);
+                  } catch (error) {
+                    setDeleteFolderLoading(null);
+                    toast.error("Failed to move folder to trash", { description: error?.response?.data?.message || error.message });
+                  }
                 }}
                 disabled={deleteFolderLoading === folderToDelete.id}
               >
