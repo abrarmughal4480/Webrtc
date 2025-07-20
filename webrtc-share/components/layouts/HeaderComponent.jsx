@@ -746,10 +746,10 @@ const handleLogout = async () => {
               {isLoading ? <Loader2 className='w-4 h-4 animate-spin' /> : "Log In"}
             </button>
 
-            <div className='flex items-center gap-2 justify-center mb-1'>
+            {/* <div className='flex items-center gap-2 justify-center mb-1'>
               <p className='text-md'>Not got an account?</p>
               <button className='border-none bg-none !text-blue-500 text-md cursor-pointer' type='button' onClick={() => { setSignInOpen(false); setSignUpOpen(true) }}>Sign Up</button>
-            </div>
+            </div> */}
 
             <div className='flex items-center gap-2 w-full justify-center'>
               <button className='border-none bg-none !text-blue-500 text-md cursor-pointer' onClick={() => { setSignInOpen(false); setIsForgotOpen(true) }}>Forgot Password?</button>

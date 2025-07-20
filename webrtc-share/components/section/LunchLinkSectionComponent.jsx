@@ -244,8 +244,8 @@ export const LaunchLinkSection = () => {
             {!isAuth && (
               <div className="flex justify-center items-center space-x-2 mt-2 text-sm md:text-base">
                 <a href="#login" className="text-blue-500 hover:underline">Log in</a>
-                <span>or</span>
-                <a href="#signup" className="text-blue-500 hover:underline">Sign up</a>
+                {/* <span>or</span>
+                <a href="#signup" className="text-blue-500 hover:underline">Sign up</a> */}
                 <span>to launch a video link</span>
               </div>
             )}

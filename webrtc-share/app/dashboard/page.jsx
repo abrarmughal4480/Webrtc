@@ -1188,7 +1188,11 @@ export default function Page() {
                   <span className="text-sm text-gray-500">
                     {viewMode === 'trash' 
                       ? `${filteredMeetings.length} ${filteredMeetings.length === 1 ? 'item' : 'items'} (${getTrashedFolders().length} folders, ${meetings.filter(m => m.deleted).length} records)`
-                      : `${meetings.length} ${meetings.length === 1 ? 'meeting' : 'meetings'}`
+                      : viewMode === 'archived'
+                        ? selectedFolder !== 'all'
+                          ? `${meetings.filter(m => meetingFolders[m._id] === selectedFolder).length} Record${meetings.filter(m => meetingFolders[m._id] === selectedFolder).length === 1 ? '' : 's'} in Folder`
+                          : `${meetings.length} Record${meetings.length === 1 ? '' : 's'} in Archive`
+                        : `${meetings.length} ${meetings.length === 1 ? 'meeting' : 'meetings'}`
                     }
                   </span>
                 )}
@@ -1552,15 +1556,15 @@ export default function Page() {
                         <td className="px-4 py-3 w-1/3">
                           <div className="flex items-start gap-2">
                             {!meeting.deleted && (
-                              <input
-                                type="checkbox"
-                                checked={selectedMeetings.includes(meeting._id)}
-                                onChange={(e) => handleSelectMeeting(meeting._id, e.target.checked)}
-                                className="rounded border-gray-300 mt-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                                style={{
-                                  opacity: selectedMeetings.includes(meeting._id) ? 1 : undefined
-                                }}
-                              />
+                            <input
+                              type="checkbox"
+                              checked={selectedMeetings.includes(meeting._id)}
+                              onChange={(e) => handleSelectMeeting(meeting._id, e.target.checked)}
+                              className="rounded border-gray-300 mt-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                              style={{
+                                opacity: selectedMeetings.includes(meeting._id) ? 1 : undefined
+                              }}
+                            />
                             )}
                             <span className="flex-shrink-0">{actualIndex + 1}.</span>
                             <div className="flex items-center gap-2 flex-1">
@@ -1735,45 +1739,45 @@ export default function Page() {
                     </div>
                     <span className="text-sm text-gray-600">per page</span>
                   </div>
-                  <div className="text-sm text-gray-600">
-                    Showing {indexOfFirstItem + 1} to {Math.min(indexOfLastItem, filteredMeetings.length)} of {filteredMeetings.length} results
+                <div className="text-sm text-gray-600">
+                  Showing {indexOfFirstItem + 1} to {Math.min(indexOfLastItem, filteredMeetings.length)} of {filteredMeetings.length} results
                   </div>
                 </div>
 
                 {/* Right side - Pagination buttons (only show if more than one page) */}
                 {filteredMeetings.length > itemsPerPage && (
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={handlePrevPage}
-                      disabled={currentPage === 1}
-                      className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Previous
-                    </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handlePrevPage}
+                    disabled={currentPage === 1}
+                    className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Previous
+                  </button>
 
-                    <div className="flex gap-1">
-                      {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNumber) => (
-                        <button
-                          key={pageNumber}
-                          onClick={() => handlePageClick(pageNumber)}
-                          className={`px-3 py-1 text-sm border border-gray-300 rounded-md ${currentPage === pageNumber
-                              ? 'bg-blue-500 text-white border-blue-500'
-                              : 'hover:bg-gray-50'
-                            }`}
-                        >
-                          {pageNumber}
-                        </button>
-                      ))}
-                    </div>
-
-                    <button
-                      onClick={handleNextPage}
-                      disabled={currentPage === totalPages}
-                      className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Next
-                    </button>
+                  <div className="flex gap-1">
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNumber) => (
+                      <button
+                        key={pageNumber}
+                        onClick={() => handlePageClick(pageNumber)}
+                        className={`px-3 py-1 text-sm border border-gray-300 rounded-md ${currentPage === pageNumber
+                            ? 'bg-blue-500 text-white border-blue-500'
+                            : 'hover:bg-gray-50'
+                          }`}
+                      >
+                        {pageNumber}
+                      </button>
+                    ))}
                   </div>
+
+                  <button
+                    onClick={handleNextPage}
+                    disabled={currentPage === totalPages}
+                    className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Next
+                  </button>
+                </div>
                 )}
               </div>
             )}
@@ -1999,11 +2003,11 @@ export default function Page() {
                     await loadFolders();
                     await fetchMeetings(false);
                     
-                    // If selected, deselect
-                    if (selectedFolder === folderToDelete.id) setSelectedFolder('all');
-                    setDeleteFolderLoading(null);
-                    setShowFolderDeleteDialog(false);
-                    setFolderToDelete(null);
+                  // If selected, deselect
+                  if (selectedFolder === folderToDelete.id) setSelectedFolder('all');
+                  setDeleteFolderLoading(null);
+                  setShowFolderDeleteDialog(false);
+                  setFolderToDelete(null);
                     toast.success(response.data.message);
                   } catch (error) {
                     setDeleteFolderLoading(null);
