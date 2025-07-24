@@ -49,11 +49,11 @@ const AccessCodeDialog = ({ isOpen, onOpenChange, accessCode, onAfterCloseCopy, 
     <>
       <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[150] pointer-events-none"></div>
       <div className="fixed inset-0 z-[200] flex items-center justify-center">
-        <div className="sm:max-w-md bg-white rounded-2xl shadow-2xl pointer-events-auto relative">
+        <div className="sm:max-w-md max-w-[95vw] w-full bg-white rounded-2xl shadow-2xl pointer-events-auto relative mx-2 sm:mx-0">
           {/* Header strip */}
-          <div className="flex items-center justify-center bg-purple-500 text-white p-4 m-0 rounded-t-2xl relative">
+          <div className="flex items-center justify-center bg-purple-500 text-white p-3 sm:p-4 m-0 rounded-t-2xl relative">
             <div className="flex-1 flex items-center justify-center">
-              <span className="text-2xl font-bold text-center">Your Share Code</span>
+              <span className="text-lg sm:text-2xl font-bold text-center">Your Share Code</span>
             </div>
             <button
               onClick={() => onOpenChange && onOpenChange(false)}
@@ -63,17 +63,15 @@ const AccessCodeDialog = ({ isOpen, onOpenChange, accessCode, onAfterCloseCopy, 
               <span style={{fontSize: '1.25rem', fontWeight: 'bold'}}>&times;</span>
             </button>
           </div>
-          <div className="p-6">
-            {/* Remove duplicate title here */}
-            {/* <div className="text-2xl font-bold text-center text-gray-800">Your Share Code</div> */}
-            <div className="text-center text-gray-500 pt-2">
-            Use this code to share your saved information.
+          <div className="p-4 sm:p-6">
+            <div className="text-center text-gray-500 pt-2 text-sm sm:text-base">
+              Use this code to share your saved information.
             </div>
-            <div className="flex flex-col items-center justify-center p-6 space-y-6">
-              <div className="text-5xl font-bold tracking-widest text-purple-600 bg-purple-50 p-6 rounded-2xl border-2 border-purple-200">
+            <div className="flex flex-col items-center justify-center p-4 sm:p-6 space-y-4 sm:space-y-6">
+              <div className="text-3xl sm:text-5xl font-bold tracking-widest text-purple-600 bg-purple-50 p-4 sm:p-6 rounded-2xl border-2 border-purple-200">
                 {accessCode}
               </div>
-              <div className="w-full grid grid-cols-2 gap-4">
+              <div className="w-full grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Button
                   onClick={handleCopy}
                   variant="outline"
@@ -101,7 +99,7 @@ const AccessCodeDialog = ({ isOpen, onOpenChange, accessCode, onAfterCloseCopy, 
                 </Button>
               </div>
             </div>
-            <div className="text-center text-xs text-gray-400 px-6 pb-4">
+            <div className="text-center text-xs text-gray-400 px-2 sm:px-6 pb-4">
               Please save this code somewhere safe.
             </div>
           </div>

@@ -4,7 +4,7 @@ import Image from 'next/image';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Trash2, VideoIcon, PlayIcon, Minimize2, Expand, ZoomIn, X, Info } from 'lucide-react';
+import { Plus, Trash2, VideoIcon, PlayIcon, Minimize2, Expand, ZoomIn, X, Info, Loader2 } from 'lucide-react';
 import { toast } from "sonner";
 import AccessCodeDialog from '@/components/dialogs/AccessCodeDialog';
 import { publicApi } from '@/http';
@@ -49,6 +49,8 @@ export default function UploadPage() {
   // Add new state to control flow
   const [pendingShareCode, setPendingShareCode] = useState(null);
   const [pendingShowSignup, setPendingShowSignup] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [isSignupLoading, setIsSignupLoading] = useState(false);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -56,7 +58,7 @@ export default function UploadPage() {
   };
 
   const requiredFields = [
-    'first_name', 'last_name', 'house_name_number', 'flat_apartment_room', 'street_road', 'city', 'country', 'actualPostCode', 'phoneNumber', 'email'
+    'first_name', 'last_name', 'flat_apartment_room', 'street_road', 'city', 'country', 'actualPostCode', 'phoneNumber', 'email'
   ];
 
   const handleSubmit = async (e) => {
@@ -99,6 +101,7 @@ export default function UploadPage() {
       accessCode: generatedCode,
     };
 
+    setIsUploading(true);
     try {
       const res = await publicApi.post('/api/v1/upload', submissionData);
       const data = res.data;
@@ -119,6 +122,8 @@ export default function UploadPage() {
     } catch (err) {
       const errMsg = err.response?.data?.message || err.message || 'Upload failed';
       toast.error("Upload failed", { description: errMsg });
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -526,8 +531,8 @@ export default function UploadPage() {
             {/* Submit Button Section */}
             <div className="mt-8">
               <div className="max-w-md mx-auto">
-                <Button type="submit" size="lg" className="w-full h-14 text-lg font-semibold bg-gradient-to-r from-purple-400 to-purple-500 hover:from-purple-500 hover:to-purple-600 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 rounded-full">
-                    Save Details
+                <Button type="submit" size="lg" className="w-full h-14 text-lg font-semibold bg-gradient-to-r from-purple-400 to-purple-500 hover:from-purple-500 hover:to-purple-600 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 rounded-full" disabled={isUploading}>
+                    {isUploading ? (<><Loader2 className="w-5 h-5 mr-2 animate-spin" /> Saving...</>) : 'Save Details'}
                 </Button>
               </div>
             </div>
@@ -578,17 +583,17 @@ export default function UploadPage() {
           <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[150] pointer-events-auto"></div>
           {/* Centered signup modal */}
           <div className="fixed inset-0 z-[200] flex items-center justify-center">
-            <div className="min-w-[420px] w-[400px] bg-white rounded-2xl shadow-2xl pointer-events-auto flex flex-col">
+            <div className="min-w-[0] max-w-[95vw] w-full sm:w-[400px] bg-white rounded-2xl shadow-2xl pointer-events-auto flex flex-col mx-2 sm:mx-0">
               {/* Purple header strip above modal */}
-              <div className="flex items-center justify-center bg-purple-500 text-white p-4 m-0 rounded-t-2xl relative">
+              <div className="flex items-center justify-center bg-purple-500 text-white p-3 sm:p-4 m-0 rounded-t-2xl relative">
                 <div className="flex-1 flex items-center justify-center">
                   <span className="text-base sm:text-lg font-bold text-center break-words whitespace-pre-line leading-snug w-full">
                     Sign up for an easier and faster <br/> experience next time!
                   </span>
                 </div>
               </div>
-              <div className="w-full bg-white rounded-b-2xl shadow-2xl border border-gray-200 p-6 flex flex-col items-center gap-3 pointer-events-auto">
-                <div className="text-gray-500 text-sm text-center mb-2">Create a password to save your uploads.</div>
+              <div className="w-full bg-white rounded-b-2xl shadow-2xl border border-gray-200 p-4 sm:p-6 flex flex-col items-center gap-3 pointer-events-auto">
+                <div className="text-gray-500 text-xs sm:text-sm text-center mb-2">Create a password to save your uploads.</div>
                 <div className="w-full flex flex-col gap-2">
                   <label className="text-xs font-semibold text-gray-600 ml-1">Email</label>
                   <input
@@ -626,6 +631,7 @@ export default function UploadPage() {
                         toast.error('Passwords do not match.');
                         return;
                       }
+                      setIsSignupLoading(true);
                       try {
                         const res = await registerResidentRequest({ email: form.email, password });
                         toast.success('Resident account created!');
@@ -638,10 +644,13 @@ export default function UploadPage() {
                         }
                       } catch (err) {
                         toast.error(err.response?.data?.message || 'Signup failed');
+                      } finally {
+                        setIsSignupLoading(false);
                       }
                     }}
+                    disabled={isSignupLoading}
                   >
-                    Save My Details
+                    {isSignupLoading ? (<><Loader2 className="w-5 h-5 mr-2 animate-spin" /> Saving...</>) : 'Save My Details'}
                   </button>
                 </div>
               </div>
