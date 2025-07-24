@@ -292,17 +292,17 @@ export default function UploadPage() {
     <>
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
         <div className="max-w-7xl mx-auto px-2 sm:px-4 md:px-6 pt-6 md:pt-12 pb-4 md:pb-6">
-          <div className="bg-indigo-50 rounded-2xl p-6 sm:p-8 mb-8 border-2 border-indigo-100">
-            <div className="flex flex-col items-center text-center">
+          <div className="bg-indigo-50 rounded-2xl p-4 sm:p-6 md:p-8 mb-6 sm:mb-8 border-2 border-indigo-100">
+            <div className="flex flex-col items-center text-center gap-2 sm:gap-4">
               <div className="flex-shrink-0">
-                <Info className="h-8 w-8 text-indigo-400" />
+                <Info className="h-7 w-7 sm:h-8 sm:w-8 text-indigo-400" />
               </div>
-              <div className="mt-4">
-                <p className="text-lg font-semibold text-indigo-800">
+              <div className="mt-2 sm:mt-4">
+                <p className="text-base sm:text-lg font-semibold text-indigo-800">
                   You can upload images/photos or videos on this page and share them by generating a simple Share Code below <br/> and giving this to your LandLord/Councillor or anyone else.
                 </p>
-                <p className="text-lg font-semibold text-indigo-800 mt-2">
-               Happy Sharing!
+                <p className="text-base sm:text-lg font-semibold text-indigo-800 mt-1 sm:mt-2">
+                  Happy Sharing!
                 </p>
               </div>
             </div>
