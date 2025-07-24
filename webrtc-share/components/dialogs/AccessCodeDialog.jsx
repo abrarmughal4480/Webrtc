@@ -1,11 +1,13 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
-import { Copy, Check, Share2 } from 'lucide-react';
+import { Copy, Check, Share2, X } from 'lucide-react';
 import { toast } from "sonner";
+import { useRouter } from 'next/navigation';
 
-const AccessCodeDialog = ({ isOpen, onOpenChange, accessCode, onAfterCloseCopy, onCopy, showSignupPrompt, setShowSignupPrompt, password, setPassword, confirmPassword, setConfirmPassword, email, router }) => {
+const AccessCodeDialog = ({ isOpen, onOpenChange, accessCode, onAfterCloseCopy, onCopy, showSignupPrompt, setShowSignupPrompt, password, setPassword, confirmPassword, setConfirmPassword, email, router: propRouter }) => {
   const [copied, setCopied] = useState(false);
+  const router = propRouter || useRouter();
 
   useEffect(() => {
     if (isOpen) {
@@ -57,10 +59,10 @@ const AccessCodeDialog = ({ isOpen, onOpenChange, accessCode, onAfterCloseCopy, 
             </div>
             <button
               onClick={() => onOpenChange && onOpenChange(false)}
-              className="absolute right-4 text-white hover:text-gray-200 transition p-2 rounded-full"
+              className="absolute right-4 bg-purple-500 hover:bg-purple-700 text-white transition p-2 rounded-full shadow"
               aria-label="Close"
             >
-              <span style={{fontSize: '1.25rem', fontWeight: 'bold'}}>&times;</span>
+              <X className="w-5 h-5" />
             </button>
           </div>
           <div className="p-4 sm:p-6">
@@ -98,6 +100,12 @@ const AccessCodeDialog = ({ isOpen, onOpenChange, accessCode, onAfterCloseCopy, 
                   <span className="font-semibold">Share</span>
                 </Button>
               </div>
+              <Button
+                onClick={() => router.push('/dashboard')}
+                className="w-full h-12 mt-2 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg shadow-sm hover:shadow-md transition-all duration-300"
+              >
+                Go to Dashboard
+              </Button>
             </div>
             <div className="text-center text-xs text-gray-400 px-2 sm:px-6 pb-4">
               Please save this code somewhere safe.

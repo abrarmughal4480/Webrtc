@@ -4,7 +4,7 @@ import Image from 'next/image';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Trash2, VideoIcon, PlayIcon, Minimize2, Expand, ZoomIn, X, Info, Loader2 } from 'lucide-react';
+import { Plus, Trash2, VideoIcon, PlayIcon, Minimize2, Expand, ZoomIn, X, Info, Loader2, Printer } from 'lucide-react';
 import { toast } from "sonner";
 import AccessCodeDialog from '@/components/dialogs/AccessCodeDialog';
 import { publicApi } from '@/http';
@@ -308,7 +308,26 @@ export default function UploadPage() {
             </div>
           </div>
           <form onSubmit={handleSubmit}>
-            <div className="bg-white rounded-3xl shadow-xl p-6 sm:p-8 mb-6 md:mb-8 border-2 border-gray-200">
+            <div className="bg-white rounded-3xl shadow-xl p-6 sm:p-8 mb-6 md:mb-8 border-2 border-gray-200 relative">
+              {/* Top-right Print and Close icons */}
+              <div className="absolute top-4 right-4 flex gap-2 z-10">
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="p-2 bg-gray-100 hover:bg-gray-200 rounded-full shadow transition"
+                  title="Print"
+                >
+                  <Printer className="w-5 h-5 text-gray-700" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => router.back()}
+                  className="p-2 bg-gray-100 hover:bg-red-200 rounded-full shadow transition"
+                  title="Close"
+                >
+                  <X className="w-5 h-5 text-gray-700" />
+                </button>
+              </div>
               <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-6">
                 Your Details
               </h1>
