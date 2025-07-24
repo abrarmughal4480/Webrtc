@@ -1,6 +1,6 @@
 "use client"
 import { Button } from "@/components/ui/button"
-import { FileText, Archive, Trash2, Monitor, Smartphone, Save, History, ArchiveRestore, ExternalLink, FileSearch, MailIcon, Loader2, Maximize2, Home, RotateCcw, XCircle, Undo2, Info, Search, X, User, Wrench, Clock, ChevronDown, Plus, Check } from "lucide-react"
+import { FileText, Archive, Trash2, Monitor, Smartphone, Save, History, ArchiveRestore, ExternalLink, FileSearch, MailIcon, Loader2, Maximize2, Home, RotateCcw, XCircle, Undo2, Info, Search, X, User, Wrench, Clock, ChevronDown, Plus, Check, Image as ImageIcon, Video as VideoIcon } from "lucide-react"
 import Image from "next/image"
 import {
   DropdownMenu,
@@ -18,14 +18,6 @@ import { toast } from "sonner"
 
 import { useRouter } from "next/navigation"
 
-
-
-import {
-  TrashIcon,
-  ArrowDownTrayIcon,
-  ArrowsPointingOutIcon,
-  ClockIcon,
-} from "@heroicons/react/20/solid";
 import { useDialog } from "@/provider/DilogsProvider"
 import CustomDialog from "@/components/dialogs/CustomDialog"
 import { updateUserLogoRequest } from "@/http/authHttp"
@@ -35,6 +27,10 @@ import FloatingResendButton from "@/components/FloatingResendButton"
 import moment from "moment/moment"
 import { AiOutlineInfoCircle } from "react-icons/ai";
 import { BsInfoCircleFill, BsInfoCircle } from "react-icons/bs";
+import { updateUserRequest } from "@/http/authHttp";
+import AccessCodeDialog from "@/components/dialogs/AccessCodeDialog";
+import { loadMeRequest } from "@/http/authHttp";
+import { getMyUploadsRequest } from "@/http/uploadHttp";
 
 export default function Page() {
   const { user, isAuth, setIsAuth, setUser } = useUser();
@@ -69,6 +65,20 @@ export default function Page() {
   const [createFolderLoading, setCreateFolderLoading] = useState(false);
   const [updateFolderLoading, setUpdateFolderLoading] = useState(null); // folderId when updating
   const [deleteFolderLoading, setDeleteFolderLoading] = useState(null); // folderId when deleting
+
+  const [myUploads, setMyUploads] = useState([]);
+  const [residentUploads, setResidentUploads] = useState([]);
+
+useEffect(() => {
+  if (user?.role === 'resident') {
+    getMyUploadsRequest().then(res => {
+      console.log('Resident uploads API response:', res.data);
+      setResidentUploads(res.data.data.uploads || []);
+    }).catch(() => {
+      setResidentUploads([]);
+    });
+  }
+}, [user?.role]);
 
   // Load folders and meeting assignments from backend
   useEffect(() => {
@@ -138,6 +148,15 @@ export default function Page() {
     reference: '',
   });
 
+  const [roleLoading, setRoleLoading] = useState(false);
+
+  const handleRoleToggle = () => {
+    if (!user) return;
+    const newRole = user.role === "landlord" ? "resident" : "landlord";
+    setUser({ ...user, role: newRole });
+    toast.success(`Role switched to ${newRole === "landlord" ? "User" : "Customer"}`);
+  };
+
   // Add state to track if user is in search mode
   const [isInSearchMode, setIsInSearchMode] = useState(false);
 
@@ -151,7 +170,45 @@ export default function Page() {
   const [showFolderDeleteDialog, setShowFolderDeleteDialog] = useState(false);
   const [folderToDelete, setFolderToDelete] = useState(null);
 
-
+  // Dummy uploads for customer role
+  const [customerUploads] = useState([
+    {
+      id: 1,
+      date: '2024-06-01',
+      images: 3,
+      videos: 1,
+      shareCode: '1234',
+      history: [
+        { action: 'Uploaded', date: '2024-06-01 10:00' },
+        { action: 'Viewed', date: '2024-06-01 12:00' },
+      ],
+    },
+    {
+      id: 2,
+      date: '2024-06-03',
+      images: 2,
+      videos: 2,
+      shareCode: '5678',
+      history: [
+        { action: 'Uploaded', date: '2024-06-03 09:30' },
+      ],
+    },
+    {
+      id: 3,
+      date: '2024-06-05',
+      images: 5,
+      videos: 0,
+      shareCode: '9012',
+      history: [
+        { action: 'Uploaded', date: '2024-06-05 14:20' },
+        { action: 'Edited', date: '2024-06-05 15:00' },
+      ],
+    },
+  ]);
+  const [showAccessCodeDialog, setShowAccessCodeDialog] = useState(false);
+  const [selectedShareCode, setSelectedShareCode] = useState('');
+  const [showHistoryDialog, setShowHistoryDialog] = useState(false);
+  const [selectedHistory, setSelectedHistory] = useState([]);
 
   useEffect(() => {
     fetchMeetings();
@@ -915,10 +972,29 @@ export default function Page() {
     };
   }, [showSearchModal]);
 
+  // --- DEMO/FRONTEND-ONLY ROLE STATE ---
+  // Remove all fakeRole and demo role state/logic
+  // Replace all fakeRole === 'landlord' with user?.role === 'landlord'
+  // Replace all fakeRole === 'resident' with user?.role === 'resident'
+  // Remove the fakeRole state and toggle logic
+  // Show the real user role in the UI
+
+  useEffect(() => {
+    async function fetchUser() {
+      try {
+        const res = await loadMeRequest();
+        setUser(res.data.user);
+      } catch (err) {
+        // Optionally handle error
+      }
+    }
+    fetchUser();
+  }, []);
+
   return (
     <>
       <div className="min-h-screen bg-white p-2">
-        <div className="container mx-auto space-y-4 px-4 sm:px-6 lg:px-8">
+        <div className={`container mx-auto space-y-4 px-4 sm:px-6 lg:px-8 ${user?.role === 'resident' ? 'mt-8' : ''}`}>
           {/* Header */}
           <div className="flex items-center justify-between p-3 sm:p-4 relative min-h-[120px] sm:min-h-[140px]">
             <div className="flex items-center gap-4">
@@ -931,6 +1007,7 @@ export default function Page() {
                 <Home style={{ width: '18px', height: '18px', strokeWidth: '2' }} />
               </Button>
 
+              {user?.role === "landlord" && (
               <div
                 className="flex items-center gap-2 cursor-pointer"
                 onClick={() => setLandlordDialogOpen(true)}
@@ -956,11 +1033,21 @@ export default function Page() {
                   </div>
                 )}
               </div>
+              )}
             </div>
 
             {/* Center positioned dashboard and image - fixed position */}
             <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 flex items-center flex-col z-10">
-              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold mt-8 sm:mt-12">Dashboard</h1>
+              {user?.role === "resident" ? (
+                <>
+                  <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold mt-8 sm:mt-12">Videodesk</h1>
+                  <div className="text-base sm:text-lg mt-1 font-semibold">Dashboard</div>
+                </>
+              ) : (
+                <>
+                  <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold mt-8 sm:mt-12">Dashboard</h1>
+                </>
+              )}
               <div className="mt-0 flex items-center justify-center" style={{ minHeight: '7rem', height: '7rem' }}>
                 {viewMode === 'archived' ? (
                   <span className="text-3xl font-bold text-blue-600 flex items-center justify-center h-full">Archive View</span>
@@ -975,6 +1062,7 @@ export default function Page() {
             </div>
 
             <div className="flex items-center gap-4">              {/* Trash Button */}
+              {user?.role === "landlord" && (
               <Button
                 className={`${viewMode === 'trash' ? 'bg-red-600 hover:bg-red-700' : 'bg-red-500 hover:bg-red-600'} text-white rounded-full px-4 py-2 flex items-center gap-2 shadow transition-all duration-200`}
                 onClick={() => {
@@ -1007,7 +1095,9 @@ export default function Page() {
                   </span>
                 )}
               </Button>
+              )}
               {/* Archive Icon Button */}
+              {user?.role === "landlord" && (
               <Button
                 className={`${viewMode === 'archived' ? 'bg-purple-600 hover:bg-purple-700' : 'bg-blue-500 hover:bg-blue-600'} text-white rounded-full px-4 py-2 flex items-center gap-2`}
                 onClick={() => {
@@ -1024,7 +1114,9 @@ export default function Page() {
                   {viewMode === 'archived' ? 'Exit Archive' : 'View Archive'}
                 </span>
               </Button>
+              )}
 
+              {user?.role === "landlord" && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button className={"bg-amber-500 text-white rounded-3xl flex items-center gap-2 text-xl"}>Actions <img src="/icons/arrow-down.svg" /></Button>
@@ -1045,6 +1137,16 @@ export default function Page() {
                   <DropdownMenuItem > <button className='bg-none border-none cursor-pointer' onClick={() => setFeedbackOpen(true)}>Give Feedback</button></DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
+              )}
+              {/* Resident Upload Button */}
+              {user?.role === "resident" && (
+                <Button
+                  className="bg-amber-500 hover:bg-amber-600 text-white px-6 sm:px-8 py-3 sm:py-4 rounded-full font-medium cursor-pointer text-base sm:text-lg border-0"
+                  onClick={() => router.push('/room/upload')}
+                >
+                  + New Share Link
+                </Button>
+              )}
             </div>
           </div>
 
@@ -1054,7 +1156,9 @@ export default function Page() {
               <div className="flex items-center gap-3 mb-6">
                 {userLoading ? (
                   <>
+                    {user?.role === "landlord" && (
                     <div className="w-12 h-12 bg-gray-200 rounded-full animate-pulse"></div>
+                    )}
                     <div className="space-y-2">
                       <div className="h-3 bg-gray-200 rounded animate-pulse w-12"></div>
                       <div className="h-4 bg-gray-200 rounded animate-pulse w-20"></div>
@@ -1062,6 +1166,7 @@ export default function Page() {
                   </>
                 ) : (
                   <>
+                    {user?.role === "landlord" && (
                     <div
                       className={`w-12 h-12 overflow-hidden cursor-pointer ${getProfileShapeClass()} flex items-center justify-center border border-gray-300 bg-gray-50`}
                       onClick={() => setLandlordDialogOpen(true)}
@@ -1085,8 +1190,9 @@ export default function Page() {
                         </div>
                       )}
                     </div>
+                    )}
                     <div>
-                      <p className="text-sm text-gray-600">Hello,</p>
+                      <p className="text-sm text-gray-600">{user?.role === "landlord" ? "Hello," : "Welcome Back"}</p>
                       <p className="font-semibold">{getDisplayName()}</p>
                     </div>
                   </>
@@ -1123,6 +1229,7 @@ export default function Page() {
                 )}
               </div>
 
+              {user?.role === "landlord" && (
               <Button
                 className="bg-amber-500 hover:bg-amber-600 text-white px-6 sm:px-8 py-3 sm:py-4 rounded-lg font-medium cursor-pointer mt-4 text-base sm:text-lg"
                 onClick={() => setShowVideoLinkSender(true)}
@@ -1137,891 +1244,985 @@ export default function Page() {
                   'Launch new video link'
                 )}
               </Button>
+              )}
             </div>
-          </div>          {/* Colored Blocks Row */}
+          </div>
+          {/* Colored Blocks Row */}
           <div className="bg-white p-4 sm:p-5 rounded-xl shadow-md overflow-x-auto mt-6">
-            {/* Gmail-style Header with Actions - Fixed height to prevent layout shift */}
-            <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-200 h-12">
-              {/* Left: Select All, Selection Info, Bulk Actions */}
-              <div className="flex items-center gap-3 flex-shrink-0">
-                <input
-                  type="checkbox"
-                  checked={selectAll}
-                  onChange={(e) => handleSelectAll(e.target.checked)}
-                  className="rounded border-gray-300"
-                  disabled={loading || meetings.length === 0}
-                />
-                {selectedMeetings.length > 0 ? (
-                  <>
-                    <span className="text-sm text-gray-600">
-                      {selectedMeetings.length} selected
-                    </span>
-                    <button
-                      onClick={handleMultipleDelete}
-                      disabled={isDeleting}
-                      className="text-red-600 hover:text-red-800 text-sm flex items-center gap-1 hover:bg-red-50 px-2 py-1 rounded"
-                      title="Delete selected meetings"
-                    >
-                      {isDeleting ? (
-                        <>
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          <span>Deleting...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Trash2 className="w-4 h-4" />
-                          <span>Delete</span>
-                        </>
-                      )}
-                    </button>
-                    <button
-                      onClick={() => {
-                        setSelectedMeetings([]);
-                        setSelectAll(false);
-                      }}
-                      className="text-gray-500 hover:text-gray-700 text-sm hover:bg-gray-50 px-2 py-1 rounded"
-                    >
-                      Clear selection
-                    </button>
-                  </>
-                ) : (
-                  <span className="text-sm text-gray-500">
-                    {viewMode === 'trash' 
-                      ? `${filteredMeetings.length} ${filteredMeetings.length === 1 ? 'item' : 'items'} (${getTrashedFolders().length} folders, ${meetings.filter(m => m.deleted).length} records)`
-                      : viewMode === 'archived'
-                        ? selectedFolder !== 'all'
-                          ? `${meetings.filter(m => meetingFolders[m._id] === selectedFolder).length} Record${meetings.filter(m => meetingFolders[m._id] === selectedFolder).length === 1 ? '' : 's'} in Folder`
-                          : `${meetings.length} Record${meetings.length === 1 ? '' : 's'} in Archive`
-                        : `${meetings.length} ${meetings.length === 1 ? 'meeting' : 'meetings'}`
-                    }
-                  </span>
-                )}
-                {/* Clear Search Button - Show when in search mode */}
-                {isInSearchMode && (
-                  <button
-                    onClick={() => {
-                      setIsInSearchMode(false);
-                      setSearchFields({
-                        first_name: '', last_name: '', house_name_number: '', 
-                        flat_apartment_room: '', street_road: '', city: '', 
-                        country: '', post_code: '', phone_number: '', 
-                        repair_detail: '', special_notes: '', target_time: '', 
-                        reference: '', date_from: '', date_to: '', email: ''
-                      });
-                      fetchMeetings();
-                    }}
-                    className="text-purple-600 hover:text-purple-800 text-sm flex items-center gap-1 hover:bg-purple-50 px-2 py-1 rounded border border-purple-200"
-                    title="Clear search and show all meetings"
-                  >
-                    <X className="w-4 h-4" />
-                    <span>Clear Search</span>
-                  </button>
-                )}
-              </div>
-              {/* Right: Colored Small Boxes (replacing search/date filters) */}
-              <div className="flex items-center gap-2 flex-shrink-0 ml-auto">
-                <div className="flex gap-2">
-                  <div className="w-[70px] h-6 rounded-md bg-sky-400" />
-                  <div className="w-[70px] h-6 rounded-md bg-red-500" />
-                  <div className="w-[70px] h-6 rounded-md bg-green-500" />
-                  <div className="w-[70px] h-6 flex items-center justify-center rounded-md bg-yellow-300 border border-yellow-400 cursor-pointer" onClick={() => setShowSearchModal(true)}>
-                    <Search className="w-4 h-4 mr-1" />
-                    <span className="text-xs font-semibold text-black">Search</span>
+            {user?.role === "landlord" && (
+              <>
+                {/* Gmail-style Header with Actions - Fixed height to prevent layout shift */}
+                <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-200 h-12">
+                  {/* Left: Select All, Selection Info, Bulk Actions */}
+                  <div className="flex items-center gap-3 flex-shrink-0">
+                    <input
+                      type="checkbox"
+                      checked={selectAll}
+                      onChange={(e) => handleSelectAll(e.target.checked)}
+                      className="rounded border-gray-300"
+                      disabled={loading || meetings.length === 0}
+                    />
+                    {selectedMeetings.length > 0 ? (
+                      <>
+                        <span className="text-sm text-gray-600">
+                          {selectedMeetings.length} selected
+                        </span>
+                        <button
+                          onClick={handleMultipleDelete}
+                          disabled={isDeleting}
+                          className="text-red-600 hover:text-red-800 text-sm flex items-center gap-1 hover:bg-red-50 px-2 py-1 rounded"
+                          title="Delete selected meetings"
+                        >
+                          {isDeleting ? (
+                            <>
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                              <span>Deleting...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Trash2 className="w-4 h-4" />
+                              <span>Delete</span>
+                            </>
+                          )}
+                        </button>
+                        <button
+                          onClick={() => {
+                            setSelectedMeetings([]);
+                            setSelectAll(false);
+                          }}
+                          className="text-gray-500 hover:text-gray-700 text-sm hover:bg-gray-50 px-2 py-1 rounded"
+                        >
+                          Clear selection
+                        </button>
+                      </>
+                    ) : (
+                      <span className="text-sm text-gray-500">
+                        {viewMode === 'trash' 
+                          ? `${filteredMeetings.length} ${filteredMeetings.length === 1 ? 'item' : 'items'} (${getTrashedFolders().length} folders, ${meetings.filter(m => m.deleted).length} records)`
+                          : viewMode === 'archived'
+                            ? selectedFolder !== 'all'
+                              ? `${meetings.filter(m => meetingFolders[m._id] === selectedFolder).length} Record${meetings.filter(m => meetingFolders[m._id] === selectedFolder).length === 1 ? '' : 's'} in Folder`
+                              : `${meetings.length} Record${meetings.length === 1 ? '' : 's'} in Archive`
+                            : `${meetings.length} ${meetings.length === 1 ? 'meeting' : 'meetings'}`
+                        }
+                      </span>
+                    )}
+                    {/* Clear Search Button - Show when in search mode */}
+                    {isInSearchMode && (
+                      <button
+                        onClick={() => {
+                          setIsInSearchMode(false);
+                          setSearchFields({
+                            first_name: '', last_name: '', house_name_number: '', 
+                            flat_apartment_room: '', street_road: '', city: '', 
+                            country: '', post_code: '', phone_number: '', 
+                            repair_detail: '', special_notes: '', target_time: '', 
+                            reference: '', date_from: '', date_to: '', email: ''
+                          });
+                          fetchMeetings();
+                        }}
+                        className="text-purple-600 hover:text-purple-800 text-sm flex items-center gap-1 hover:bg-purple-50 px-2 py-1 rounded border border-purple-200"
+                        title="Clear search and show all meetings"
+                      >
+                        <X className="w-4 h-4" />
+                        <span>Clear Search</span>
+                      </button>
+                    )}
+                  </div>
+                  {/* Right: Colored Small Boxes (replacing search/date filters) */}
+                  <div className="flex items-center gap-2 flex-shrink-0 ml-auto">
+                    <div className="flex gap-2">
+                      <div className="w-[70px] h-6 rounded-md bg-sky-400" />
+                      <div className="w-[70px] h-6 rounded-md bg-red-500" />
+                      <div className="w-[70px] h-6 rounded-md bg-green-500" />
+                      <div className="w-[70px] h-6 flex items-center justify-center rounded-md bg-yellow-300 border border-yellow-400 cursor-pointer" onClick={() => setShowSearchModal(true)}>
+                        <Search className="w-4 h-4 mr-1" />
+                        <span className="text-xs font-semibold text-black">Search</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </div>
 
-            {/* Archive Folders UI - only show in archive view */}
-            {viewMode === 'archived' && (
-              <div className="mb-4 bg-purple-50 border border-purple-200 rounded-lg p-4 flex flex-col gap-2">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <button
-                    className={`px-3 py-1 rounded-full text-sm font-semibold border ${selectedFolder === 'all' ? 'bg-purple-600 text-white border-purple-600' : 'bg-white text-purple-700 border-purple-300'} transition`}
-                    onClick={() => setSelectedFolder('all')}
-                  >
-                    All
-                  </button>
-                  {folders.filter(f => !f.trashed).map(folder => (
-                    <div key={folder.id} className="flex items-center gap-1">
-                      {renamingFolderId === folder.id ? (
+                {/* Archive Folders UI - only show in archive view */}
+                {viewMode === 'archived' && (
+                  <div className="mb-4 bg-purple-50 border border-purple-200 rounded-lg p-4 flex flex-col gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <button
+                        className={`px-3 py-1 rounded-full text-sm font-semibold border ${selectedFolder === 'all' ? 'bg-purple-600 text-white border-purple-600' : 'bg-white text-purple-700 border-purple-300'} transition`}
+                        onClick={() => setSelectedFolder('all')}
+                      >
+                        All
+                      </button>
+                      {folders.filter(f => !f.trashed).map(folder => (
+                        <div key={folder.id} className="flex items-center gap-1">
+                          {renamingFolderId === folder.id ? (
+                            <form
+                              onSubmit={async (e) => {
+                                e.preventDefault();
+                                if (!renameFolderName.trim()) return;
+                                setUpdateFolderLoading(folder.id);
+                                try {
+                                  await updateFolderRequest(folder.id, renameFolderName.trim());
+                                  await loadFolders();
+                                  setRenamingFolderId(null);
+                                  setRenameFolderName('');
+                                  toast.success('Folder renamed successfully');
+                                } catch (error) {
+                                  toast.error(error?.response?.data?.message || 'Failed to rename folder');
+                                } finally {
+                                  setUpdateFolderLoading(null);
+                                }
+                              }}
+                              className="flex items-center gap-1"
+                            >
+                              <input
+                                type="text"
+                                value={renameFolderName}
+                                onChange={e => setRenameFolderName(e.target.value)}
+                                placeholder="Rename folder"
+                                className="px-4 py-2 rounded-lg border border-purple-300 text-sm bg-purple-50 focus:bg-white focus:border-purple-500 focus:shadow-lg focus:outline-none transition-all duration-200 w-48 shadow-sm"
+                                style={{ minWidth: 120, maxWidth: 220 }}
+                                autoFocus
+                                disabled={updateFolderLoading === folder.id}
+                                onKeyDown={e => {
+                                  if (e.key === 'Escape') {
+                                    setRenamingFolderId(null);
+                                    setRenameFolderName('');
+                                  }
+                                }}
+                              />
+                              <button type="submit" className="text-green-600 hover:text-green-800" disabled={updateFolderLoading === folder.id}>
+                                {updateFolderLoading === folder.id ? <Loader2 className="w-5 h-5 animate-spin" /> : <Check className="w-5 h-5" />}
+                              </button>
+                              <button type="button" className="text-gray-400 hover:text-red-600" onClick={() => { setRenamingFolderId(null); setRenameFolderName(''); }}><X className="w-5 h-5" /></button>
+                            </form>
+                          ) : (
+                            <div
+                              className={`px-3 py-1 rounded-full text-sm font-semibold border ${selectedFolder === folder.id ? 'bg-purple-600 text-white border-purple-600' : 'bg-white text-purple-700 border-purple-300'} transition flex items-center gap-1 hover:shadow-md`}
+                              onClick={() => setSelectedFolder(folder.id)}
+                              onDoubleClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setRenamingFolderId(folder.id);
+                                setRenameFolderName(folder.name);
+                              }}
+                              style={{ position: 'relative', userSelect: 'none' }}
+                              title="Click to select, Double-click to rename"
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.cursor = 'pointer';
+                              }}
+                              tabIndex={0}
+                              role="button"
+                            >
+                              {folder.name}
+                              <span
+                                className="ml-1 text-gray-400 hover:text-red-600 cursor-pointer flex items-center"
+                                title="Delete folder"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setFolderToDelete(folder);
+                                  setShowFolderDeleteDialog(true);
+                                }}
+                              >
+                                {deleteFolderLoading === folder.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <X className="w-4 h-4" />}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                      {/* Folder create button and input */}
+                      {showFolderInput ? (
                         <form
                           onSubmit={async (e) => {
                             e.preventDefault();
-                            if (!renameFolderName.trim()) return;
-                            setUpdateFolderLoading(folder.id);
+                            if (!newFolderName.trim()) return;
+                            setCreateFolderLoading(true);
                             try {
-                              await updateFolderRequest(folder.id, renameFolderName.trim());
+                              await createFolderRequest(newFolderName.trim());
                               await loadFolders();
-                              setRenamingFolderId(null);
-                              setRenameFolderName('');
-                              toast.success('Folder renamed successfully');
+                              setNewFolderName('');
+                              setShowFolderInput(false);
+                              toast.success('Folder created successfully');
                             } catch (error) {
-                              toast.error(error?.response?.data?.message || 'Failed to rename folder');
+                              toast.error(error?.response?.data?.message || 'Failed to create folder');
                             } finally {
-                              setUpdateFolderLoading(null);
+                              setCreateFolderLoading(false);
                             }
                           }}
                           className="flex items-center gap-1"
                         >
                           <input
                             type="text"
-                            value={renameFolderName}
-                            onChange={e => setRenameFolderName(e.target.value)}
-                            placeholder="Rename folder"
-                            className="px-4 py-2 rounded-lg border border-purple-300 text-sm bg-purple-50 focus:bg-white focus:border-purple-500 focus:shadow-lg focus:outline-none transition-all duration-200 w-48 shadow-sm"
-                            style={{ minWidth: 120, maxWidth: 220 }}
+                            value={newFolderName}
+                            onChange={e => setNewFolderName(e.target.value)}
+                            placeholder="Type name of new folder here"
+                            className="px-4 py-2 rounded-lg border border-purple-300 text-sm bg-purple-50 focus:bg-white focus:border-purple-500 focus:shadow-lg focus:outline-none transition-all duration-200 w-64 shadow-sm"
+                            style={{ minWidth: 180, maxWidth: 260 }}
                             autoFocus
-                            disabled={updateFolderLoading === folder.id}
-                            onKeyDown={e => {
-                              if (e.key === 'Escape') {
-                                setRenamingFolderId(null);
-                                setRenameFolderName('');
-                              }
-                            }}
+                            disabled={createFolderLoading}
                           />
-                          <button type="submit" className="text-green-600 hover:text-green-800" disabled={updateFolderLoading === folder.id}>
-                            {updateFolderLoading === folder.id ? <Loader2 className="w-5 h-5 animate-spin" /> : <Check className="w-5 h-5" />}
+                          <button type="submit" className="text-green-600 hover:text-green-800" disabled={createFolderLoading}>
+                            {createFolderLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Check className="w-5 h-5" />}
                           </button>
-                          <button type="button" className="text-gray-400 hover:text-red-600" onClick={() => { setRenamingFolderId(null); setRenameFolderName(''); }}><X className="w-5 h-5" /></button>
+                          <button type="button" className="text-gray-400 hover:text-red-600" onClick={() => { setShowFolderInput(false); setNewFolderName(''); }}><X className="w-5 h-5" /></button>
                         </form>
                       ) : (
-                        <div
-                          className={`px-3 py-1 rounded-full text-sm font-semibold border ${selectedFolder === folder.id ? 'bg-purple-600 text-white border-purple-600' : 'bg-white text-purple-700 border-purple-300'} transition flex items-center gap-1 hover:shadow-md`}
-                          onClick={() => setSelectedFolder(folder.id)}
-                          onDoubleClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setRenamingFolderId(folder.id);
-                            setRenameFolderName(folder.name);
-                          }}
-                          style={{ position: 'relative', userSelect: 'none' }}
-                          title="Click to select, Double-click to rename"
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.cursor = 'pointer';
-                          }}
-                          tabIndex={0}
-                          role="button"
+                        <button
+                          className="flex items-center gap-1 px-3 py-1 rounded-full text-sm font-semibold border bg-white text-purple-700 border-purple-300 hover:bg-purple-100 transition"
+                          onClick={() => setShowFolderInput(true)}
+                          type="button"
                         >
-                          {folder.name}
-                          <span
-                            className="ml-1 text-gray-400 hover:text-red-600 cursor-pointer flex items-center"
-                            title="Delete folder"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setFolderToDelete(folder);
-                              setShowFolderDeleteDialog(true);
-                            }}
-                          >
-                            {deleteFolderLoading === folder.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <X className="w-4 h-4" />}
-                          </span>
-                        </div>
+                          <Plus className="w-4 h-4" /> Create New Folder
+                        </button>
                       )}
                     </div>
-                  ))}
-                  {/* Folder create button and input */}
-                  {showFolderInput ? (
-                    <form
-                      onSubmit={async (e) => {
-                        e.preventDefault();
-                        if (!newFolderName.trim()) return;
-                        setCreateFolderLoading(true);
-                        try {
-                          await createFolderRequest(newFolderName.trim());
-                          await loadFolders();
-                          setNewFolderName('');
-                          setShowFolderInput(false);
-                          toast.success('Folder created successfully');
-                        } catch (error) {
-                          toast.error(error?.response?.data?.message || 'Failed to create folder');
-                        } finally {
-                          setCreateFolderLoading(false);
-                        }
-                      }}
-                      className="flex items-center gap-1"
-                    >
-                      <input
-                        type="text"
-                        value={newFolderName}
-                        onChange={e => setNewFolderName(e.target.value)}
-                        placeholder="Type name of new folder here"
-                        className="px-4 py-2 rounded-lg border border-purple-300 text-sm bg-purple-50 focus:bg-white focus:border-purple-500 focus:shadow-lg focus:outline-none transition-all duration-200 w-64 shadow-sm"
-                        style={{ minWidth: 180, maxWidth: 260 }}
-                        autoFocus
-                        disabled={createFolderLoading}
-                      />
-                      <button type="submit" className="text-green-600 hover:text-green-800" disabled={createFolderLoading}>
-                        {createFolderLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Check className="w-5 h-5" />}
-                      </button>
-                      <button type="button" className="text-gray-400 hover:text-red-600" onClick={() => { setShowFolderInput(false); setNewFolderName(''); }}><X className="w-5 h-5" /></button>
-                    </form>
-                  ) : (
-                    <button
-                      className="flex items-center gap-1 px-3 py-1 rounded-full text-sm font-semibold border bg-white text-purple-700 border-purple-300 hover:bg-purple-100 transition"
-                      onClick={() => setShowFolderInput(true)}
-                      type="button"
-                    >
-                      <Plus className="w-4 h-4" /> Create New Folder
-                    </button>
-                  )}
-                </div>
-                {selectedFolder !== 'all' && (
-                  <div className="text-xs text-purple-700 font-medium">Showing: {folders.find(f => f.id === selectedFolder)?.name || ''}</div>
+                    {selectedFolder !== 'all' && (
+                      <div className="text-xs text-purple-700 font-medium">Showing: {folders.find(f => f.id === selectedFolder)?.name || ''}</div>
+                    )}
+                  </div>
                 )}
-              </div>
-            )}
 
-            {/* Trash View Info - Only show in trash view */}
-            {viewMode === 'trash' && (
-              <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-4">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold text-red-700">Trash View</span>
-                  <span className="text-xs text-red-600">Showing both trashed folders and individual records</span>
-                </div>
-              </div>
-            )}
-
-            <table className="min-w-full text-left text-xs sm:text-sm">
-              <thead className="sticky top-0 bg-white">
-                <tr className="h-14 align-middle">
-                  <th className="px-4 py-2 font-semibold text-black text-left w-1/3 h-14 align-middle">
-                    {viewMode === 'trash' ? 'Name/Address' : 'Resident name and address'}
-                  </th>
-                  <th className="px-4 py-2 font-semibold text-black text-left w-1/3 h-14 align-middle">
-                    {viewMode === 'trash' ? 'Details' : 'Video Link'}
-                  </th>
-                  <th className="px-4 py-2 font-semibold text-black text-left w-1/6 h-14 align-middle">
-                    Time and Date
-                  </th>
-                  <th className="px-4 py-2 font-semibold text-black text-left w-1/6 h-14 align-middle whitespace-nowrap">
-                    <div>
-                      {viewMode === 'trash' ? (
-                        <span className="block">Restore/Delete Permanently</span>
-                      ) : (
-                        <>
-                          <span className="block">{viewMode === 'archived' ? 'Discard/Unarchive/' : 'Discard/Archive/'}</span>
-                          <span className="block">Export/History</span>
-                        </>
-                      )}
+                {/* Trash View Info - Only show in trash view */}
+                {viewMode === 'trash' && (
+                  <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-4">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold text-red-700">Trash View</span>
+                      <span className="text-xs text-red-600">Showing both trashed folders and individual records</span>
                     </div>
-                  </th>
-                  {viewMode === 'archived' && (
-                    <th className="px-4 py-2 font-semibold text-black text-left w-1/6 h-14 align-middle whitespace-nowrap">Folder Location</th>
-                  )}
-                </tr>
-              </thead>
-              <tbody>
-                {loading && !isActionLoading ? (
-                  // Skeleton loading rows
-                  Array.from({ length: 3 }).map((_, index) => (
-                    <tr key={`skeleton-${index}`} className="border-b">
-                      <td className="px-4 py-3 w-1/3">
-                        <div className="flex items-start gap-2">
-                          <div className="w-4 h-4 bg-gray-200 rounded animate-pulse mt-1"></div>
-                          <span className="flex-shrink-0">{index + 1}.</span>
-                          <div className="flex-1 space-y-2">
-                            <div className="h-4 bg-gray-200 rounded animate-pulse w-3/4"></div>
-                            <div className="h-3 bg-gray-200 rounded animate-pulse w-1/2"></div>
-                          </div>
+                  </div>
+                )}
+
+                <table className="min-w-full text-left text-xs sm:text-sm">
+                  <thead className="sticky top-0 bg-white">
+                    <tr className="h-14 align-middle">
+                      <th className="px-4 py-2 font-semibold text-black text-left w-1/3 h-14 align-middle">
+                        {viewMode === 'trash' ? 'Name/Address' : 'Resident name and address'}
+                      </th>
+                      <th className="px-4 py-2 font-semibold text-black text-left w-1/3 h-14 align-middle">
+                        {viewMode === 'trash' ? 'Details' : 'Video Link'}
+                      </th>
+                      <th className="px-4 py-2 font-semibold text-black text-left w-1/6 h-14 align-middle">
+                        Time and Date
+                      </th>
+                      <th className="px-4 py-2 font-semibold text-black text-left w-1/6 h-14 align-middle whitespace-nowrap">
+                        <div>
+                          {viewMode === 'trash' ? (
+                            <span className="block">Restore/Delete Permanently</span>
+                          ) : (
+                            <>
+                              <span className="block">{viewMode === 'archived' ? 'Discard/Unarchive/' : 'Discard/Archive/'}</span>
+                              <span className="block">Export/History</span>
+                            </>
+                          )}
                         </div>
-                      </td>
-                      <td className="px-4 py-3 w-1/3">
-                        <div className="h-4 bg-gray-200 rounded animate-pulse w-full"></div>
-                      </td>
-                      <td className="px-4 py-3 w-1/6">
-                        <div className="flex items-center space-x-2">
-                          <div className="h-4 bg-gray-200 rounded animate-pulse w-12"></div>
-                          <div className="h-3 bg-gray-200 rounded animate-pulse w-10"></div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 w-1/6">
-                        {viewMode === 'trash' ? (
-                          <div className="flex justify-start gap-3">
-                            <div className="p-1 rounded w-7 h-7 flex items-center justify-center bg-orange-100 animate-pulse"></div>
-                            <div className="p-1 rounded w-7 h-7 flex items-center justify-center bg-orange-100 animate-pulse"></div>
-                          </div>
-                        ) : (
-                          <div className="flex justify-start gap-3">
-                            <div className="w-4 h-4 bg-gray-200 rounded animate-pulse"></div>
-                            <div className="w-4 h-4 bg-gray-200 rounded animate-pulse"></div>
-                            <div className="w-5 h-5 bg-gray-200 rounded animate-pulse"></div>
-                            <div className="w-5 h-5 bg-gray-200 rounded animate-pulse"></div>
-                          </div>
-                        )}
-                      </td>
+                      </th>
                       {viewMode === 'archived' && (
-                        <td className="px-4 py-3 w-1/6">
-                          <div className="h-4 bg-gray-200 rounded animate-pulse w-full"></div>
-                        </td>
+                        <th className="px-4 py-2 font-semibold text-black text-left w-1/6 h-14 align-middle whitespace-nowrap">Folder Location</th>
                       )}
                     </tr>
-                  ))
-                ) : (selectedFolder !== 'all' && viewMode === 'archived' && filteredMeetings.length === 0) ? (
-                  <tr>
-                    <td colSpan="4" className="text-center py-8 text-gray-500 align-middle" style={{ height: '72px' }}>
-                      This folder has no records yet
-                    </td>
-                  </tr>
-                ) : filteredMeetings.length === 0 ? (
-                  <tr>
-                    <td colSpan="4" className="text-center py-8 text-gray-500 align-middle" style={{ height: '72px' }}>
-                      {viewMode === 'archived'
-                        ? 'No archived meetings found.'
-                        : viewMode === 'trash'
-                          ? 'No trashed items found.'
-                          : 'No meetings found. Create your first video link to get started!'}
-                    </td>
-                  </tr>
-                ) : (
-                  currentMeetings.map((item, index) => {
-                    const actualIndex = indexOfFirstItem + index;
-                    
-                    console.log('🔍 [Table Render] Item:', item);
-                    console.log('🔍 [Table Render] Item isFolder:', item.isFolder);
-                    console.log('🔍 [Table Render] ViewMode:', viewMode);
-                    
-                    // Handle folders in trash view
-                    if (viewMode === 'trash' && item.isFolder) {
-                      const folder = item.folder;
-                      const { time, date } = formatMeetingDate(folder.createdAt);
-                      return (
-                        <tr key={item._id} className="hover:bg-gray-50 border-b group">
+                  </thead>
+                  <tbody>
+                    {loading && !isActionLoading ? (
+                      // Skeleton loading rows
+                      Array.from({ length: 3 }).map((_, index) => (
+                        <tr key={`skeleton-${index}`} className="border-b">
                           <td className="px-4 py-3 w-1/3">
                             <div className="flex items-start gap-2">
-                              <span className="flex-shrink-0">{actualIndex + 1}.</span>
-                              <div className="flex items-center gap-2 flex-1">
-                                <span className="break-words font-medium">{folder.name}</span>
-                                <span className="bg-red-200 text-red-700 px-2 py-1 rounded-full text-xs flex-shrink-0">
-                                  Trashed Folder
-                                </span>
+                              <div className="w-4 h-4 bg-gray-200 rounded animate-pulse mt-1"></div>
+                              <span className="flex-shrink-0">{index + 1}.</span>
+                              <div className="flex-1 space-y-2">
+                                <div className="h-4 bg-gray-200 rounded animate-pulse w-3/4"></div>
+                                <div className="h-3 bg-gray-200 rounded animate-pulse w-1/2"></div>
                               </div>
                             </div>
                           </td>
                           <td className="px-4 py-3 w-1/3">
-                            <span className="text-gray-700 font-medium">
-                              {item.recordCount} records
-                            </span>
+                            <div className="h-4 bg-gray-200 rounded animate-pulse w-full"></div>
                           </td>
                           <td className="px-4 py-3 w-1/6">
-                            <div className="flex items-center">
-                              <span className="font-mono" style={{ whiteSpace: 'pre' }}>{time}</span>
-                              <span className="mx-2"></span>
-                              <span className="font-mono">{date}</span>
+                            <div className="flex items-center space-x-2">
+                              <div className="h-4 bg-gray-200 rounded animate-pulse w-12"></div>
+                              <div className="h-3 bg-gray-200 rounded animate-pulse w-10"></div>
                             </div>
                           </td>
                           <td className="px-4 py-3 w-1/6">
-                            <div className="flex justify-start gap-3">
-                              <button
-                                title="Restore Folder"
-                                onClick={async () => {
-                                  try {
-                                    const response = await restoreFolderFromTrashRequest(folder.id);
-                                    await loadFolders();
-                                    await fetchMeetings(false);
-                                    await loadMeetingFolders();
-                                    // Calculate the actual number of records in the folder
-                                    const recordsInFolder = Object.values(meetingFolders).filter(folderId => String(folderId) === String(folder.id)).length;
-                                    toast.success(`Folder "${folder.name}" and ${recordsInFolder} records restored successfully`);
-                                  } catch (error) {
-                                    toast.error("Failed to restore folder", { description: error?.response?.data?.message || error.message });
-                                  }
-                                }}
-                                className="hover:bg-green-50 p-1 rounded"
-                              >
-                                <Undo2 className="w-5 h-5 text-green-600" />
-                              </button>
-                              <button
-                                title="Permanently Delete Folder"
-                                onClick={() => {
-                                  setFolderToDelete(folder);
-                                  setShowFolderDeleteDialog(true);
-                                }}
-                                className="hover:bg-red-50 p-1 rounded"
-                              >
-                                <Trash2 className="w-5 h-5 text-red-600" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    }
-                    
-                    // Handle individual meetings (both in trash and other views)
-                    const meeting = item;
-                    const { time, date } = formatMeetingDate(meeting.createdAt);
-                    const shareUrl = meeting.meeting_id ? generateShareUrl(meeting.meeting_id) : null;
-                    const isArchived = meeting.archived || false;
-                    return (
-                      <tr key={meeting._id} className="hover:bg-gray-50 border-b group">
-                        <td className="px-4 py-3 w-1/3">
-                          <div className="flex items-start gap-2">
-                            {!meeting.deleted && (
-                            <input
-                              type="checkbox"
-                              checked={selectedMeetings.includes(meeting._id)}
-                              onChange={(e) => handleSelectMeeting(meeting._id, e.target.checked)}
-                              className="rounded border-gray-300 mt-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                              style={{
-                                opacity: selectedMeetings.includes(meeting._id) ? 1 : undefined
-                              }}
-                            />
-                            )}
-                            <span className="flex-shrink-0">{actualIndex + 1}.</span>
-                            <div className="flex items-center gap-2 flex-1">
-                              <span className="break-words">{
-                                (meeting.first_name || meeting.last_name
-                                  ? `${meeting.first_name || ''} ${meeting.last_name || ''}`.trim()
-                                  : meeting.name || 'Unknown Resident')
-                              }, {formatCompleteAddress(meeting)}</span>
-                              {/* Show archived badge if meeting is archived */}
-                              {isArchived && viewMode !== 'archived' && (
-                                <span className="bg-gray-200 text-gray-700 px-2 py-1 rounded-full text-xs flex-shrink-0">
-                                  Archived
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 w-1/3">
-                          {meeting.deleted || !meeting.meeting_id ? (
-                            <span
-                              className="text-gray-400 line-through cursor-not-allowed text-left"
-                              title="Link disabled for deleted meetings"
-                            >
-                              {meeting.meeting_id ? `www.Videodesk.co.uk/share/${meeting.meeting_id.substring(0, 8)}...` : 'No link available'}
-                            </span>
-                          ) : (
-                            <button
-                              onClick={() => openShareUrl(meeting.meeting_id)}
-                              className="text-blue-600 underline hover:text-blue-800 cursor-pointer text-left"
-                              title="Click to open share link in new tab"
-                            >
-                              www.Videodesk.co.uk/share/{meeting.meeting_id.substring(0, 8)}...
-                            </button>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 w-1/6">
-                          <div className="flex items-center">
-                            <span className="font-mono" style={{ whiteSpace: 'pre' }}>{time}</span>
-                            <span className="mx-2"></span>
-                            <span className="font-mono">{date}</span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 w-1/6">
-                          <div className="flex justify-start gap-3">
                             {viewMode === 'trash' ? (
-                              <>
-                                <button
-                                  title="Restore"
-                                  onClick={async () => {
-                                    try {
-                                      await restoreMeeting(meeting._id);
-                                      toast.success("Meeting restored successfully");
-                                      fetchMeetings(false);
-                                    } catch (error) {
-                                      toast.error("Failed to restore meeting", { description: error?.response?.data?.message || error.message });
-                                    }
-                                  }}
-                                  className="hover:bg-green-50 p-1 rounded"
-                                >
-                                  <Undo2 className="w-5 h-5 text-green-600" />
-                                </button>
-                                <button
-                                  title="Permanently Delete"
-                                  onClick={() => {
-                                    setMeetingToDelete(meeting);
-                                    setShowPermanentDeleteDialog(true);
-                                  }}
-                                  className="hover:bg-red-50 p-1 rounded"
-                                >
-                                  <Trash2 className="w-5 h-5 text-red-600" />
-                                </button>
-                              </>
+                              <div className="flex justify-start gap-3">
+                                <div className="p-1 rounded w-7 h-7 flex items-center justify-center bg-orange-100 animate-pulse"></div>
+                                <div className="p-1 rounded w-7 h-7 flex items-center justify-center bg-orange-100 animate-pulse"></div>
+                              </div>
                             ) : (
-                              <>
-                                <button
-                                  title="Discard"
-                                  onClick={() => handleDeleteMeeting(meeting._id, meeting.name)}
-                                  className="hover:bg-red-50 p-1 rounded"
-                                >
-                                  <img src="/icons/trash-red.svg" className="w-4 h-4" />
-                                </button>
-
-                                {/* Show appropriate archive/unarchive button based on meeting status */}
-                                {isArchived ? (
+                              <div className="flex justify-start gap-3">
+                                <div className="w-4 h-4 bg-gray-200 rounded animate-pulse"></div>
+                                <div className="w-4 h-4 bg-gray-200 rounded animate-pulse"></div>
+                                <div className="w-5 h-5 bg-gray-200 rounded animate-pulse"></div>
+                                <div className="w-5 h-5 bg-gray-200 rounded animate-pulse"></div>
+                              </div>
+                            )}
+                          </td>
+                          {viewMode === 'archived' && (
+                            <td className="px-4 py-3 w-1/6">
+                              <div className="h-4 bg-gray-200 rounded animate-pulse w-full"></div>
+                            </td>
+                          )}
+                        </tr>
+                      ))
+                    ) : (selectedFolder !== 'all' && viewMode === 'archived' && filteredMeetings.length === 0) ? (
+                      <tr>
+                        <td colSpan="4" className="text-center py-8 text-gray-500 align-middle" style={{ height: '72px' }}>
+                          This folder has no records yet
+                        </td>
+                      </tr>
+                    ) : filteredMeetings.length === 0 ? (
+                      <tr>
+                        <td colSpan="4" className="text-center py-8 text-gray-500 align-middle" style={{ height: '72px' }}>
+                          {viewMode === 'archived'
+                            ? 'No archived meetings found.'
+                            : viewMode === 'trash'
+                              ? 'No trashed items found.'
+                              : 'No meetings found. Create your first video link to get started!'}
+                        </td>
+                      </tr>
+                    ) : (
+                      currentMeetings.map((item, index) => {
+                        const actualIndex = indexOfFirstItem + index;
+                        
+                        console.log('🔍 [Table Render] Item:', item);
+                        console.log('🔍 [Table Render] Item isFolder:', item.isFolder);
+                        console.log('🔍 [Table Render] ViewMode:', viewMode);
+                        
+                        // Handle folders in trash view
+                        if (viewMode === 'trash' && item.isFolder) {
+                          const folder = item.folder;
+                          const { time, date } = formatMeetingDate(folder.createdAt);
+                          return (
+                            <tr key={item._id} className="hover:bg-gray-50 border-b group">
+                              <td className="px-4 py-3 w-1/3">
+                                <div className="flex items-start gap-2">
+                                  <span className="flex-shrink-0">{actualIndex + 1}.</span>
+                                  <div className="flex items-center gap-2 flex-1">
+                                    <span className="break-words font-medium">{folder.name}</span>
+                                    <span className="bg-red-200 text-red-700 px-2 py-1 rounded-full text-xs flex-shrink-0">
+                                      Trashed Folder
+                                    </span>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 w-1/3">
+                                <span className="text-gray-700 font-medium">
+                                  {item.recordCount} records
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 w-1/6">
+                                <div className="flex items-center">
+                                  <span className="font-mono" style={{ whiteSpace: 'pre' }}>{time}</span>
+                                  <span className="mx-2"></span>
+                                  <span className="font-mono">{date}</span>
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 w-1/6">
+                                <div className="flex justify-start gap-3">
                                   <button
-                                    title="Unarchive"
-                                    onClick={() => handleUnarchiveMeeting(meeting._id, meeting.name)}
+                                    title="Restore Folder"
+                                    onClick={async () => {
+                                      try {
+                                        const response = await restoreFolderFromTrashRequest(folder.id);
+                                        await loadFolders();
+                                        await fetchMeetings(false);
+                                        await loadMeetingFolders();
+                                        // Calculate the actual number of records in the folder
+                                        const recordsInFolder = Object.values(meetingFolders).filter(folderId => String(folderId) === String(folder.id)).length;
+                                        toast.success(`Folder "${folder.name}" and ${recordsInFolder} records restored successfully`);
+                                      } catch (error) {
+                                        toast.error("Failed to restore folder", { description: error?.response?.data?.message || error.message });
+                                      }
+                                    }}
                                     className="hover:bg-green-50 p-1 rounded"
                                   >
-                                    <ArchiveRestore className="w-4 h-4 text-green-600" />
+                                    <Undo2 className="w-5 h-5 text-green-600" />
                                   </button>
-                                ) : (
                                   <button
-                                    title="Archive"
-                                    onClick={() => handleArchiveMeeting(meeting._id, meeting.name)}
-                                    className="hover:bg-gray-50 p-1 rounded"
+                                    title="Permanently Delete Folder"
+                                    onClick={() => {
+                                      setFolderToDelete(folder);
+                                      setShowFolderDeleteDialog(true);
+                                    }}
+                                    className="hover:bg-red-50 p-1 rounded"
                                   >
-                                    <img src="/icons/download.svg" className="w-4 h-4" />
+                                    <Trash2 className="w-5 h-5 text-red-600" />
                                   </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        }
+                        
+                        // Handle individual meetings (both in trash and other views)
+                        const meeting = item;
+                        const { time, date } = formatMeetingDate(meeting.createdAt);
+                        const shareUrl = meeting.meeting_id ? generateShareUrl(meeting.meeting_id) : null;
+                        const isArchived = meeting.archived || false;
+                        return (
+                          <tr key={meeting._id} className="hover:bg-gray-50 border-b group">
+                            <td className="px-4 py-3 w-1/3">
+                              <div className="flex items-start gap-2">
+                                {!meeting.deleted && (
+                                <input
+                                  type="checkbox"
+                                  checked={selectedMeetings.includes(meeting._id)}
+                                  onChange={(e) => handleSelectMeeting(meeting._id, e.target.checked)}
+                                  className="rounded border-gray-300 mt-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                                  style={{
+                                    opacity: selectedMeetings.includes(meeting._id) ? 1 : undefined
+                                  }}
+                                />
                                 )}
+                                <span className="flex-shrink-0">{actualIndex + 1}.</span>
+                                <div className="flex items-center gap-2 flex-1">
+                                  <span className="break-words">{
+                                    (meeting.first_name || meeting.last_name
+                                      ? `${meeting.first_name || ''} ${meeting.last_name || ''}`.trim()
+                                      : meeting.name || 'Unknown Resident')
+                                  }, {formatCompleteAddress(meeting)}</span>
+                                  {/* Show archived badge if meeting is archived */}
+                                  {isArchived && viewMode !== 'archived' && (
+                                    <span className="bg-gray-200 text-gray-700 px-2 py-1 rounded-full text-xs flex-shrink-0">
+                                      Archived
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 w-1/3">
+                              {meeting.deleted || !meeting.meeting_id ? (
+                                <span
+                                  className="text-gray-400 line-through cursor-not-allowed text-left"
+                                  title="Link disabled for deleted meetings"
+                                >
+                                  {meeting.meeting_id ? `www.Videodesk.co.uk/share/${meeting.meeting_id.substring(0, 8)}...` : 'No link available'}
+                                </span>
+                              ) : (
+                                <button
+                                  onClick={() => openShareUrl(meeting.meeting_id)}
+                                  className="text-blue-600 underline hover:text-blue-800 cursor-pointer text-left"
+                                  title="Click to open share link in new tab"
+                                >
+                                  www.Videodesk.co.uk/share/{meeting.meeting_id.substring(0, 8)}...
+                                </button>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 w-1/6">
+                              <div className="flex items-center">
+                                <span className="font-mono" style={{ whiteSpace: 'pre' }}>{time}</span>
+                                <span className="mx-2"></span>
+                                <span className="font-mono">{date}</span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 w-1/6">
+                              <div className="flex justify-start gap-3">
+                                {viewMode === 'trash' ? (
+                                  <>
+                                    <button
+                                      title="Restore"
+                                      onClick={async () => {
+                                        try {
+                                          await restoreMeeting(meeting._id);
+                                          toast.success("Meeting restored successfully");
+                                          fetchMeetings(false);
+                                        } catch (error) {
+                                          toast.error("Failed to restore meeting", { description: error?.response?.data?.message || error.message });
+                                        }
+                                      }}
+                                      className="hover:bg-green-50 p-1 rounded"
+                                    >
+                                      <Undo2 className="w-5 h-5 text-green-600" />
+                                    </button>
+                                    <button
+                                      title="Permanently Delete"
+                                      onClick={() => {
+                                        setMeetingToDelete(meeting);
+                                        setShowPermanentDeleteDialog(true);
+                                      }}
+                                      className="hover:bg-red-50 p-1 rounded"
+                                    >
+                                      <Trash2 className="w-5 h-5 text-red-600" />
+                                    </button>
+                                  </>
+                                ) : (
+                                  <>
+                                    <button
+                                      title="Discard"
+                                      onClick={() => handleDeleteMeeting(meeting._id, meeting.name)}
+                                      className="hover:bg-red-50 p-1 rounded"
+                                    >
+                                      <img src="/icons/trash-red.svg" className="w-4 h-4" />
+                                    </button>
 
-                                <button
-                                  title="Export"
-                                  onClick={() => setExportOpen(true, meeting)}
-                                  className="hover:bg-gray-50 p-1 rounded"
-                                >
-                                  <img src="/icons/icon-park_share.svg" className="w-5 h-5" />
-                                </button>
-                                <button
-                                  title="History"
-                                  onClick={() => setHistoryOpen(true, meeting)}
-                                  className="hover:bg-gray-50 p-1 rounded"
-                                >
-                                  <img src="/icons/icon-park-outline_history-query.svg" className="w-5 h-5" />
-                                </button>
-                              </>
+                                    {/* Show appropriate archive/unarchive button based on meeting status */}
+                                    {isArchived ? (
+                                      <button
+                                        title="Unarchive"
+                                        onClick={() => handleUnarchiveMeeting(meeting._id, meeting.name)}
+                                        className="hover:bg-green-50 p-1 rounded"
+                                      >
+                                        <ArchiveRestore className="w-4 h-4 text-green-600" />
+                                      </button>
+                                    ) : (
+                                      <button
+                                        title="Archive"
+                                        onClick={() => handleArchiveMeeting(meeting._id, meeting.name)}
+                                        className="hover:bg-gray-50 p-1 rounded"
+                                      >
+                                        <img src="/icons/download.svg" className="w-4 h-4" />
+                                      </button>
+                                    )}
+
+                                    <button
+                                      title="Export"
+                                      onClick={() => setExportOpen(true, meeting)}
+                                      className="hover:bg-gray-50 p-1 rounded"
+                                    >
+                                      <img src="/icons/icon-park_share.svg" className="w-5 h-5" />
+                                    </button>
+                                    <button
+                                      title="History"
+                                      onClick={() => setHistoryOpen(true, meeting)}
+                                      className="hover:bg-gray-50 p-1 rounded"
+                                    >
+                                      <img src="/icons/icon-park-outline_history-query.svg" className="w-5 h-5" />
+                                    </button>
+                                  </>
+                                )}
+                              </div>
+                            </td>
+                            {viewMode === 'archived' && (
+                              <td className="px-4 py-3 w-1/6">
+                                <div className="flex items-center gap-2">
+                                  <select
+                                    value={meetingFolders[meeting._id] || ''}
+                                    onChange={async (e) => {
+                                      const folderId = e.target.value;
+                                      try {
+                                        await assignMeetingToFolderRequest(meeting._id, folderId || null);
+                                        await loadMeetingFolders();
+                                        toast.success(folderId ? 'Meeting assigned to folder' : 'Meeting removed from folder');
+                                      } catch (error) {
+                                        toast.error(error?.response?.data?.message || 'Failed to assign meeting to folder');
+                                      }
+                                    }}
+                                    className="border border-purple-300 rounded px-2 py-1 text-xs"
+                                  >
+                                    <option value="">No Folder</option>
+                                    {folders.filter(f => !f.trashed).map(folder => (
+                                      <option key={folder.id} value={folder.id}>{folder.name}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                              </td>
                             )}
-                          </div>
-                        </td>
-                        {viewMode === 'archived' && (
-                          <td className="px-4 py-3 w-1/6">
-                            <div className="flex items-center gap-2">
-                              <select
-                                value={meetingFolders[meeting._id] || ''}
-                                onChange={async (e) => {
-                                  const folderId = e.target.value;
-                                  try {
-                                    await assignMeetingToFolderRequest(meeting._id, folderId || null);
-                                    await loadMeetingFolders();
-                                    toast.success(folderId ? 'Meeting assigned to folder' : 'Meeting removed from folder');
-                                  } catch (error) {
-                                    toast.error(error?.response?.data?.message || 'Failed to assign meeting to folder');
-                                  }
-                                }}
-                                className="border border-purple-300 rounded px-2 py-1 text-xs"
-                              >
-                                <option value="">No Folder</option>
-                                {folders.filter(f => !f.trashed).map(folder => (
-                                  <option key={folder.id} value={folder.id}>{folder.name}</option>
-                                ))}
-                              </select>
-                            </div>
-                          </td>
-                        )}
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
 
-            {/* Pagination Controls */}
-            {!loading && !isActionLoading && filteredMeetings.length > 0 && (
-              <div className="flex items-center justify-between mt-6 px-4">
-                {/* Left side - Items per page selector and results info */}
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-gray-600">Show:</span>
-                    <div className="relative">
-                      <select
-                        value={itemsPerPage}
-                        onChange={(e) => handleItemsPerPageChange(Number(e.target.value))}
-                        className="px-2 py-1 pr-8 text-sm border border-gray-300 rounded-md bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none"
-                      >
-                        <option value={10}>10</option>
-                        <option value={20}>20</option>
-                        <option value={30}>30</option>
-                        <option value={40}>40</option>
-                        <option value={50}>50</option>
-                      </select>
-                      <ChevronDown className="w-3 h-3 text-gray-900 absolute right-2 top-1/2 transform -translate-y-1/2 pointer-events-none" strokeWidth={2} />
+                {/* Pagination Controls */}
+                {!loading && !isActionLoading && filteredMeetings.length > 0 && (
+                  <div className="flex items-center justify-between mt-6 px-4">
+                    {/* Left side - Items per page selector and results info */}
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-gray-600">Show:</span>
+                        <div className="relative">
+                          <select
+                            value={itemsPerPage}
+                            onChange={(e) => handleItemsPerPageChange(Number(e.target.value))}
+                            className="px-2 py-1 pr-8 text-sm border border-gray-300 rounded-md bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none"
+                          >
+                            <option value={10}>10</option>
+                            <option value={20}>20</option>
+                            <option value={30}>30</option>
+                            <option value={40}>40</option>
+                            <option value={50}>50</option>
+                          </select>
+                          <ChevronDown className="w-3 h-3 text-gray-900 absolute right-2 top-1/2 transform -translate-y-1/2 pointer-events-none" strokeWidth={2} />
+                        </div>
+                        <span className="text-sm text-gray-600">per page</span>
+                      </div>
+                    <div className="text-sm text-gray-600">
+                      Showing {indexOfFirstItem + 1} to {Math.min(indexOfLastItem, filteredMeetings.length)} of {filteredMeetings.length} results
+                      </div>
                     </div>
-                    <span className="text-sm text-gray-600">per page</span>
-                  </div>
-                <div className="text-sm text-gray-600">
-                  Showing {indexOfFirstItem + 1} to {Math.min(indexOfLastItem, filteredMeetings.length)} of {filteredMeetings.length} results
-                  </div>
-                </div>
 
-                {/* Right side - Pagination buttons (only show if more than one page) */}
-                {filteredMeetings.length > itemsPerPage && (
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={handlePrevPage}
-                    disabled={currentPage === 1}
-                    className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Previous
-                  </button>
-
-                  <div className="flex gap-1">
-                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNumber) => (
+                    {/* Right side - Pagination buttons (only show if more than one page) */}
+                    {filteredMeetings.length > itemsPerPage && (
+                    <div className="flex items-center gap-2">
                       <button
-                        key={pageNumber}
-                        onClick={() => handlePageClick(pageNumber)}
-                        className={`px-3 py-1 text-sm border border-gray-300 rounded-md ${currentPage === pageNumber
-                            ? 'bg-blue-500 text-white border-blue-500'
-                            : 'hover:bg-gray-50'
-                          }`}
+                        onClick={handlePrevPage}
+                        disabled={currentPage === 1}
+                        className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        {pageNumber}
+                        Previous
                       </button>
-                    ))}
-                  </div>
 
-                  <button
-                    onClick={handleNextPage}
-                    disabled={currentPage === totalPages}
-                    className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Next
-                  </button>
-                </div>
+                      <div className="flex gap-1">
+                        {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNumber) => (
+                          <button
+                            key={pageNumber}
+                            onClick={() => handlePageClick(pageNumber)}
+                            className={`px-3 py-1 text-sm border border-gray-300 rounded-md ${currentPage === pageNumber
+                                ? 'bg-blue-500 text-white border-blue-500'
+                                : 'hover:bg-gray-50'
+                              }`}
+                          >
+                            {pageNumber}
+                          </button>
+                        ))}
+                      </div>
+
+                      <button
+                        onClick={handleNextPage}
+                        disabled={currentPage === totalPages}
+                        className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Next
+                      </button>
+                    </div>
+                    )}
+                  </div>
                 )}
-              </div>
+              </>
+            )}
+            {user?.role === "resident" && (
+              <>
+                <h2 className="text-xl font-bold mb-4 text-blue-700">Your Shared Uploads</h2>
+                <div className="flex flex-col gap-4">
+                  {residentUploads.length === 0 ? (
+                    <div className="text-center text-gray-500 py-8">No uploads found.</div>
+                  ) : (
+                    residentUploads.map((upload, idx) => {
+                      const dateObj = new Date(upload.createdAt);
+                      const formattedDate = !isNaN(dateObj) ? `${String(dateObj.getDate()).padStart(2, '0')}/${String(dateObj.getMonth() + 1).padStart(2, '0')}/${dateObj.getFullYear()}` : upload.createdAt;
+                      return (
+                        <div
+                          key={upload._id}
+                          className="flex bg-blue-50 border border-blue-200 rounded-lg shadow-sm px-6 py-4 w-full items-stretch"
+                          style={{ minWidth: 600 }}
+                        >
+                          {/* Left: Date */}
+                          <div className="flex flex-col justify-center items-start min-w-[120px] pr-6">
+                            <span className="text-xs text-gray-500">Date</span>
+                            <span className="font-semibold text-lg text-blue-900">{formattedDate}</span>
+                          </div>
+                          {/* Divider */}
+                          <div className="w-px bg-blue-200 mx-4" />
+                          {/* Center: Images & Videos */}
+                          <div className="flex flex-col justify-center items-center flex-grow min-w-[180px]">
+                            <div className="flex items-center gap-8">
+                              <div className="flex flex-col items-center">
+                                <div className="flex items-center gap-1">
+                                  <ImageIcon className="w-5 h-5 text-blue-700" />
+                                  <span className="font-semibold text-blue-700 text-lg">{upload.images?.length || 0}</span>
+                                </div>
+                                <span className="text-xs text-gray-500 mt-1">Images</span>
+                              </div>
+                              <div className="flex flex-col items-center">
+                                <div className="flex items-center gap-1">
+                                  <VideoIcon className="w-5 h-5 text-blue-700" />
+                                  <span className="font-semibold text-blue-700 text-lg">{upload.videos?.length || 0}</span>
+                                </div>
+                                <span className="text-xs text-gray-500 mt-1">Videos</span>
+                              </div>
+                            </div>
+                          </div>
+                          {/* Divider */}
+                          <div className="w-px bg-blue-200 mx-4" />
+                          {/* Right: Share Code */}
+                          <div className="flex flex-col justify-between items-end min-w-[160px]">
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="text-xs text-gray-500">Share Code:</span>
+                              <span className="font-mono font-bold text-lg text-blue-900 bg-blue-100 px-3 py-1 rounded-lg">{upload.accessCode}</span>
+                            </div>
+                            <div className="flex items-center gap-2 mt-2 text-black text-sm">
+                              <img src="/icons/icon-park-outline_history-query.svg" className="w-5 h-5" alt="History" />
+                              <span>History</span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </>
             )}
           </div>
-        </div>
-      </div>
-
-      {/* Replace the old form and dialog with the new component */}
-      <VideoLinkSender
-        isOpen={showVideoLinkSender}
-        onClose={() => setShowVideoLinkSender(false)}
-        onSuccess={handleVideoLinkSuccess}
-      />
-
-      {/* Floating Resend Button */}
-      <FloatingResendButton />
-
-
-
-      {/* Permanent Delete Confirmation Dialog */}
-      {showPermanentDeleteDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/30 backdrop-blur-sm">
-          <div className="bg-orange-100/90 backdrop-blur-lg rounded-xl shadow-2xl p-7 w-full max-w-md border border-orange-200" style={{ boxShadow: '0 8px 32px 0 rgba(255, 183, 77, 0.18)' }}>
-            <h2 className="text-xl font-bold text-red-600 mb-3">Permanently Delete Meeting{multipleDeleteMode && selectedMeetings.length > 1 ? 's' : ''}?</h2>
-            <p className="mb-4 text-orange-900">This will permanently delete:</p>
-            <ul className="list-disc list-inside mb-4 text-orange-800">
-              <li>The meeting document{multipleDeleteMode && selectedMeetings.length > 1 ? 's' : ''}</li>
-              <li>All recordings</li>
-              <li>All screenshots</li>
-              <li>All associated media files</li>
-            </ul>
-            <p className="mb-4 text-sm text-orange-700">This action cannot be undone.</p>
-            <div className="flex justify-end gap-3">
-              <button
-                className="px-5 py-2 bg-orange-50 text-orange-900 rounded-full shadow-sm hover:bg-orange-200 hover:shadow-md transition-all font-semibold"
-                onClick={() => {
-                  setShowPermanentDeleteDialog(false);
-                  setMeetingToDelete(null);
-                  setMultipleDeleteMode(false);
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                className="px-5 py-2 bg-red-600 text-white rounded-full shadow-sm hover:bg-red-700 hover:shadow-md transition-all font-semibold"
-                onClick={async () => {
-                  if (multipleDeleteMode) {
-                    await proceedMultipleDelete();
-                    setShowPermanentDeleteDialog(false);
-                    setMultipleDeleteMode(false);
-                  } else if (meetingToDelete) {
-                    try {
-                      await permanentDeleteMeeting(meetingToDelete._id);
-                      toast.success("Meeting permanently deleted");
-                      setShowPermanentDeleteDialog(false);
-                      setMeetingToDelete(null);
-                      fetchMeetings(false);
-                    } catch (error) {
-                      toast.error("Failed to permanently delete meeting", { description: error?.response?.data?.message || error.message });
-                    }
-                  }
-                }}
-              >
-                Delete Permanently
-              </button>
+          {/* Floating Resend Button */}
+          <FloatingResendButton />
+          {/* History Dialog for Resident */}
+          {showHistoryDialog && user?.role === "resident" && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
+              <div className="bg-white rounded-xl shadow-2xl p-7 w-full max-w-md border border-gray-200">
+                <h2 className="text-xl font-bold text-blue-700 mb-3">Upload History</h2>
+                <ul className="mb-4 text-gray-800">
+                  {selectedHistory.length === 0 ? (
+                    <li>No history available.</li>
+                  ) : (
+                    selectedHistory.map((h, i) => (
+                      <li key={i} className="mb-2 flex items-center gap-2">
+                        <Clock className="w-4 h-4 text-blue-400" />
+                        <span className="font-semibold">{h.action}</span>
+                        <span className="text-xs text-gray-500">{h.date}</span>
+                      </li>
+                    ))
+                  )}
+                </ul>
+                <div className="flex justify-end">
+                  <button
+                    className="px-5 py-2 bg-blue-100 text-blue-900 rounded-full shadow-sm hover:bg-blue-200 transition-all font-semibold"
+                    onClick={() => setShowHistoryDialog(false)}
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
             </div>
-          </div>
+          )}
         </div>
-      )}
 
-      {showSearchModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20">
-          <div className="relative w-full max-w-2xl p-0 rounded-2xl border border-gray-200 shadow-2xl bg-white overflow-hidden animate-fade-in-up">
-            {/* Header bar like other modals */}
-            <div className="flex items-center justify-between bg-purple-500 text-white p-4 m-0 rounded-t-2xl relative sticky top-0 z-20">
-              <div className="flex-1 flex items-center justify-center relative">
-                <h2 className="text-base font-semibold text-center w-full">Search Records</h2>
+        {/* Replace the old form and dialog with the new component */}
+        <VideoLinkSender
+          isOpen={showVideoLinkSender}
+          onClose={() => setShowVideoLinkSender(false)}
+          onSuccess={handleVideoLinkSuccess}
+        />
+
+        {/* Permanent Delete Confirmation Dialog */}
+        {showPermanentDeleteDialog && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/30 backdrop-blur-sm">
+            <div className="bg-orange-100/90 backdrop-blur-lg rounded-xl shadow-2xl p-7 w-full max-w-md border border-orange-200" style={{ boxShadow: '0 8px 32px 0 rgba(255, 183, 77, 0.18)' }}>
+              <h2 className="text-xl font-bold text-red-600 mb-3">Permanently Delete Meeting{multipleDeleteMode && selectedMeetings.length > 1 ? 's' : ''}?</h2>
+              <p className="mb-4 text-orange-900">This will permanently delete:</p>
+              <ul className="list-disc list-inside mb-4 text-orange-800">
+                <li>The meeting document{multipleDeleteMode && selectedMeetings.length > 1 ? 's' : ''}</li>
+                <li>All recordings</li>
+                <li>All screenshots</li>
+                <li>All associated media files</li>
+              </ul>
+              <p className="mb-4 text-sm text-orange-700">This action cannot be undone.</p>
+              <div className="flex justify-end gap-3">
                 <button
-                  onClick={() => setShowSearchModal(false)}
-                  aria-label="Close"
-                  className="absolute right-0 text-white hover:text-gray-200"
+                  className="px-5 py-2 bg-orange-50 text-orange-900 rounded-full shadow-sm hover:bg-orange-200 hover:shadow-md transition-all font-semibold"
+                  onClick={() => {
+                    setShowPermanentDeleteDialog(false);
+                    setMeetingToDelete(null);
+                    setMultipleDeleteMode(false);
+                  }}
                 >
-                  <X className="w-5 h-5" />
+                  Cancel
+                </button>
+                <button
+                  className="px-5 py-2 bg-red-600 text-white rounded-full shadow-sm hover:bg-red-700 hover:shadow-md transition-all font-semibold"
+                  onClick={async () => {
+                    if (multipleDeleteMode) {
+                      await proceedMultipleDelete();
+                      setShowPermanentDeleteDialog(false);
+                      setMultipleDeleteMode(false);
+                    } else if (meetingToDelete) {
+                      try {
+                        await permanentDeleteMeeting(meetingToDelete._id);
+                        toast.success("Meeting permanently deleted");
+                        setShowPermanentDeleteDialog(false);
+                        setMeetingToDelete(null);
+                        fetchMeetings(false);
+                      } catch (error) {
+                        toast.error("Failed to permanently delete meeting", { description: error?.response?.data?.message || error.message });
+                      }
+                    }
+                  }}
+                >
+                  Delete Permanently
                 </button>
               </div>
             </div>
-            {/* Form section */}
-            <form className="space-y-3 px-6 py-4 max-h-[calc(85vh-64px)] overflow-y-auto" onSubmit={handleSearchMeetings}>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <div>
-                  <input type="text" value={searchFields.first_name} onChange={e => handleSearchFieldChange('first_name', e.target.value)} className="w-full h-14 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-base bg-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="First name" />
-                </div>
-                <div>
-                  <input type="text" value={searchFields.last_name} onChange={e => handleSearchFieldChange('last_name', e.target.value)} className="w-full h-14 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-base bg-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="Last name" />
-                </div>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <div>
-                  <input type="text" value={searchFields.house_name_number} onChange={e => handleSearchFieldChange('house_name_number', e.target.value)} className="w-full h-14 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-base bg-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="House/Building number or name" />
-                </div>
-                <div>
-                  <input type="text" value={searchFields.flat_apartment_room} onChange={e => handleSearchFieldChange('flat_apartment_room', e.target.value)} className="w-full h-14 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-base bg-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="Flat/Apartment/Room number" />
-                </div>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <div>
-                  <input type="text" value={searchFields.street_road} onChange={e => handleSearchFieldChange('street_road', e.target.value)} className="w-full h-14 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-base bg-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="Street/Road name" />
-                </div>
-                <div>
-                  <input type="text" value={searchFields.city} onChange={e => handleSearchFieldChange('city', e.target.value)} className="w-full h-14 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-base bg-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="Town/City" />
-                </div>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <div>
-                  <input type="text" value={searchFields.country} onChange={e => handleSearchFieldChange('country', e.target.value)} className="w-full h-14 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-base bg-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="County" />
-                </div>
-                <div>
-                  <input type="text" value={searchFields.post_code} onChange={e => handleSearchFieldChange('post_code', e.target.value)} className="w-full h-14 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-base bg-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="Postcode" />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <input type="text" value={searchFields.phone_number} onChange={e => handleSearchFieldChange('phone_number', e.target.value)} className="w-full h-14 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-base bg-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="Phone number" />
-                </div>
-                <div>
-                  <input type="text" value={searchFields.email} onChange={e => handleSearchFieldChange('email', e.target.value)} className="w-full h-14 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-base bg-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="Email address" />
-                </div>
-              </div>
-              {/* Date range with labels */}
-              <div className="grid grid-cols-2 gap-2">
-                <div className="flex flex-col">
-                  <label className="mb-1 text-sm font-medium text-gray-700">From</label>
-                  <input 
-                    type="date" 
-                    value={searchFields.date_from} 
-                    onChange={e => handleSearchFieldChange('date_from', e.target.value)} 
-                    className={`w-full h-14 border rounded-xl pl-4 pr-3 py-2 text-base bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none ${searchFields.date_from ? 'border-blue-300 bg-blue-50' : 'border-gray-300'}`}
-                    placeholder="Date From"
-                    max={searchFields.date_to || undefined}
-                  />
-                </div>
-                <div className="flex flex-col">
-                  <label className="mb-1 text-sm font-medium text-gray-700">To</label>
-                  <input 
-                    type="date" 
-                    value={searchFields.date_to} 
-                    onChange={e => handleSearchFieldChange('date_to', e.target.value)} 
-                    className={`w-full h-14 border rounded-xl pl-4 pr-3 py-2 text-base bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none ${searchFields.date_to ? 'border-blue-300 bg-blue-50' : 'border-gray-300'}`}
-                    placeholder="Date To"
-                    min={searchFields.date_from || undefined}
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <input type="text" value={searchFields.reference} onChange={e => handleSearchFieldChange('reference', e.target.value)} className="w-full h-14 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-base bg-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="Job ref" />
-                </div>
-                <div className="relative">
-                  <select value={searchFields.target_time} onChange={e => handleSearchFieldChange('target_time', e.target.value)} className="w-full h-14 border border-gray-300 rounded-xl pl-4 pr-10 py-2 text-base bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none appearance-none shadow-sm">
-                    <option value="">Target Time</option>
-                    <option value="Emergency 24 Hours">Emergency 24 Hours</option>
-                    <option value="Urgent (7 Days)">Urgent (7 Days)</option>
-                    <option value="Routine (28 Days)">Routine (28 Days)</option>
-                    <option value="Follow Up Work">Follow Up Work</option>
-                    <option value="Other">Other</option>
-                  </select>
-                  <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 drop-shadow"><ChevronDown className="w-5 h-5" /></span>
-                </div>
-              </div>
-              <div className="border-t border-gray-100 my-3" />
-              {/* Place the Target Time and Repair Details fields just before Special Notes at the end */}
-              <div>
-                <input type="text" value={searchFields.repair_detail} onChange={e => handleSearchFieldChange('repair_detail', e.target.value)} className="w-full h-14 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-base bg-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="Repair details" />
-              </div>
-              {/* Special Notes full width at the end */}
-              <div className="border-t border-gray-100 my-3" />
-              <div>
-                <input type="text" value={searchFields.special_notes} onChange={e => handleSearchFieldChange('special_notes', e.target.value)} className="w-full h-14 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-base bg-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="Special notes" />
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                
-                <div>{/* Empty for layout symmetry */}</div>
-              </div>
-              <div className="border-t border-gray-100 my-3" />
-              <div className="flex justify-end gap-2 pt-2">
-                <button type="button" className="border border-gray-300 bg-white hover:bg-gray-100 text-gray-700 font-bold px-6 py-3 rounded-xl shadow-sm transition-all duration-200 outline-none focus:ring-2 focus:ring-blue-300 min-w-[160px] flex items-center justify-center gap-2" onClick={() => { setShowSearchModal(false); setSearchFields({ first_name: '', last_name: '', house_name_number: '', flat_apartment_room: '', street_road: '', city: '', country: '', post_code: '', phone_number: '', repair_detail: '', special_notes: '', target_time: '', reference: '', date_from: '', date_to: '', email: '' }); setIsInSearchMode(false); fetchMeetings(); }}>
-                  <img src="/erase.svg" alt="Clear" className="w-5 h-5" />
-                  Clear
-                </button>
-                <button type="submit" className="flex items-center gap-2 bg-yellow-300 hover:bg-yellow-400 text-black font-bold px-6 py-3 rounded-xl shadow-md transition-all duration-200 outline-none focus:ring-2 focus:ring-yellow-400 active:scale-95 border-2 border-yellow-400 min-w-[160px]"><Search className="w-5 h-5 text-black" />Search</button>
-              </div>
-            </form>
           </div>
-          <style>{`.animate-fade-in-up{animation:fadeInUp .4s cubic-bezier(.39,.575,.565,1) both;}@keyframes fadeInUp{0%{opacity:0;transform:translateY(40px);}100%{opacity:1;transform:translateY(0);}}`}</style>
-        </div>
-      )}
+        )}
 
-      {showFolderDeleteDialog && folderToDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
-          <div className="bg-white rounded-xl shadow-2xl p-7 w-full max-w-md border border-gray-200">
-            <h2 className="text-xl font-bold text-red-600 mb-3">Move Folder to Trash?</h2>
-            <p className="mb-4 text-gray-800">Are you sure you want to move the folder <span className="font-semibold">"{folderToDelete.name}"</span> to trash?</p>
-            <div className="flex justify-end gap-3">
-              <button
-                className="px-5 py-2 bg-gray-100 text-gray-900 rounded-full shadow-sm hover:bg-gray-200 transition-all font-semibold"
-                onClick={() => {
-                  setShowFolderDeleteDialog(false);
-                  setFolderToDelete(null);
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                className="px-5 py-2 bg-red-600 text-white rounded-full shadow-sm hover:bg-red-700 transition-all font-semibold"
-                onClick={async () => {
-                  setDeleteFolderLoading(folderToDelete.id);
+        {showSearchModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20">
+            <div className="relative w-full max-w-2xl p-0 rounded-2xl border border-gray-200 shadow-2xl bg-white overflow-hidden animate-fade-in-up">
+              {/* Header bar like other modals */}
+              <div className="flex items-center justify-between bg-purple-500 text-white p-4 m-0 rounded-t-2xl relative sticky top-0 z-20">
+                <div className="flex-1 flex items-center justify-center relative">
+                  <h2 className="text-base font-semibold text-center w-full">Search Records</h2>
+                  <button
+                    onClick={() => setShowSearchModal(false)}
+                    aria-label="Close"
+                    className="absolute right-0 text-white hover:text-gray-200"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+              {/* Form section */}
+              <form className="space-y-3 px-6 py-4 max-h-[calc(85vh-64px)] overflow-y-auto" onSubmit={handleSearchMeetings}>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div>
+                    <input type="text" value={searchFields.first_name} onChange={e => handleSearchFieldChange('first_name', e.target.value)} className="w-full h-14 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-base bg-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="First name" />
+                  </div>
+                  <div>
+                    <input type="text" value={searchFields.last_name} onChange={e => handleSearchFieldChange('last_name', e.target.value)} className="w-full h-14 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-base bg-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="Last name" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div>
+                    <input type="text" value={searchFields.house_name_number} onChange={e => handleSearchFieldChange('house_name_number', e.target.value)} className="w-full h-14 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-base bg-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="House/Building number or name" />
+                  </div>
+                  <div>
+                    <input type="text" value={searchFields.flat_apartment_room} onChange={e => handleSearchFieldChange('flat_apartment_room', e.target.value)} className="w-full h-14 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-base bg-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="Flat/Apartment/Room number" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div>
+                    <input type="text" value={searchFields.street_road} onChange={e => handleSearchFieldChange('street_road', e.target.value)} className="w-full h-14 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-base bg-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="Street/Road name" />
+                  </div>
+                  <div>
+                    <input type="text" value={searchFields.city} onChange={e => handleSearchFieldChange('city', e.target.value)} className="w-full h-14 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-base bg-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="Town/City" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div>
+                    <input type="text" value={searchFields.country} onChange={e => handleSearchFieldChange('country', e.target.value)} className="w-full h-14 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-base bg-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="County" />
+                  </div>
+                  <div>
+                    <input type="text" value={searchFields.post_code} onChange={e => handleSearchFieldChange('post_code', e.target.value)} className="w-full h-14 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-base bg-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="Postcode" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <input type="text" value={searchFields.phone_number} onChange={e => handleSearchFieldChange('phone_number', e.target.value)} className="w-full h-14 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-base bg-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="Phone number" />
+                  </div>
+                  <div>
+                    <input type="text" value={searchFields.email} onChange={e => handleSearchFieldChange('email', e.target.value)} className="w-full h-14 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-base bg-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="Email address" />
+                  </div>
+                </div>
+                {/* Date range with labels */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="flex flex-col">
+                    <label className="mb-1 text-sm font-medium text-gray-700">From</label>
+                    <input 
+                      type="date" 
+                      value={searchFields.date_from} 
+                      onChange={e => handleSearchFieldChange('date_from', e.target.value)} 
+                      className={`w-full h-14 border rounded-xl pl-4 pr-3 py-2 text-base bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none ${searchFields.date_from ? 'border-blue-300 bg-blue-50' : 'border-gray-300'}`}
+                      placeholder="Date From"
+                      max={searchFields.date_to || undefined}
+                    />
+                  </div>
+                  <div className="flex flex-col">
+                    <label className="mb-1 text-sm font-medium text-gray-700">To</label>
+                    <input 
+                      type="date" 
+                      value={searchFields.date_to} 
+                      onChange={e => handleSearchFieldChange('date_to', e.target.value)} 
+                      className={`w-full h-14 border rounded-xl pl-4 pr-3 py-2 text-base bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none ${searchFields.date_to ? 'border-blue-300 bg-blue-50' : 'border-gray-300'}`}
+                      placeholder="Date To"
+                      min={searchFields.date_from || undefined}
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <input type="text" value={searchFields.reference} onChange={e => handleSearchFieldChange('reference', e.target.value)} className="w-full h-14 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-base bg-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="Job ref" />
+                  </div>
+                  <div className="relative">
+                    <select value={searchFields.target_time} onChange={e => handleSearchFieldChange('target_time', e.target.value)} className="w-full h-14 border border-gray-300 rounded-xl pl-4 pr-10 py-2 text-base bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none appearance-none shadow-sm">
+                      <option value="">Target Time</option>
+                      <option value="Emergency 24 Hours">Emergency 24 Hours</option>
+                      <option value="Urgent (7 Days)">Urgent (7 Days)</option>
+                      <option value="Routine (28 Days)">Routine (28 Days)</option>
+                      <option value="Follow Up Work">Follow Up Work</option>
+                      <option value="Other">Other</option>
+                    </select>
+                    <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 drop-shadow"><ChevronDown className="w-5 h-5" /></span>
+                  </div>
+                </div>
+                <div className="border-t border-gray-100 my-3" />
+                {/* Place the Target Time and Repair Details fields just before Special Notes at the end */}
+                <div>
+                  <input type="text" value={searchFields.repair_detail} onChange={e => handleSearchFieldChange('repair_detail', e.target.value)} className="w-full h-14 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-base bg-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="Repair details" />
+                </div>
+                {/* Special Notes full width at the end */}
+                <div className="border-t border-gray-100 my-3" />
+                <div>
+                  <input type="text" value={searchFields.special_notes} onChange={e => handleSearchFieldChange('special_notes', e.target.value)} className="w-full h-14 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-base bg-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="Special notes" />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   
-                  try {
-                    // Move folder to trash using backend function
-                    const response = await moveFolderToTrashRequest(folderToDelete.id);
+                  <div>{/* Empty for layout symmetry */}</div>
+                </div>
+                <div className="border-t border-gray-100 my-3" />
+                <div className="flex justify-end gap-2 pt-2">
+                  <button type="button" className="border border-gray-300 bg-white hover:bg-gray-100 text-gray-700 font-bold px-6 py-3 rounded-xl shadow-sm transition-all duration-200 outline-none focus:ring-2 focus:ring-blue-300 min-w-[160px] flex items-center justify-center gap-2" onClick={() => { setShowSearchModal(false); setSearchFields({ first_name: '', last_name: '', house_name_number: '', flat_apartment_room: '', street_road: '', city: '', country: '', post_code: '', phone_number: '', repair_detail: '', special_notes: '', target_time: '', reference: '', date_from: '', date_to: '', email: '' }); setIsInSearchMode(false); fetchMeetings(); }}>
+                    <img src="/erase.svg" alt="Clear" className="w-5 h-5" />
+                    Clear
+                  </button>
+                  <button type="submit" className="flex items-center gap-2 bg-yellow-300 hover:bg-yellow-400 text-black font-bold px-6 py-3 rounded-xl shadow-md transition-all duration-200 outline-none focus:ring-2 focus:ring-yellow-400 active:scale-95 border-2 border-yellow-400 min-w-[160px]"><Search className="w-5 h-5 text-black" />Search</button>
+                </div>
+              </form>
+            </div>
+            <style>{`.animate-fade-in-up{animation:fadeInUp .4s cubic-bezier(.39,.575,.565,1) both;}@keyframes fadeInUp{0%{opacity:0;transform:translateY(40px);}100%{opacity:1;transform:translateY(0);}}`}</style>
+          </div>
+        )}
+
+        {showFolderDeleteDialog && folderToDelete && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
+            <div className="bg-white rounded-xl shadow-2xl p-7 w-full max-w-md border border-gray-200">
+              <h2 className="text-xl font-bold text-red-600 mb-3">Move Folder to Trash?</h2>
+              <p className="mb-4 text-gray-800">Are you sure you want to move the folder <span className="font-semibold">"{folderToDelete.name}"</span> to trash?</p>
+              <div className="flex justify-end gap-3">
+                <button
+                  className="px-5 py-2 bg-gray-100 text-gray-900 rounded-full shadow-sm hover:bg-gray-200 transition-all font-semibold"
+                  onClick={() => {
+                    setShowFolderDeleteDialog(false);
+                    setFolderToDelete(null);
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="px-5 py-2 bg-red-600 text-white rounded-full shadow-sm hover:bg-red-700 transition-all font-semibold"
+                  onClick={async () => {
+                    setDeleteFolderLoading(folderToDelete.id);
                     
-                    // Reload folders and meetings to get updated data
-                    await loadFolders();
-                    await fetchMeetings(false);
-                    
-                  // If selected, deselect
-                  if (selectedFolder === folderToDelete.id) setSelectedFolder('all');
-                  setDeleteFolderLoading(null);
-                  setShowFolderDeleteDialog(false);
-                  setFolderToDelete(null);
-                    toast.success(response.data.message);
-                  } catch (error) {
+                    try {
+                      // Move folder to trash using backend function
+                      const response = await moveFolderToTrashRequest(folderToDelete.id);
+                      
+                      // Reload folders and meetings to get updated data
+                      await loadFolders();
+                      await fetchMeetings(false);
+                      
+                    // If selected, deselect
+                    if (selectedFolder === folderToDelete.id) setSelectedFolder('all');
                     setDeleteFolderLoading(null);
-                    toast.error("Failed to move folder to trash", { description: error?.response?.data?.message || error.message });
-                  }
-                }}
-                disabled={deleteFolderLoading === folderToDelete.id}
-              >
-                {deleteFolderLoading === folderToDelete.id ? 'Moving...' : 'Move to Trash'}
-              </button>
+                    setShowFolderDeleteDialog(false);
+                    setFolderToDelete(null);
+                      toast.success(response.data.message);
+                    } catch (error) {
+                      setDeleteFolderLoading(null);
+                      toast.error("Failed to move folder to trash", { description: error?.response?.data?.message || error.message });
+                    }
+                  }}
+                  disabled={deleteFolderLoading === folderToDelete.id}
+                >
+                  {deleteFolderLoading === folderToDelete.id ? 'Moving...' : 'Move to Trash'}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </>
   )
 }

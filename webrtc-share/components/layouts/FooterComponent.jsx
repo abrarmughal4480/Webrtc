@@ -10,6 +10,7 @@ import { bookDemoMeetingRequest } from "@/http/authHttp"
 import { useUser } from "@/provider/UserProvider"
 import axios from "axios"
 import { toast } from "sonner";
+import { useRouter } from "next/navigation"
 
 export function Footer() {
   const { user, isAuth } = useUser();
@@ -36,6 +37,8 @@ export function Footer() {
     minute: '00',
     message: ''
   });
+
+  const router = useRouter();
 
   // Reset form fields when callback modal closes
   useEffect(() => {
@@ -286,14 +289,17 @@ export function Footer() {
             </div>
 
             {/* Center Section - Action Buttons */}
-            <div className="flex items-center justify-center flex-col gap-8">
-              <Button className={"text-white bg-purple-500 flex items-center justify-between gap-2 cursor-pointer w-[12rem]"} onClick={() => setIsCallbackOpen(true)}>
+            <div className="flex items-center justify-center flex-col gap-4">
+              <Button className={"w-[220px] text-white bg-purple-500 flex items-center justify-between gap-2 cursor-pointer rounded-full py-3 px-6 text-base font-semibold shadow-md hover:bg-purple-600 transition-all duration-200"} onClick={() => setIsCallbackOpen(true)}>
                 <span>Request a Callback</span>
                 <Calendar />
               </Button>
-              <Button className={"text-white bg-purple-500 flex items-center justify-between gap-2 cursor-pointer w-[12rem]"} onClick={() => setISMeetingOpen(true)}>
+              <Button className={"w-[220px] text-white bg-purple-500 flex items-center justify-between gap-2 cursor-pointer rounded-full py-3 px-6 text-base font-semibold shadow-md hover:bg-purple-600 transition-all duration-200"} onClick={() => setISMeetingOpen(true)}>
                 <span>Book a Demo Meeting</span>
                 <Calendar />
+              </Button>
+              <Button className={"w-[230px] text-white bg-orange-500 flex items-center justify-between gap-2 cursor-pointer rounded-full py-3 px-6 text-base font-semibold shadow-md hover:bg-orange-600 transition-all duration-200 h-auto"} onClick={() => router.push('/room/upload')}>
+                <span>For Residents <br/> Share Photos and Videos</span>
               </Button>
             </div>
 

@@ -36,12 +36,12 @@ export const HeroSection = () => {
               >
                 How it works
               </a>
-              <a
+              {/* <a
                 href="#signup"
                 className="w-full sm:w-auto text-center bg-amber-500 hover:bg-amber-600 text-white font-medium py-3 px-8 rounded-full text-lg transition-all transform hover:scale-105"
               >
                 Sign up in 3 easy steps!
-              </a>
+              </a> */}
             </div>
           </div>
           <span id="about" className='absolute bottom-20'></span>

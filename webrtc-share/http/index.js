@@ -8,6 +8,12 @@ export const api = axios.create({
     // timeout: 30000, // 30 seconds timeout
 });
 
+// For public endpoints (not under /api/v1)
+export const publicApi = axios.create({
+    baseURL: baseURL,
+    withCredentials: true,
+});
+
 // // Enhanced request interceptor
 // api.interceptors.request.use(
 //     (config) => {

@@ -126,3 +126,5 @@ export const getPaginationSettings = async () => {
         throw error;
     }
 };
+
+export const registerResidentRequest = async (formData) => await api.post("/register-resident", formData);

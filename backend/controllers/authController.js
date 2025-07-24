@@ -193,9 +193,9 @@ const getLogoSvg = () => {
 export const register = catchAsyncError(async (req, res) => {
 	const {email, password, role} = req.body;
 	const isExist = await UserModel.findOne({email});
-	if(isExist) return sendResponse(false, 401, 'Email already exist',res);
+	if(isExist) return sendResponse(res, 401, false, null, 'Email already exist');
 	if( !email || !password || !role){
-		return sendResponse(false, 401, 'All fields are required',res);
+		return sendResponse(res, 401, false, null, 'All fields are required');
 	}
 
 	const user = await UserModel.create({
@@ -205,6 +205,7 @@ export const register = catchAsyncError(async (req, res) => {
 	});
 	
 	const OTP = generateOTP()
+	console.log('Generated OTP (register):', OTP);
 	
     // Get the logo SVG
     const logoSvg = getLogoSvg();
@@ -249,17 +250,18 @@ export const register = catchAsyncError(async (req, res) => {
 
 export const login = catchAsyncError(async (req, res, next) => {
 	const {email, password} = req.body;
-	if(!email || !password) return sendResponse(false, 401, 'All fields are required',res);
+	if(!email || !password) return sendResponse(res, 401, false, null, 'All fields are required');
 	let user = await UserModel.findOne({email});
 
 	if (!user)
-      return sendResponse(false, 401, 'Incorrect Email or Password',res);
+      return sendResponse(res, 401, false, null, 'Incorrect Email or Password');
 
 	const isMatch = await user.comparePassword(password);
     if (!isMatch)
-		return sendResponse(false, 401, 'Incorrect Email or Password',res);
+		return sendResponse(res, 401, false, null, 'Incorrect Email or Password');
 	
 	const OTP = generateOTP();
+	console.log('Generated OTP (login):', OTP);
 	
     // Get the logo SVG
     const logoSvg = getLogoSvg();
@@ -342,7 +344,9 @@ export const verify = catchAsyncError(async (req, res, next) => {
 
 export const loadme = catchAsyncError(async (req, res, next) => {
     const user = await UserModel.findById(req.user._id);
-    
+    if (user) {
+        console.log('Dashboard loadme: user role is', user.role);
+    }
     res.status(200).json({
         success: true,
         user: user
@@ -1626,4 +1630,24 @@ export const getPaginationSettings = catchAsyncError(async (req, res) => {
             itemsPerPage: 10
         }
     });
+});
+
+export const registerResident = catchAsyncError(async (req, res) => {
+    const { email, password } = req.body;
+    console.log('registerResident typeof res.status:', typeof res.status);
+    if (!email || !password) {
+        return sendResponse(res, 400, false, null, 'Email and password are required');
+    }
+    const isExist = await UserModel.findOne({ email });
+    if (isExist) return sendResponse(res, 409, false, null, 'Email already exists');
+
+    const user = await UserModel.create({
+        email,
+        password,
+        role: 'resident'
+    });
+    console.log('About to call sendToken. typeof res.status:', typeof res.status);
+    console.log('About to call sendToken. typeof user.getJWTToken:', typeof user.getJWTToken);
+    // Log the user in immediately and return token
+    sendToken(res, user, 'Resident account created successfully', 201);
 });

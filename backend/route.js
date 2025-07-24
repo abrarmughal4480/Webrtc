@@ -1,12 +1,14 @@
 import express from 'express';
 const router = express.Router();
-import {changePassword, loadme, login, logout, register, updateUser,forgotPassword,resetPassword, verify, sendFriendLink, resetPasswordFromDashboard, sendFeedback, raiseSupportTicket, updateUserLogo, updateLandlordInfo, bookDemoMeeting, requestCallback, updateMessageSettings, getMessageSettings, createFolder, updateFolder, deleteFolder, moveFolderToTrash, restoreFolderFromTrash, getFolders, assignMeetingToFolder, getMeetingFolders, updatePaginationSettings, getPaginationSettings} from './controllers/authController.js';
+import {changePassword, loadme, login, logout, register, updateUser,forgotPassword,resetPassword, verify, sendFriendLink, resetPasswordFromDashboard, sendFeedback, raiseSupportTicket, updateUserLogo, updateLandlordInfo, bookDemoMeeting, requestCallback, updateMessageSettings, getMessageSettings, createFolder, updateFolder, deleteFolder, moveFolderToTrash, restoreFolderFromTrash, getFolders, assignMeetingToFolder, getMeetingFolders, updatePaginationSettings, getPaginationSettings, registerResident } from './controllers/authController.js';
+import { createUpload, getUploadByAccessCode, getMyUploads, getMyLatestUpload } from './controllers/uploadController.js';
 import {isAuthenticate} from "./middlewares/auth.js"
 import { create, getAllMeetings, getMeetingById, updateMeetingController, deleteMeeting, getMeetingForShare, getMeetingByMeetingId, deleteRecording, deleteScreenshot, archiveMeeting, unarchiveMeeting, getArchivedCount, recordVisitorAccess, restoreMeeting, permanentDeleteMeeting, searchMeetings, getSpecialNotes, saveSpecialNotes, getStructuredSpecialNotes, saveStructuredSpecialNotes } from './controllers/meetingController.js';
 import { getUserRoomInfo } from './controllers/userRoomInfoController.js';
 
 // auth routes
 router.route('/register').post(register);
+router.route('/register-resident').post(registerResident);
 router.route('/login').post(login);
 router.route('/verify').post(verify);
 router.route('/me').get(isAuthenticate,loadme);
@@ -103,8 +105,12 @@ router.route('/get-token-info/:token').get((req, res) => {
 });
 
 router.get('/room-user-info', getUserRoomInfo);
+router.route('/uploads/my').get(isAuthenticate, getMyUploads);
+router.route('/uploads/my-latest').get(isAuthenticate, getMyLatestUpload);
 
 router.route('/meetings/restore/:id').put(isAuthenticate, restoreMeeting);
 router.route('/meetings/permanent/:id').delete(isAuthenticate, permanentDeleteMeeting);
+router.route('/upload').post(createUpload);
+router.route('/upload/:accessCode').get(getUploadByAccessCode);
 
 export default router;
