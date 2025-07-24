@@ -58,7 +58,7 @@ export default function UploadPage() {
   };
 
   const requiredFields = [
-    'first_name', 'last_name', 'flat_apartment_room', 'street_road', 'city', 'country', 'actualPostCode', 'phoneNumber', 'email'
+    'first_name', 'last_name', 'actualPostCode', 'phoneNumber', 'email'
   ];
 
   const handleSubmit = async (e) => {
