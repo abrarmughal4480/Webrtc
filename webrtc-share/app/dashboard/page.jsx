@@ -33,6 +33,7 @@ import { loadMeRequest } from "@/http/authHttp";
 import { getMyUploadsRequest, getMyTrashedUploadsRequest, deleteUploadRequest, restoreUploadRequest, permanentDeleteUploadRequest } from "@/http/uploadHttp";
 import { publicApi } from "@/http";
 import useNotifications from "@/hooks/useNotifications";
+import VideoGuidesDialog from "@/components/dialogs/VideoGuidesDialog";
 
 export default function Page() {
   const { user, isAuth, setIsAuth, setUser } = useUser();
@@ -140,6 +141,9 @@ export default function Page() {
   };
 
   const { setResetOpen, setMessageOpen, setLandlordDialogOpen, setTickerOpen, setFeedbackOpen, setFaqOpen, setExportOpen, setHistoryOpen, setInviteOpen } = useDialog();
+  
+  // Video guides dialog state
+  const [videoGuidesOpen, setVideoGuidesOpen] = useState(false);
 
   // Add state for permanent delete dialog
   const [showPermanentDeleteDialog, setShowPermanentDeleteDialog] = useState(false);
@@ -1201,6 +1205,7 @@ export default function Page() {
                   <DropdownMenuItem > <button className='bg-none border-none cursor-pointer text-left' onClick={() => setLandlordDialogOpen(true)}>Add Landlord Name/Logo/ <br />Profile Image </button></DropdownMenuItem>
                   <DropdownMenuItem > <button className='bg-none border-none cursor-pointer' onClick={() => setFaqOpen(true)}>FAQs</button></DropdownMenuItem>
                   <DropdownMenuItem > <button className='bg-none border-none cursor-pointer' onClick={() => setFeedbackOpen(true)}>Give Feedback</button></DropdownMenuItem>
+                  <DropdownMenuItem > <button className='bg-none border-none cursor-pointer' onClick={() => setVideoGuidesOpen(true)}>How to Video Guides</button></DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
               )}
@@ -1267,6 +1272,15 @@ export default function Page() {
                           >
                             <LogOut className="w-4 h-4" />
                             Logout
+                          </button>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem>
+                          <button 
+                            className="bg-none border-none cursor-pointer w-full text-left flex items-center gap-2" 
+                            onClick={() => setVideoGuidesOpen(true)}
+                          >
+                            <VideoIcon className="w-4 h-4" />
+                            How to Video Guides
                           </button>
                         </DropdownMenuItem>
                       </DropdownMenuContent>
@@ -2500,6 +2514,9 @@ export default function Page() {
           </div>
         </div>
       )}
+      
+      {/* Video Guides Dialog */}
+      <VideoGuidesDialog open={videoGuidesOpen} setOpen={setVideoGuidesOpen} />
     </>
   )
 }
