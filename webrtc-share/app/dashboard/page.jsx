@@ -1,6 +1,6 @@
 "use client"
 import { Button } from "@/components/ui/button"
-import { FileText, Archive, Trash2, Monitor, Smartphone, Save, History, ArchiveRestore, ExternalLink, FileSearch, MailIcon, Loader2, Maximize2, Home, RotateCcw, XCircle, Undo2, Info, Search, X, User, Wrench, Clock, ChevronDown, Plus, Check, Image as ImageIcon, Video as VideoIcon } from "lucide-react"
+import { FileText, Archive, Trash2, Monitor, Smartphone, Save, History, ArchiveRestore, ExternalLink, FileSearch, MailIcon, Loader2, Maximize2, Home, RotateCcw, XCircle, Undo2, Info, Search, X, User, Wrench, Clock, ChevronDown, Plus, Check, Image as ImageIcon, Video as VideoIcon, LogOut, Bell } from "lucide-react"
 import Image from "next/image"
 import {
   DropdownMenu,
@@ -30,11 +30,17 @@ import { BsInfoCircleFill, BsInfoCircle } from "react-icons/bs";
 import { updateUserRequest } from "@/http/authHttp";
 import AccessCodeDialog from "@/components/dialogs/AccessCodeDialog";
 import { loadMeRequest } from "@/http/authHttp";
-import { getMyUploadsRequest } from "@/http/uploadHttp";
+import { getMyUploadsRequest, getMyTrashedUploadsRequest, deleteUploadRequest, restoreUploadRequest, permanentDeleteUploadRequest } from "@/http/uploadHttp";
+import { publicApi } from "@/http";
+import useNotifications from "@/hooks/useNotifications";
 
 export default function Page() {
   const { user, isAuth, setIsAuth, setUser } = useUser();
   const router = useRouter();
+  
+  // Use real-time notifications hook
+  const { hasNotifications, notificationData, markAsRead, readNotifications } = useNotifications(user?.email);
+  
   // Remove video link related state variables
   const [meetings, setMeetings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -68,17 +74,32 @@ export default function Page() {
 
   const [myUploads, setMyUploads] = useState([]);
   const [residentUploads, setResidentUploads] = useState([]);
+  const [residentTrashedUploads, setResidentTrashedUploads] = useState([]);
+  const [residentViewMode, setResidentViewMode] = useState('active'); // 'active' or 'trash'
+  const [showNotificationPopup, setShowNotificationPopup] = useState(false);
 
-useEffect(() => {
-  if (user?.role === 'resident') {
-    getMyUploadsRequest().then(res => {
-      console.log('Resident uploads API response:', res.data);
-      setResidentUploads(res.data.data.uploads || []);
-    }).catch(() => {
-      setResidentUploads([]);
-    });
-  }
-}, [user?.role]);
+  const handleMarkAsRead = (notificationId) => {
+    markAsRead(notificationId);
+    toast.success('Notification marked as read');
+  };
+
+  useEffect(() => {
+    if (user?.role === 'resident') {
+      getMyUploadsRequest().then(res => {
+        console.log('Resident uploads API response:', res.data);
+        setResidentUploads(res.data.data.uploads || []);
+      }).catch(() => {
+        setResidentUploads([]);
+      });
+      
+      getMyTrashedUploadsRequest().then(res => {
+        console.log('Resident trashed uploads API response:', res.data);
+        setResidentTrashedUploads(res.data.data.uploads || []);
+      }).catch(() => {
+        setResidentTrashedUploads([]);
+      });
+    }
+  }, [user?.role]);
 
   // Load folders and meeting assignments from backend
   useEffect(() => {
@@ -525,6 +546,51 @@ useEffect(() => {
   const handleVideoLinkSuccess = (token) => {
     // Refresh meetings list when a new link is created
     fetchMeetings(false);
+  };
+
+  // Resident upload operations
+  const handleDeleteUpload = async (uploadId) => {
+    try {
+      await deleteUploadRequest(uploadId);
+      toast.success("Upload moved to trash");
+      // Refresh both active and trashed uploads
+      const [activeRes, trashedRes] = await Promise.all([
+        getMyUploadsRequest(),
+        getMyTrashedUploadsRequest()
+      ]);
+      setResidentUploads(activeRes.data.data.uploads || []);
+      setResidentTrashedUploads(trashedRes.data.data.uploads || []);
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to delete upload");
+    }
+  };
+
+  const handleRestoreUpload = async (uploadId) => {
+    try {
+      await restoreUploadRequest(uploadId);
+      toast.success("Upload restored successfully");
+      // Refresh both active and trashed uploads
+      const [activeRes, trashedRes] = await Promise.all([
+        getMyUploadsRequest(),
+        getMyTrashedUploadsRequest()
+      ]);
+      setResidentUploads(activeRes.data.data.uploads || []);
+      setResidentTrashedUploads(trashedRes.data.data.uploads || []);
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to restore upload");
+    }
+  };
+
+  const handlePermanentDeleteUpload = async (uploadId) => {
+    try {
+      await permanentDeleteUploadRequest(uploadId);
+      toast.success("Upload permanently deleted");
+      // Refresh trashed uploads
+      const trashedRes = await getMyTrashedUploadsRequest();
+      setResidentTrashedUploads(trashedRes.data.data.uploads || []);
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to permanently delete upload");
+    }
   };
 
   // Helper function to get initials from name
@@ -1001,7 +1067,7 @@ useEffect(() => {
               {/* Home Icon */}
               <Button
                 onClick={() => router.push('../')}
-                className="bg-white hover:bg-gray-50 text-gray-600 hover:text-gray-800 rounded-full p-3 flex items-center justify-center transition-all duration-200 shadow-sm hover:shadow-md border border-gray-200 hover:border-gray-300 w-11 h-11"
+                className="bg-white hover:bg-gray-50 text-gray-600 hover:text-gray-800 rounded-full p-3 flex items-center justify-center transition-all duration-200 shadow-sm hover:shadow-md border border-gray-200 hover:border-gray-300 w-11 h-11 md:ml-0 -ml-2"
                 title="Go to Home"
               >
                 <Home style={{ width: '18px', height: '18px', strokeWidth: '2' }} />
@@ -1056,7 +1122,7 @@ useEffect(() => {
                 ) : isInSearchMode ? (
                   <span className="text-3xl font-bold text-purple-600 flex items-center justify-center h-full">Search View</span>
                 ) : (
-                  <img src="/devices.svg" alt="Videodesk" className="w-40 sm:w-48 lg:w-60 h-full object-contain" />
+                  <img src="/devices.svg" alt="Videodesk" className="w-40 sm:w-48 lg:w-60 h-full object-contain -mt-13 sm:mt-0" />
                 )}
               </div>
             </div>
@@ -1140,12 +1206,73 @@ useEffect(() => {
               )}
               {/* Resident Upload Button */}
               {user?.role === "resident" && (
-                <Button
-                  className="bg-amber-500 hover:bg-amber-600 text-white px-6 sm:px-8 py-3 sm:py-4 rounded-full font-medium cursor-pointer text-base sm:text-lg border-0"
-                  onClick={() => router.push('/room/upload')}
-                >
-                  + New Share Link
-                </Button>
+                <>
+                  {/* Desktop View */}
+                  <div className="hidden md:flex items-center gap-3">
+                    <button
+                      className="p-3 transition-all duration-200 flex items-center justify-center cursor-pointer"
+                      style={{ marginRight: '0.25rem' }}
+                      title="Notifications"
+                      onClick={() => setShowNotificationPopup(true)}
+                    >
+                      <span className="relative inline-block">
+                        <Bell className="w-6 h-6 text-blue-600 hover:text-blue-700" />
+                        {hasNotifications && (
+                          <span
+                            className="absolute bg-red-600 rounded-full animate-pulse border-2 border-white shadow"
+                            style={{ width: '0.7rem', height: '0.7rem', top: '-3px', right: '0px', boxShadow: '0 0 4px 1px rgba(255,0,0,0.4)' }}
+                          />
+                        )}
+                      </span>
+                    </button>
+                    <Button
+                      className="bg-amber-500 hover:bg-amber-600 text-white px-6 sm:px-8 py-3 sm:py-4 rounded-full font-medium cursor-pointer text-base sm:text-lg border-0"
+                      onClick={() => router.push('/room/upload')}
+                    >
+                      + New Share Code
+                    </Button>
+                    <Button
+                      className="bg-red-500 hover:bg-red-600 text-white p-3 sm:p-4 rounded-full font-medium cursor-pointer border-0"
+                      onClick={handleLogout}
+                      title="Logout"
+                    >
+                      <LogOut className="w-5 h-5" />
+                    </Button>
+                  </div>
+                  
+                  {/* Mobile View - Dropdown Menu */}
+                  <div className="md:hidden">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button className="bg-amber-500 text-white rounded-full p-3 md:mr-0 -mr-2">
+                          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+                          </svg>
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent className="bg-white border-none shadow-sm min-w-[200px]" side="bottom" align="end">
+                        <DropdownMenuItem>
+                          <button 
+                            className="bg-none border-none cursor-pointer w-full text-left flex items-center gap-2" 
+                            onClick={() => router.push('/room/upload')}
+                          >
+                            <Plus className="w-4 h-4" />
+                            New Share Link
+                          </button>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem>
+                          <button 
+                            className="bg-none border-none cursor-pointer w-full text-left flex items-center gap-2 text-red-600" 
+                            onClick={handleLogout}
+                          >
+                            <LogOut className="w-4 h-4" />
+                            Logout
+                          </button>
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </>
               )}
             </div>
           </div>
@@ -1896,29 +2023,74 @@ useEffect(() => {
             )}
             {user?.role === "resident" && (
               <>
-                <h2 className="text-xl font-bold mb-4 text-blue-700">Your Shared Uploads</h2>
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-3 sm:gap-0">
+                  <h2 className="text-lg sm:text-xl font-bold text-blue-700">
+                    {residentViewMode === 'trash' ? 'Trashed Uploads' : 'Your Shared Uploads'}
+                  </h2>
+                  <div className="flex items-center gap-3">
+                    <Button
+                      className={`${residentViewMode === 'trash' ? 'bg-red-600 hover:bg-red-700' : 'bg-red-500 hover:bg-red-600'} text-white rounded-full px-3 sm:px-4 py-2 flex items-center gap-1 sm:gap-2 shadow transition-all duration-200`}
+                      onClick={() => setResidentViewMode(residentViewMode === 'active' ? 'trash' : 'active')}
+                      title={residentViewMode === 'trash' ? 'Exit Trash' : 'View Trash'}
+                    >
+                      <img src="/icons/trash-red.svg" className="w-3 h-3 sm:w-4 sm:h-4 filter brightness-0 invert" />
+                      <span>{residentViewMode === 'trash' ? 'Exit Trash' : 'View Trash'}</span>
+                    </Button>
+                  </div>
+                </div>
+                
+                {residentViewMode === 'trash' && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+                    <div className="flex items-start gap-3">
+                      <Trash2 className="w-5 h-5 text-red-600 mt-0.5" />
+                      <div>
+                        <span className="text-sm font-semibold text-red-700">Trash View</span>
+                        <span className="text-xs text-red-600 block">Showing deleted uploads. Records in Trash are PERMANENTLY DELETED after 10 days.</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
                 <div className="flex flex-col gap-4">
-                  {residentUploads.length === 0 ? (
-                    <div className="text-center text-gray-500 py-8">No uploads found.</div>
+                  {(residentViewMode === 'active' ? residentUploads : residentTrashedUploads).length === 0 ? (
+                    <div className="text-center text-gray-500 py-8">
+                      {residentViewMode === 'trash' ? 'No trashed uploads found.' : 'No uploads found.'}
+                    </div>
                   ) : (
-                    residentUploads.map((upload, idx) => {
+                    (residentViewMode === 'active' ? residentUploads : residentTrashedUploads).map((upload, idx) => {
                       const dateObj = new Date(upload.createdAt);
                       const formattedDate = !isNaN(dateObj) ? `${String(dateObj.getDate()).padStart(2, '0')}/${String(dateObj.getMonth() + 1).padStart(2, '0')}/${dateObj.getFullYear()}` : upload.createdAt;
+                      let formattedTime = '';
+                      if (!isNaN(dateObj)) {
+                        const hours = dateObj.getHours();
+                        const minutes = dateObj.getMinutes();
+                        const ampm = hours >= 12 ? 'pm' : 'am';
+                        let displayHours = hours % 12 || 12;
+                        let hourStr = '';
+                        if (ampm === 'am') {
+                          hourStr = String(displayHours).padStart(2, '0');
+                        } else {
+                          hourStr = displayHours < 10 ? ` ${displayHours}` : String(displayHours);
+                        }
+                        formattedTime = `${hourStr}:${String(minutes).padStart(2, '0')} ${ampm}`;
+                      }
                       return (
                         <div
                           key={upload._id}
-                          className="flex bg-blue-50 border border-blue-200 rounded-lg shadow-sm px-6 py-4 w-full items-stretch"
-                          style={{ minWidth: 600 }}
+                          className={`flex flex-col sm:flex-row ${residentViewMode === 'trash' ? 'bg-red-50 border-red-200' : 'bg-blue-50 border-blue-200'} border rounded-lg shadow-sm p-4 sm:px-6 sm:py-4 w-full items-stretch gap-4 sm:gap-0`}
                         >
                           {/* Left: Date */}
-                          <div className="flex flex-col justify-center items-start min-w-[120px] pr-6">
+                          <div className="flex flex-col justify-center items-start sm:min-w-[120px] sm:pr-6">
                             <span className="text-xs text-gray-500">Date</span>
-                            <span className="font-semibold text-lg text-blue-900">{formattedDate}</span>
+                            <span className="font-semibold text-lg text-blue-900">
+                              {formattedDate}
+                              {formattedTime && <span className="text-xs text-gray-500 ml-2 font-mono">{formattedTime}</span>}
+                            </span>
                           </div>
                           {/* Divider */}
-                          <div className="w-px bg-blue-200 mx-4" />
+                          <div className="hidden sm:block w-px bg-blue-200 mx-4" />
                           {/* Center: Images & Videos */}
-                          <div className="flex flex-col justify-center items-center flex-grow min-w-[180px]">
+                          <div className="flex flex-col justify-center items-center flex-grow sm:min-w-[180px]">
                             <div className="flex items-center gap-8">
                               <div className="flex flex-col items-center">
                                 <div className="flex items-center gap-1">
@@ -1937,16 +2109,55 @@ useEffect(() => {
                             </div>
                           </div>
                           {/* Divider */}
-                          <div className="w-px bg-blue-200 mx-4" />
-                          {/* Right: Share Code */}
-                          <div className="flex flex-col justify-between items-end min-w-[160px]">
-                            <div className="flex items-center gap-2 mb-2">
-                              <span className="text-xs text-gray-500">Share Code:</span>
-                              <span className="font-mono font-bold text-lg text-blue-900 bg-blue-100 px-3 py-1 rounded-lg">{upload.accessCode}</span>
-                            </div>
-                            <div className="flex items-center gap-2 mt-2 text-black text-sm">
-                              <img src="/icons/icon-park-outline_history-query.svg" className="w-5 h-5" alt="History" />
-                              <span>History</span>
+                          <div className="hidden sm:block w-px bg-blue-200 mx-4" />
+                          {/* Right: Share Code and Actions */}
+                          <div className="flex flex-col justify-between items-center sm:items-end sm:min-w-[160px] mt-4 sm:mt-0">
+                            <div className="flex flex-col items-center w-full mb-2">
+                              <div className="flex flex-row items-center justify-center gap-2">
+                                <span className="text-xs text-gray-500">Share Code</span>
+                                <span className="font-mono font-bold text-lg text-blue-900 bg-blue-100 px-3 py-1 rounded-lg">{upload.accessCode}</span>
+                              </div>
+                              <div className="flex flex-row items-center justify-center gap-2 mt-2 w-full sm:justify-end">
+                                {residentViewMode === 'active' ? (
+                                  <>
+                                    <button
+                                      onClick={() => handleDeleteUpload(upload._id)}
+                                      className="flex items-center gap-1 text-red-600 hover:text-red-800 text-sm transition-colors"
+                                      title="Move to trash"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                      <span>Delete</span>
+                                    </button>
+                                    <button
+                                      onClick={() => setShowHistoryDialog(true)}
+                                      className="flex items-center gap-1 text-blue-600 hover:text-blue-800 text-sm transition-all duration-200 hover:scale-105"
+                                      title="History"
+                                    >
+                                      <img src="/icons/icon-park-outline_history-query.svg" className="w-5 h-5" alt="History" />
+                                      <span>History</span>
+                                    </button>
+                                  </>
+                                ) : (
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      onClick={() => handleRestoreUpload(upload._id)}
+                                      className="flex items-center gap-1 text-green-600 hover:text-green-800 text-sm transition-colors"
+                                      title="Restore upload"
+                                    >
+                                      <ArchiveRestore className="w-4 h-4" />
+                                      <span>Restore</span>
+                                    </button>
+                                    <button
+                                      onClick={() => handlePermanentDeleteUpload(upload._id)}
+                                      className="flex items-center gap-1 text-red-600 hover:text-red-800 text-sm transition-colors"
+                                      title="Permanently delete"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                      <span>Delete</span>
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -1957,8 +2168,9 @@ useEffect(() => {
               </>
             )}
           </div>
-          {/* Floating Resend Button */}
+                    {/* Floating Resend Button */}
           <FloatingResendButton />
+          
           {/* History Dialog for Resident */}
           {showHistoryDialog && user?.role === "resident" && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
@@ -1988,7 +2200,8 @@ useEffect(() => {
               </div>
             </div>
           )}
-        </div>
+
+          </div>
 
         {/* Replace the old form and dialog with the new component */}
         <VideoLinkSender
@@ -2223,6 +2436,70 @@ useEffect(() => {
           </div>
         )}
       </div>
+
+      {/* Notification Popup */}
+      {showNotificationPopup && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[150] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[80vh] overflow-hidden">
+            {/* Header */}
+            <div className="bg-purple-500 text-white p-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Bell className="w-6 h-6" />
+                <h2 className="text-lg font-bold">Notifications</h2>
+              </div>
+              <button 
+                onClick={() => setShowNotificationPopup(false)}
+                className="p-2 hover:bg-purple-600 rounded-full transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            {/* Content */}
+            <div className="p-4 max-h-[60vh] overflow-y-auto">
+              <div className="space-y-2">
+                {/* Dynamic notifications from backend */}
+                {notificationData && notificationData.map((notification, index) => (
+                  <div key={notification._id || index} className={`flex items-start gap-3 p-3 rounded-lg transition-all duration-200 cursor-pointer group ${readNotifications.has(notification._id) ? 'bg-gray-50 opacity-75' : 'bg-green-50 hover:bg-green-100'}`}>
+                    <div className="w-2 h-2 bg-green-500 rounded-full mt-2 flex-shrink-0 animate-pulse"></div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Check className="w-3 h-3 text-green-600" />
+                        <p className="font-semibold text-sm text-gray-800">Congratulations! 🎉</p>
+                      </div>
+                      <p className="text-xs text-gray-600">
+                        Your shared information has been viewed successfully. Your landlord/councilor has accessed your uploaded content.
+                        <br />
+                        <span className="font-semibold text-blue-600">Share Code: {notification.accessCode}</span>
+                      </p>
+                      <div className="flex items-center justify-between mt-2">
+                        <p className="text-xs text-green-600">
+                          {notification.firstAccessedAt ? 
+                            new Date(notification.firstAccessedAt).toLocaleString() : 
+                            'Just now'
+                          }
+                        </p>
+                        <button 
+                          className={`text-xs transition-colors ${readNotifications.has(notification._id) ? 'text-green-600 opacity-100' : 'text-gray-500 hover:text-green-600 opacity-0 group-hover:opacity-100'}`}
+                          onClick={(e) => { e.stopPropagation(); handleMarkAsRead(notification._id); }}
+                        >
+                          {readNotifications.has(notification._id) ? '✓ Read' : 'Mark as read'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                
+                {(!notificationData || notificationData.length === 0) && (
+                  <div className="text-center py-8 text-gray-500">
+                    <p className="text-sm">No notifications to show</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }

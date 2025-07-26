@@ -11,6 +11,7 @@ import { useUser } from "@/provider/UserProvider"
 import axios from "axios"
 import { toast } from "sonner";
 import { useRouter } from "next/navigation"
+import EnterShareCodeDialog from "../EnterShareCodeDialog";
 
 export function Footer() {
   const { user, isAuth } = useUser();
@@ -18,6 +19,7 @@ export function Footer() {
   const [isMeetingOpen, setISMeetingOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [callbackLoading, setCallbackLoading] = useState(false);
+  const [isShareCodeOpen, setIsShareCodeOpen] = useState(false);
   const [callbackFormData, setCallbackFormData] = useState({
     name: '',
     email: '',
@@ -274,7 +276,7 @@ export function Footer() {
     <>
       <footer className="bg-gray-50 border-t border-gray-200 py-8 px-6">
         <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 items-stretch h-full">
             {/* Left Section - Company Info */}
             <div className="space-y-4 flex items-center justify-center flex-col">
               <h2 className="text-2xl font-bold text-gray-900">Videodesk.co.uk</h2>
@@ -289,22 +291,19 @@ export function Footer() {
             </div>
 
             {/* Center Section - Action Buttons */}
-            <div className="flex items-center justify-center flex-col gap-4">
-              <Button className={"w-[220px] text-white bg-purple-500 flex items-center justify-between gap-2 cursor-pointer rounded-full py-3 px-6 text-base font-semibold shadow-md hover:bg-purple-600 transition-all duration-200"} onClick={() => setIsCallbackOpen(true)}>
+            <div className="flex flex-col items-center justify-center h-full gap-4 w-full">
+              <Button className={"w-[220px] text-white bg-purple-500 flex items-center justify-between gap-2 cursor-pointer rounded-full py-3 px-6 text-base font-semibold shadow-md hover:bg-purple-600 transition-all duration-200 text-center"} onClick={() => setIsCallbackOpen(true)}>
                 <span>Request a Callback</span>
                 <Calendar />
               </Button>
-              <Button className={"w-[220px] text-white bg-purple-500 flex items-center justify-between gap-2 cursor-pointer rounded-full py-3 px-6 text-base font-semibold shadow-md hover:bg-purple-600 transition-all duration-200"} onClick={() => setISMeetingOpen(true)}>
+              <Button className={"w-[220px] text-white bg-purple-500 flex items-center justify-between gap-2 cursor-pointer rounded-full py-3 px-6 text-base font-semibold shadow-md hover:bg-purple-600 transition-all duration-200 text-center"} onClick={() => setISMeetingOpen(true)}>
                 <span>Book a Demo Meeting</span>
                 <Calendar />
-              </Button>
-              <Button className={"w-[230px] text-white bg-orange-500 flex items-center justify-between gap-2 cursor-pointer rounded-full py-3 px-6 text-base font-semibold shadow-md hover:bg-orange-600 transition-all duration-200 h-auto"} onClick={() => router.push('/room/upload')}>
-                <span>For Residents <br/> Share Photos and Videos</span>
               </Button>
             </div>
 
             {/* Right Section - Navigation Links */}
-            <div className="space-y-3">
+            <div className="space-y-3 flex flex-col items-center lg:items-end">
               <a href="#about" className="block text-gray-600 hover:text-gray-900 transition-colors">
                 About
               </a>
@@ -317,6 +316,16 @@ export function Footer() {
               <a href="#pricing" className="block text-gray-600 hover:text-gray-900 transition-colors">
                 Pricing and Plans
               </a>
+            </div>
+
+            {/* Fourth Column - Resident Button */}
+            <div className="flex flex-col items-center lg:items-end gap-4">
+              <Button className={"w-[230px] text-white bg-orange-500 flex items-center justify-between gap-2 cursor-pointer rounded-full py-3 px-6 text-base font-semibold shadow-md hover:bg-orange-600 transition-all duration-200 h-auto"} onClick={() => router.push('/room/upload')}>
+                <span>For Residents <br/> Share Photos and Videos</span>
+              </Button>
+              <Button className={"w-[230px] text-white bg-blue-500 flex items-center justify-center gap-2 cursor-pointer rounded-full py-3 px-6 text-base font-semibold shadow-md hover:bg-blue-600 transition-all duration-200 h-auto"} onClick={() => setIsShareCodeOpen(true)}>
+                <span className="text-center">Enter Share Code</span>
+              </Button>
             </div>
           </div>
         </div>
@@ -594,6 +603,9 @@ export function Footer() {
           </form>
         </div>
       </CustomDialog>
+
+      {/* Enter Share Code Modal */}
+      <EnterShareCodeDialog open={isShareCodeOpen} setOpen={setIsShareCodeOpen} />
     </>
   )
 }

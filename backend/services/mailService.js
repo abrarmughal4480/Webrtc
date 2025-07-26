@@ -35,6 +35,7 @@ export const sendMail = async (to, subject, text, html = null, buttonColor = nul
         console.log("Email sent successfully");
     } catch (error) {
         console.error("Error sending email:", error);
+        throw error; // Re-throw error for better upstream error handling
     }
 };
 

@@ -248,6 +248,7 @@ export default function UploadPage() {
 
   const router = useRouter();
   const [showSignupPrompt, setShowSignupPrompt] = useState(false);
+  const [signupEmailEditable, setSignupEmailEditable] = useState(false);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
@@ -331,6 +332,11 @@ export default function UploadPage() {
               <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-6">
                 Your Details
               </h1>
+              {!user && (
+                <div className="text-center text-sm text-gray-700 font-semibold mb-4">
+                  Already registered? <a href="#" className="text-blue-700 underline hover:text-blue-900" onClick={e => { e.preventDefault(); localStorage.setItem('loginRedirect', window.location.pathname); localStorage.setItem('openLoginPopup', 'true'); window.location.href = '/'; }}>Log in</a> or <a href="#" className="text-blue-700 underline hover:text-blue-900" onClick={e => { e.preventDefault(); setShowSignupPrompt(true); setSignupEmailEditable(true); }}>Sign up</a>
+                </div>
+              )}
               <div className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
@@ -404,17 +410,17 @@ export default function UploadPage() {
                 />
 
                 {images.length > 0 ? (
-                  <div className="flex gap-3 md:gap-4 overflow-x-auto pb-2 md:pb-4 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 md:gap-4">
                     {images.map((image, index) => (
-                      <div key={image.id} className="w-[140px] sm:w-[180px] md:w-[200px] flex-shrink-0">
-                        <div className="w-full h-[100px] sm:h-[140px] md:h-[200px] bg-gradient-to-br from-gray-200 to-gray-300 rounded-3xl overflow-hidden relative shadow-lg hover:shadow-xl transition-all duration-300 group">
+                      <div key={image.id} className="w-full">
+                        <div className="w-full aspect-square bg-gradient-to-br from-gray-200 to-gray-300 rounded-3xl overflow-hidden relative shadow-lg hover:shadow-xl transition-all duration-300 group">
                           <img
                             src={image.url}
                             alt={image.name}
                             className="w-full h-full object-cover rounded-3xl cursor-pointer"
                             onClick={() => setModalImage(image)}
                           />
-                          <div className="absolute top-2 md:top-3 right-2 md:right-3 flex flex-row gap-1 md:gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                          <div className="absolute top-2 md:top-3 right-2 md:right-3 flex flex-row gap-1 md:gap-2 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-300">
                              <button onClick={() => removeImage(image.id)} className="p-1.5 md:p-2 bg-black/20 backdrop-blur-sm hover:bg-red-500/80 rounded-full text-white transition-all duration-200 hover:scale-110">
                                 <Trash2 className="w-3.5 h-3.5 md:w-4 md:h-4" />
                               </button>
@@ -447,7 +453,7 @@ export default function UploadPage() {
                   </div>
                 ) : (
                   <div className="text-center py-8 md:py-12 text-gray-500">
-                    <div className="text-sm">Please upload upto 6 images here.</div>
+                    <div className="text-sm">Please upload up to 6 images here.</div>
                     <div className="text-sm">No images uploaded yet.</div>
                   </div>
                 )}
@@ -477,12 +483,12 @@ export default function UploadPage() {
                 />
 
                 {recordings.length > 0 ? (
-                  <div className="flex gap-3 md:gap-4 overflow-x-auto pb-2 md:pb-4 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
                     {recordings.map((recording) => {
                       const isExpanded = expandedVideos.has(recording.id);
                       return (
-                        <div key={recording.id} className={`flex-shrink-0 transition-all duration-300 ${isExpanded ? 'w-[320px] sm:w-[400px]' : 'w-[180px] sm:w-[200px] md:w-[280px]'}`}>
-                          <div className={`w-full bg-gradient-to-br from-gray-200 to-gray-300 rounded-3xl overflow-hidden relative shadow-lg hover:shadow-xl transition-all duration-300 group ${isExpanded ? 'h-[320px] sm:h-[400px]' : 'h-[140px] sm:h-[200px]'}`}>
+                        <div key={recording.id} className={`w-full transition-all duration-300 ${isExpanded ? 'sm:col-span-2' : ''}`}>
+                          <div className={`w-full bg-gradient-to-br from-gray-200 to-gray-300 rounded-3xl overflow-hidden relative shadow-lg hover:shadow-xl transition-all duration-300 group ${isExpanded ? 'aspect-video' : 'aspect-video sm:aspect-[4/3]'}`}>
                             <video
                               src={recording.url}
                               controls={isExpanded}
@@ -506,7 +512,7 @@ export default function UploadPage() {
                                 </div>
                               </div>
                             )}
-                            <div className="absolute top-2 md:top-3 right-2 md:right-3 flex flex-row gap-1 md:gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                            <div className="absolute top-2 md:top-3 right-2 md:right-3 flex flex-row gap-1 md:gap-2 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-300">
                               <button onClick={() => removeRecording(recording.id)} className="p-1.5 md:p-2 bg-black/20 backdrop-blur-sm hover:bg-red-500/80 rounded-full text-white transition-all duration-200 hover:scale-110">
                                 <Trash2 className="w-3.5 h-3.5 md:w-4 md:h-4" />
                               </button>
@@ -540,7 +546,7 @@ export default function UploadPage() {
                   </div>
                 ) : (
                   <div className="text-center py-8 md:py-12 text-gray-500">
-                    <div className="text-sm">Please upload upto 2 videos here.</div>
+                    <div className="text-sm">Please upload up to 2 videos here.</div>
                     <div className="text-sm">No videos uploaded yet.</div>
                   </div>
                 )}
@@ -551,7 +557,7 @@ export default function UploadPage() {
             <div className="mt-8">
               <div className="max-w-md mx-auto">
                 <Button type="submit" size="lg" className="w-full h-14 text-lg font-semibold bg-gradient-to-r from-purple-400 to-purple-500 hover:from-purple-500 hover:to-purple-600 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 rounded-full" disabled={isUploading}>
-                    {isUploading ? (<><Loader2 className="w-5 h-5 mr-2 animate-spin" /> Saving...</>) : 'Save Details'}
+                    {isUploading ? (<><Loader2 className="w-5 h-5 mr-2 animate-spin" /> Saving...</>) : 'Save/Get Share Code'}
                 </Button>
               </div>
             </div>
@@ -618,8 +624,9 @@ export default function UploadPage() {
                   <input
                     type="email"
                     value={form.email}
-                    disabled
-                    className="w-full px-3 py-2 rounded-lg border border-gray-300 bg-gray-100 text-gray-500 cursor-not-allowed text-sm"
+                    onChange={e => setForm(prev => ({ ...prev, email: e.target.value }))}
+                    disabled={!signupEmailEditable}
+                    className={`w-full px-3 py-2 rounded-lg border border-gray-300 ${signupEmailEditable ? 'bg-white text-gray-900 cursor-text' : 'bg-gray-100 text-gray-500 cursor-not-allowed'} text-sm`}
                   />
                   <label className="text-xs font-semibold text-gray-600 ml-1 mt-2">Password</label>
                   <input
@@ -656,6 +663,7 @@ export default function UploadPage() {
                         toast.success('Resident account created!');
                         setShowSignupPrompt(false);
                         setPendingShowSignup(false);
+                        setSignupEmailEditable(false);
                         if (pendingShareCode) {
                           setAccessCode(pendingShareCode);
                           setIsAccessCodeDialogOpen(true);

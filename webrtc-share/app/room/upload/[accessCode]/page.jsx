@@ -11,27 +11,65 @@ import { useRouter } from "next/navigation";
 export default function ViewUploadPage() {
   const params = useParams();
   const accessCode = params?.accessCode;
+  const router = useRouter();
+  
   const [upload, setUpload] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [selectedMedia, setSelectedMedia] = useState(null);
   const [imageErrors, setImageErrors] = useState({});
-  const router = useRouter();
+  const [allowed, setAllowed] = useState(false);
+  const [checked, setChecked] = useState(false);
+  const [notificationSent, setNotificationSent] = useState(false);
 
   useEffect(() => {
-    if (!accessCode) return;
-    setLoading(true);
-    setError("");
-    publicApi.get(`/api/v1/upload/${accessCode}`)
-      .then(res => {
-        setUpload(res.data?.data?.upload || null);
-        setLoading(false);
-      })
-      .catch(err => {
-        setError(err.response?.data?.message || "Not found");
-        setLoading(false);
-      });
-  }, [accessCode]);
+    if (typeof window !== 'undefined') {
+      const valid = sessionStorage.getItem(`accessCodeValidated:${accessCode}`) === 'true';
+      setAllowed(valid);
+      setChecked(true);
+      if (!valid) {
+        router.replace('/');
+        return;
+      }
+      
+      // Only fetch data if access is allowed
+      if (valid && accessCode) {
+        setLoading(true);
+        setError("");
+        publicApi.get(`/api/v1/upload/${accessCode}`)
+          .then(res => {
+            setUpload(res.data?.data?.upload || null);
+            setLoading(false);
+            // Mark notification as sent when someone accesses the content
+            if (res.data?.data?.upload && !notificationSent) {
+              // Check if notification was already sent
+              if (res.data?.data?.upload.notificationSent) {
+                console.log('✅ Notification already sent for this upload');
+                return;
+              }
+              
+              setNotificationSent(true);
+              publicApi.post(`/api/v1/uploads/notification/mark-sent/${accessCode}`)
+                .then(() => {
+                  console.log('✅ Notification marked as sent for first access');
+                })
+                .catch(err => {
+                  console.log('⚠️ Could not mark notification as sent:', err);
+                  setNotificationSent(false); // Reset if failed
+                });
+            }
+          })
+          .catch(err => {
+            setError(err.response?.data?.message || "Not found");
+            setLoading(false);
+          });
+      }
+    }
+  }, [accessCode, router, notificationSent]);
+
+  // Early returns after all hooks
+  if (!checked) return null;
+  if (!allowed) return null;
 
   if (loading) return (
     <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">

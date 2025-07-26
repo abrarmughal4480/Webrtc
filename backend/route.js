@@ -1,10 +1,11 @@
 import express from 'express';
 const router = express.Router();
 import {changePassword, loadme, login, logout, register, updateUser,forgotPassword,resetPassword, verify, sendFriendLink, resetPasswordFromDashboard, sendFeedback, raiseSupportTicket, updateUserLogo, updateLandlordInfo, bookDemoMeeting, requestCallback, updateMessageSettings, getMessageSettings, createFolder, updateFolder, deleteFolder, moveFolderToTrash, restoreFolderFromTrash, getFolders, assignMeetingToFolder, getMeetingFolders, updatePaginationSettings, getPaginationSettings, registerResident } from './controllers/authController.js';
-import { createUpload, getUploadByAccessCode, getMyUploads, getMyLatestUpload } from './controllers/uploadController.js';
+import { createUpload, getUploadByAccessCode, getMyUploads, getMyLatestUpload, deleteUpload, restoreUpload, permanentDeleteUpload, getMyTrashedUploads, markNotificationSent, checkNotificationStatus } from './controllers/uploadController.js';
 import {isAuthenticate} from "./middlewares/auth.js"
 import { create, getAllMeetings, getMeetingById, updateMeetingController, deleteMeeting, getMeetingForShare, getMeetingByMeetingId, deleteRecording, deleteScreenshot, archiveMeeting, unarchiveMeeting, getArchivedCount, recordVisitorAccess, restoreMeeting, permanentDeleteMeeting, searchMeetings, getSpecialNotes, saveSpecialNotes, getStructuredSpecialNotes, saveStructuredSpecialNotes } from './controllers/meetingController.js';
 import { getUserRoomInfo } from './controllers/userRoomInfoController.js';
+import Upload from './models/upload.js';
 
 // auth routes
 router.route('/register').post(register);
@@ -105,12 +106,77 @@ router.route('/get-token-info/:token').get((req, res) => {
 });
 
 router.get('/room-user-info', getUserRoomInfo);
+// upload routes
 router.route('/uploads/my').get(isAuthenticate, getMyUploads);
 router.route('/uploads/my-latest').get(isAuthenticate, getMyLatestUpload);
+router.route('/uploads/trash').get(isAuthenticate, getMyTrashedUploads);
+router.route('/uploads/:id').delete(isAuthenticate, deleteUpload);
+router.route('/uploads/restore/:id').put(isAuthenticate, restoreUpload);
+router.route('/uploads/permanent/:id').delete(isAuthenticate, permanentDeleteUpload);
+router.route('/uploads/notification/check').get(isAuthenticate, checkNotificationStatus);
+router.route('/uploads/notification/mark-sent/:accessCode').post(markNotificationSent);
 
-router.route('/meetings/restore/:id').put(isAuthenticate, restoreMeeting);
-router.route('/meetings/permanent/:id').delete(isAuthenticate, permanentDeleteMeeting);
 router.route('/upload').post(createUpload);
 router.route('/upload/:accessCode').get(getUploadByAccessCode);
+
+// Validate access code, house/flat, and postcode
+router.post('/api/v1/validate-access-code', async (req, res) => {
+  const { code, house, postcode } = req.body;
+  console.log('🔍 Validation request received:', { code, house, postcode });
+  
+  if (!code || !house || !postcode) {
+    console.log('❌ Missing required fields');
+    return res.status(400).json({ valid: false, message: 'All fields are required.' });
+  }
+  
+  try {
+    const upload = await Upload.findOne({ accessCode: code });
+    console.log('📄 Found upload:', upload ? 'Yes' : 'No');
+    
+    if (!upload) {
+      console.log('❌ Code not found:', code);
+      return res.status(404).json({ valid: false, message: 'Code not found' });
+    }
+    
+    console.log('📋 Upload details:', {
+      accessCode: upload.accessCode,
+      house_name_number: upload.house_name_number,
+      flat_apartment_room: upload.flat_apartment_room,
+      actualPostCode: upload.actualPostCode,
+      postCode: upload.postCode
+    });
+    
+    const houseMatch = (upload.house_name_number && upload.house_name_number.trim().toLowerCase() === house.trim().toLowerCase()) ||
+                      (upload.flat_apartment_room && upload.flat_apartment_room.trim().toLowerCase() === house.trim().toLowerCase());
+    
+    const postcodeMatch = (upload.actualPostCode && upload.actualPostCode.trim().toLowerCase() === postcode.trim().toLowerCase()) ||
+                         (upload.postCode && upload.postCode.trim().toLowerCase() === postcode.trim().toLowerCase());
+    
+    console.log('🏠 House matching:', {
+      input: house.trim().toLowerCase(),
+      house_name_number: upload.house_name_number ? upload.house_name_number.trim().toLowerCase() : 'null',
+      flat_apartment_room: upload.flat_apartment_room ? upload.flat_apartment_room.trim().toLowerCase() : 'null',
+      houseMatch
+    });
+    
+    console.log('📮 Postcode matching:', {
+      input: postcode.trim().toLowerCase(),
+      actualPostCode: upload.actualPostCode ? upload.actualPostCode.trim().toLowerCase() : 'null',
+      postCode: upload.postCode ? upload.postCode.trim().toLowerCase() : 'null',
+      postcodeMatch
+    });
+    
+    if (houseMatch && postcodeMatch) {
+      console.log('✅ Validation successful');
+      return res.json({ valid: true, accessCode: code });
+    }
+    
+    console.log('❌ Validation failed - details do not match');
+    return res.status(403).json({ valid: false, message: 'Details do not match' });
+  } catch (err) {
+    console.error('💥 Server error:', err);
+    return res.status(500).json({ valid: false, message: 'Server error' });
+  }
+});
 
 export default router;

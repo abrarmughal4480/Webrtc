@@ -92,6 +92,14 @@ export const Header = () => {
     }
   }, [isOtpOpen]);
 
+  // Check for login popup trigger from other components
+  useEffect(() => {
+    if (typeof window !== 'undefined' && localStorage.getItem('openLoginPopup') === 'true') {
+      setSignInOpen(true);
+      localStorage.removeItem('openLoginPopup');
+    }
+  }, []);
+
   const handleLogin = async (e) => {
     e.preventDefault();
     setIsLoading(true)
@@ -158,6 +166,14 @@ export const Header = () => {
       setIsOtpOpen(false);
       setIsAuth(true);
       setUser(res.data.user);
+      // Post-OTP redirect
+      if (typeof window !== 'undefined') {
+        const redirectPath = localStorage.getItem('loginRedirect');
+        if (redirectPath) {
+          localStorage.removeItem('loginRedirect');
+          window.location.href = redirectPath;
+        }
+      }
     } catch (error) {
       toast("Verify Unsuccessfull", {
         description: error?.response?.data?.message || error.message

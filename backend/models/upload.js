@@ -30,6 +30,10 @@ const uploadSchema = new mongoose.Schema({
   images: [imageSchema],
   videos: [videoSchema],
   accessCode: { type: String, required: true, unique: true },
+  deleted: { type: Boolean, default: false },
+  deletedAt: { type: Date },
+  notificationSent: { type: Boolean, default: false },
+  firstAccessedAt: { type: Date },
 }, { timestamps: true });
 
 const Upload = mongoose.model('Upload', uploadSchema);

@@ -68,6 +68,17 @@ export const setupSocketListeners = () => {
       logger.info(`Message settings updated for room: ${roomId}`);
     });
 
+    // Notification system events
+    socket.on('join-notification-room', (email) => {
+      socket.join(`notifications-${email}`);
+      logger.info(`User ${socket.id} joined notification room for: ${email}`);
+    });
+
+    socket.on('leave-notification-room', (email) => {
+      socket.leave(`notifications-${email}`);
+      logger.info(`User ${socket.id} left notification room for: ${email}`);
+    });
+
     // WebRTC signaling
     socket.on('offer', (offer, roomId) => {
       socket.to(roomId).emit('offer', offer);
@@ -98,6 +109,14 @@ export const getIO = () => {
     throw new Error('Socket.io not initialized!');
   }
   return io;
+};
+
+export const sendNotification = (email, notificationData) => {
+  if (!io) {
+    throw new Error('Socket.io not initialized!');
+  }
+  io.to(`notifications-${email}`).emit('new-notification', notificationData);
+  logger.info(`Notification sent to user: ${email}`);
 };
 
 // Export as class for compatibility with existing imports

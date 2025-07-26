@@ -397,23 +397,34 @@ export const changePassword = catchAsyncError(async (req, res, next) => {
 // forgot password 
 export const forgotPassword = catchAsyncError(async (req, res, next) => {
     const { email } = req.body;
-    
+    console.log("[forgotPassword] Request for:", email);
+
     if (!email) {
+        console.log("[forgotPassword] No email provided");
         return next(new ErrorHandler("Email is required", 400));
     }
-    
-    const user = await UserModel.findOne({ email });
 
-    if (!user) return next(new ErrorHandler("User not found", 400));
+    const user = await UserModel.findOne({ email });
+    if (!user) {
+        console.log("[forgotPassword] User not found for email:", email);
+        return next(new ErrorHandler("User not found", 400));
+    }
 
     const resetToken = await user.getResetToken();
     await user.save();
-    
-    const resetUrl = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
-    
-    // Add this line to fix the "logoSvg is not defined" error
+    console.log("[forgotPassword] Reset token generated and user saved");
+
+    // Auto-detect frontend URL if not set in env
+    let frontendUrl = process.env.FRONTEND_URL;
+    if (!frontendUrl) {
+        const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+        const host = req.headers['origin'] || req.headers['host'];
+        frontendUrl = `${protocol}://${host}`;
+        frontendUrl = frontendUrl.replace(/\/$/, '');
+    }
+    const resetUrl = `${frontendUrl}/reset-password/${resetToken}`;
     const logoSvg = getLogoSvg();
-    
+
     const htmlContent = `
         <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
             <div style="background: linear-gradient(135deg, #9452FF 0%, #8a42fc 100%); color: white; padding: 30px 20px; text-align: center;">
@@ -443,10 +454,11 @@ export const forgotPassword = catchAsyncError(async (req, res, next) => {
     
     try {
         await sendMail(email, "Password Reset Request", textContent, htmlContent);
-        sendResponse(true, 200, `Reset link has been sent to ${user.email}`, res);
+        console.log("[forgotPassword] sendMail completed");
+        sendResponse(res, 200, true, null, `Reset link has been sent to ${user.email}`);
     } catch (error) {
+        console.log("[forgotPassword] Error in sendMail:", error);
         user.resetPasswordToken = undefined;
-        user.resetPasswordExpire = undefined;
         await user.save();
         return next(new ErrorHandler("Email could not be sent", 500));
     }
