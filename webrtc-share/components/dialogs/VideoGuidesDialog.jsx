@@ -82,7 +82,6 @@ const VideoGuidesDialog = ({ open, setOpen }) => {
     setSelectedVideo(video);
     setIsVideoLoading(true);
     setLoadError(false);
-    setShowPlayOverlay(false);
     
     // Immediately try to load the iframe
     if (iframeRef.current) {
@@ -318,19 +317,6 @@ const VideoGuidesDialog = ({ open, setOpen }) => {
                                 Manual Load
                               </button>
                             </div>
-                          </div>
-                        </div>
-                      )}
-                      {showPlayOverlay && !isVideoLoading && !loadError && (
-                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-10">
-                          <div className="text-center text-white">
-                            <button
-                              onClick={handlePlayClick}
-                              className="w-20 h-20 bg-purple-600 hover:bg-purple-700 rounded-full flex items-center justify-center transition-all duration-200 hover:scale-110 shadow-2xl"
-                            >
-                              <Play className="w-10 h-10 text-white ml-1" />
-                            </button>
-                            <p className="text-lg mt-4 font-medium">Click to Play Video</p>
                           </div>
                         </div>
                       )}
