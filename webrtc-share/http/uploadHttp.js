@@ -7,6 +7,7 @@ export const getMyTrashedUploadsRequest = async () => await api.get("/uploads/tr
 export const deleteUploadRequest = async (id) => await api.delete(`/uploads/${id}`);
 export const restoreUploadRequest = async (id) => await api.put(`/uploads/restore/${id}`);
 export const permanentDeleteUploadRequest = async (id) => await api.delete(`/uploads/permanent/${id}`);
+export const searchUploadsRequest = async (searchParams) => await api.post("/uploads/search", searchParams);
 
 export const validateAccessCode = async ({ code, house, postcode }) => {
   console.log('🚀 Frontend: Making validation request to:', '/api/v1/validate-access-code');

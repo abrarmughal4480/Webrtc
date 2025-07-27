@@ -306,11 +306,11 @@ export const login = catchAsyncError(async (req, res, next) => {
 
 export const verify = catchAsyncError(async (req, res, next) => {
 	const {OTP} = req.body;
-	if(!OTP) return sendResponse(false, 401, 'All fields are required',res);
+	if(!OTP) return sendResponse(res, 401, false, null, 'All fields are required');
 	let user = await UserModel.findOne({OTP});
 
 	if (!user)
-      return sendResponse(false, 401, 'Invalid OTP or maybe expired',res);
+      return sendResponse(res, 401, false, null, 'Invalid OTP or maybe expired');
 
  
     
@@ -377,7 +377,7 @@ export const updateUser = catchAsyncError(async (req, res, next) => {
 
 	const user = await UserModel.findByIdAndUpdate(req.user._id,{email});
 	
-	sendResponse(true,200,'Update successfully',res);
+	sendResponse(res, 200, true, null, 'Update successfully');
 });
 
 export const changePassword = catchAsyncError(async (req, res, next) => {
@@ -386,12 +386,12 @@ export const changePassword = catchAsyncError(async (req, res, next) => {
 	
 	const isMatch = await user.comparePassword(oldpassword);
     if (!isMatch)
-		return sendResponse(false, 401, 'Incorrect old password',res);
+		return sendResponse(res, 401, false, null, 'Incorrect old password');
 	
 	user.password = newpassword;
 	await user.save();
   
-    sendResponse(true,200,'Password update successfully',res);
+    sendResponse(res, 200, true, null, 'Password update successfully');
 });
 
 // forgot password 
@@ -488,7 +488,7 @@ export const resetPassword = catchAsyncError(async (req, res, next) => {
     user.resetPasswordExpire = undefined;
   
     await user.save();
-	sendResponse(true,200,"Password Changed Successfully",res);
+	sendResponse(res, 200, true, null, "Password Changed Successfully");
 });
 
 // Reset password from dashboard (when user is logged in)
@@ -523,7 +523,7 @@ export const resetPasswordFromDashboard = catchAsyncError(async (req, res, next)
     user.password = newPassword;
     await user.save();
     
-    sendResponse(true, 200, "Password updated successfully", res);
+    	sendResponse(res, 200, true, null, "Password updated successfully");
 });
 
 // Send friend link
@@ -568,7 +568,7 @@ export const sendFriendLink = catchAsyncError(async (req, res, next) => {
     
     try {
         await sendMail(toEmail, `${fromName} invited you to check out Videodesk`, textContent, htmlContent);
-        sendResponse(true, 200, `Link sent successfully to ${toEmail}`, res);
+        	sendResponse(res, 200, true, null, `Link sent successfully to ${toEmail}`);
     } catch (error) {
         return next(new ErrorHandler("Email could not be sent", 500));
     }
@@ -620,7 +620,7 @@ export const sendFeedback = catchAsyncError(async (req, res, next) => {
     
     try {
         await sendMail(process.env.FEEDBACK_EMAIL, `New Feedback from ${user.email}`, textContent, htmlContent);
-        sendResponse(true, 200, "Feedback sent successfully", res);
+        	sendResponse(res, 200, true, null, "Feedback sent successfully");
     } catch (error) {
         return next(new ErrorHandler("Failed to send feedback", 500));
     }
@@ -696,7 +696,7 @@ Query: ${query}`;
     
     try {
         await sendMail(process.env.SUPPORT_TICKET_EMAIL, `Support Ticket ${ticketId} - ${category} - ${user.email}`, textContent, htmlContent);
-        sendResponse(true, 200, `Support ticket ${ticketId} created successfully`, res);
+        	sendResponse(res, 200, true, null, `Support ticket ${ticketId} created successfully`);
     } catch (error) {
         return next(new ErrorHandler("Failed to create support ticket", 500));
     }
@@ -840,7 +840,7 @@ export const bookDemoMeeting = catchAsyncError(async (req, res, next) => {
         await sendMail(process.env.DEMO_MEETING_EMAIL, `🎯 Demo Meeting Request ${meetingId} - ${name}`, adminTextContent, adminHtmlContent);
         // Send confirmation email to user
         await sendMail(email, `✅ Demo Meeting Request Confirmed - ${meetingId}`, userTextContent, userHtmlContent);
-        sendResponse(true, 200, `Demo meeting request sent successfully! Reference: ${meetingId}`, res);
+        	sendResponse(res, 200, true, null, `Demo meeting request sent successfully! Reference: ${meetingId}`);
     } catch (error) {
         return next(new ErrorHandler("Failed to send demo meeting request", 500));
     }
@@ -1203,7 +1203,7 @@ Please contact ${name} at ${phone} at their preferred time.`;
     
     try {
         await sendMail(process.env.CALLBACK_REQUEST_EMAIL || process.env.DEMO_MEETING_EMAIL, `📞 Callback Request ${callbackId} - ${name}`, textContent, htmlContent);
-        sendResponse(true, 200, `Callback request ${callbackId} sent successfully`, res);
+        	sendResponse(res, 200, true, null, `Callback request ${callbackId} sent successfully`);
     } catch (error) {
         return next(new ErrorHandler("Failed to send callback request", 500));
     }

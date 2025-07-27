@@ -315,18 +315,18 @@ export default function UploadPage() {
                 <button
                   type="button"
                   onClick={() => window.print()}
-                  className="p-2 bg-gray-100 hover:bg-gray-200 rounded-full shadow transition"
+                  className="inline-flex items-center justify-center p-2 bg-blue-600 hover:bg-blue-700 text-white rounded-full border border-blue-500 transition-all duration-200 hover:scale-105 shadow-md"
                   title="Print"
                 >
-                  <Printer className="w-5 h-5 text-gray-700" />
+                  <Printer className="w-5 h-5" />
                 </button>
                 <button
                   type="button"
                   onClick={() => router.back()}
-                  className="p-2 bg-gray-100 hover:bg-red-200 rounded-full shadow transition"
+                  className="inline-flex items-center justify-center p-2 bg-red-600 hover:bg-red-700 text-white rounded-full border border-red-600 transition-all duration-200 hover:scale-105 shadow-md"
                   title="Close"
                 >
-                  <X className="w-5 h-5 text-gray-700" />
+                  <X className="w-5 h-5" />
                 </button>
               </div>
               <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-6">

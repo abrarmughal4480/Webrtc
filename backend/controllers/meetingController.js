@@ -826,7 +826,7 @@ export const getMeetingById = catchAsyncError(async (req, res, next) => {
         return next(new ErrorHandler("Meeting not found", 404));
     }
 
-    sendResponse(true, 200, "Meeting retrieved successfully", res, { meeting });
+    sendResponse(res, 200, true, { meeting }, "Meeting retrieved successfully");
 });
 
 export const getMeetingForShare = catchAsyncError(async (req, res, next) => {
@@ -1063,7 +1063,7 @@ export const updateMeetingController = catchAsyncError(async (req, res, next) =>
 
     meeting.last_updated_by = req.user._id;    await meeting.save();
 
-    sendResponse(true, 200, "Meeting updated successfully", res);
+    sendResponse(res, 200, true, null, "Meeting updated successfully");
 });
 
 export const deleteMeeting = catchAsyncError(async (req, res, next) => {
@@ -1085,9 +1085,9 @@ export const deleteMeeting = catchAsyncError(async (req, res, next) => {
     meeting.deletedAt = new Date();
     await meeting.save();
 
-    sendResponse(true, 200, "Meeting moved to trash", res, {
+    sendResponse(res, 200, true, {
         meeting_id: meeting.meeting_id
-    });
+    }, "Meeting moved to trash");
 });
 
 export const getMeetingByMeetingId = async (req, res) => {
@@ -1161,7 +1161,7 @@ export const deleteRecording = catchAsyncError(async (req, res, next) => {
         message = "Recording deleted from database (S3 file remains due to permissions)";
     }
 
-    sendResponse(true, 200, message, res);
+    sendResponse(res, 200, true, null, message);
 });
 
 export const deleteScreenshot = catchAsyncError(async (req, res, next) => {
@@ -1304,7 +1304,9 @@ export const searchMeetings = catchAsyncError(async (req, res, next) => {
         last_name,
         country,
         date_from,
-        date_to
+        date_to,
+        archived, // New parameter for archive view
+        deleted    // New parameter for trash view
     } = req.body;
 
     // Build dynamic filter
@@ -1319,6 +1321,14 @@ export const searchMeetings = catchAsyncError(async (req, res, next) => {
             }
         ]
     };
+
+    // Handle view mode filtering
+    if (archived !== undefined) {
+        filter.$and.push({ archived: archived });
+    }
+    if (deleted !== undefined) {
+        filter.$and.push({ deleted: deleted });
+    }
 
     if (name) filter.$and.push({ name: { $regex: name, $options: 'i' } });
     if (address) {

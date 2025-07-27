@@ -305,6 +305,66 @@ export const getMyTrashedUploads = catchAsyncError(async (req, res, next) => {
   sendResponse(res, 200, true, { uploads: trashedUploads }, 'Trashed uploads fetched successfully');
 });
 
+// --- SEARCH UPLOADS ENDPOINT ---
+export const searchUploads = catchAsyncError(async (req, res, next) => {
+  const email = req.user.email;
+  const {
+    accessCode,
+    description,
+    date_from,
+    date_to,
+    deleted // For trash view
+  } = req.body;
+
+  if (!email) {
+    return sendResponse(res, 400, false, null, 'No email found for user');
+  }
+
+  // Build dynamic filter
+  const filter = {
+    email: email
+  };
+
+  // Handle view mode filtering
+  if (deleted !== undefined) {
+    filter.deleted = deleted;
+  }
+
+  // Add search criteria
+  if (accessCode) {
+    filter.accessCode = { $regex: accessCode, $options: 'i' };
+  }
+  if (description) {
+    filter.description = { $regex: description, $options: 'i' };
+  }
+
+  // Handle date range filtering
+  if (date_from || date_to) {
+    const dateFilter = {};
+    if (date_from) {
+      const fromDate = new Date(date_from);
+      if (!isNaN(fromDate.getTime())) {
+        dateFilter.$gte = fromDate;
+      }
+    }
+    if (date_to) {
+      const toDate = new Date(date_to);
+      if (!isNaN(toDate.getTime())) {
+        // Set to end of day for inclusive search
+        toDate.setHours(23, 59, 59, 999);
+        dateFilter.$lte = toDate;
+      }
+    }
+    if (Object.keys(dateFilter).length > 0) {
+      filter.createdAt = dateFilter;
+    }
+  }
+
+  const uploads = await Upload.find(filter).sort({ createdAt: -1 });
+
+  sendResponse(res, 200, true, { uploads }, 'Uploads search completed successfully');
+});
+
 export const markNotificationSent = catchAsyncError(async (req, res, next) => {
   const { accessCode } = req.params;
   

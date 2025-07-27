@@ -30,7 +30,7 @@ import { BsInfoCircleFill, BsInfoCircle } from "react-icons/bs";
 import { updateUserRequest } from "@/http/authHttp";
 import AccessCodeDialog from "@/components/dialogs/AccessCodeDialog";
 import { loadMeRequest } from "@/http/authHttp";
-import { getMyUploadsRequest, getMyTrashedUploadsRequest, deleteUploadRequest, restoreUploadRequest, permanentDeleteUploadRequest } from "@/http/uploadHttp";
+import { getMyUploadsRequest, getMyTrashedUploadsRequest, deleteUploadRequest, restoreUploadRequest, permanentDeleteUploadRequest, searchUploadsRequest } from "@/http/uploadHttp";
 import { publicApi } from "@/http";
 import useNotifications from "@/hooks/useNotifications";
 import VideoGuidesDialog from "@/components/dialogs/VideoGuidesDialog";
@@ -155,6 +155,7 @@ export default function Page() {
 
   // Add state for search fields
   const [searchFields, setSearchFields] = useState({
+    // Meeting fields
     first_name: '',
     last_name: '',
     house_name_number: '', // House/Building number or name
@@ -171,6 +172,9 @@ export default function Page() {
     target_time: '',
     special_notes: '',
     reference: '',
+    // Upload fields
+    accessCode: '',
+    description: '',
   });
 
   const [roleLoading, setRoleLoading] = useState(false);
@@ -597,6 +601,16 @@ export default function Page() {
     }
   };
 
+  // Handle double-click on upload to redirect to access page
+  const handleUploadDoubleClick = (upload) => {
+    if (user?.role === 'resident' && upload.accessCode) {
+      // Set session storage to allow access (security check)
+      sessionStorage.setItem(`accessCodeValidated:${upload.accessCode}`, 'true');
+      // Redirect to the upload access page
+      router.push(`/room/upload/${upload.accessCode}`);
+    }
+  };
+
   // Helper function to get initials from name
   const getInitials = (name) => {
     if (!name) return 'U';
@@ -1001,27 +1015,82 @@ export default function Page() {
     setLoading(true);
     try {
       let response;
-      if (Object.keys(params).length === 0) {
-        // No search fields, show all meetings
-        console.log('📋 No search criteria, showing all meetings');
-        setIsInSearchMode(false);
-        await fetchMeetings();
-        setLoading(false);
-        return;
-      } else {
-        console.log('🔍 Sending search request with params:', params);
-        response = await searchMeetings(params);
-        console.log('✅ Search response:', response.data);
-        setIsInSearchMode(true);
+      
+      // Handle different view modes for landlord
+      if (user?.role === 'landlord') {
+        if (Object.keys(params).length === 0) {
+          // No search fields, show all meetings based on current view mode
+          console.log('📋 No search criteria, showing all meetings for view mode:', viewMode);
+          setIsInSearchMode(false);
+          await fetchMeetings();
+          setLoading(false);
+          return;
+        } else {
+          // Add view mode parameters to search
+          if (viewMode === 'archived') {
+            params.archived = true;
+          } else if (viewMode === 'trash') {
+            params.deleted = true;
+          } else {
+            params.archived = false;
+            params.deleted = false;
+          }
+          
+          console.log('🔍 Sending search request with params:', params);
+          response = await searchMeetings(params);
+          console.log('✅ Search response:', response.data);
+          setIsInSearchMode(true);
+        }
+        const sortedMeetings = (response.data.meetings || []).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        setMeetings(sortedMeetings);
+      } 
+      // Handle resident view - search uploads
+      else if (user?.role === 'resident') {
+        if (Object.keys(params).length === 0) {
+          // No search fields, show all uploads based on current view mode
+          console.log('📋 No search criteria, showing all uploads for view mode:', residentViewMode);
+          setIsInSearchMode(false);
+          // Reload uploads based on current view mode
+          if (residentViewMode === 'trash') {
+            const res = await getMyTrashedUploadsRequest();
+            setResidentTrashedUploads(res.data.data.uploads || []);
+          } else {
+            const res = await getMyUploadsRequest();
+            setResidentUploads(res.data.data.uploads || []);
+          }
+          setLoading(false);
+          return;
+        } else {
+          // Add view mode parameter to search
+          if (residentViewMode === 'trash') {
+            params.deleted = true;
+          } else {
+            params.deleted = false;
+          }
+          
+          console.log('🔍 Sending upload search request with params:', params);
+          response = await searchUploadsRequest(params);
+          console.log('✅ Upload search response:', response.data);
+          setIsInSearchMode(true);
+          
+          const uploads = response.data.data.uploads || [];
+          if (residentViewMode === 'trash') {
+            setResidentTrashedUploads(uploads);
+          } else {
+            setResidentUploads(uploads);
+          }
+        }
       }
-      const sortedMeetings = (response.data.meetings || []).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-      setMeetings(sortedMeetings);
+      
       setLoading(false);
       
       // Show search results count
       const searchFieldsCount = Object.keys(params).length;
       if (searchFieldsCount > 0) {
-        toast.success(`Found ${sortedMeetings.length} meeting(s) matching your search criteria`);
+        const resultCount = user?.role === 'landlord' 
+          ? (response?.data?.meetings || []).length 
+          : (residentViewMode === 'trash' ? residentTrashedUploads.length : residentUploads.length);
+        toast.success(`Found ${resultCount} ${user?.role === 'landlord' ? 'meeting(s)' : 'upload(s)'} matching your search criteria`);
       }
     } catch (error) {
       setLoading(false);
@@ -1060,6 +1129,55 @@ export default function Page() {
     }
     fetchUser();
   }, []);
+
+  // Get search fields based on user role and view mode
+  const getSearchFieldsForCurrentView = () => {
+    if (user?.role === 'resident') {
+      // Resident view - upload search fields
+      return [
+        { key: 'accessCode', label: 'Access Code', placeholder: 'Enter access code' },
+        { key: 'description', label: 'Description', placeholder: 'Enter description' },
+        { key: 'date_from', label: 'From Date', type: 'date' },
+        { key: 'date_to', label: 'To Date', type: 'date' }
+      ];
+    } else {
+      // Landlord view - meeting search fields
+      return [
+        { key: 'first_name', label: 'First Name', placeholder: 'Enter first name' },
+        { key: 'last_name', label: 'Last Name', placeholder: 'Enter last name' },
+        { key: 'house_name_number', label: 'House/Building', placeholder: 'House/Building number or name' },
+        { key: 'flat_apartment_room', label: 'Flat/Apartment/Room', placeholder: 'Flat/Apartment/Room number' },
+        { key: 'street_road', label: 'Street/Road', placeholder: 'Street/Road name' },
+        { key: 'city', label: 'Town/City', placeholder: 'Town/City' },
+        { key: 'country', label: 'County', placeholder: 'County' },
+        { key: 'post_code', label: 'Postcode', placeholder: 'Postcode' },
+        { key: 'phone_number', label: 'Phone Number', placeholder: 'Phone number' },
+        { key: 'email', label: 'Email', placeholder: 'Email address' },
+        { key: 'date_from', label: 'From Date', type: 'date' },
+        { key: 'date_to', label: 'To Date', type: 'date' },
+        { key: 'repair_detail', label: 'Repair Detail', placeholder: 'Repair detail' },
+        { key: 'target_time', label: 'Target Time', placeholder: 'Target time' },
+        { key: 'special_notes', label: 'Special Notes', placeholder: 'Special notes' },
+        { key: 'reference', label: 'Reference', placeholder: 'Reference' }
+      ];
+    }
+  };
+
+  // Get search modal title based on current view
+  const getSearchModalTitle = () => {
+    if (user?.role === 'resident') {
+      return `Search ${residentViewMode === 'trash' ? 'Trashed' : 'Active'} Uploads`;
+    } else {
+      if (viewMode === 'trash') return 'Search Trashed Meetings';
+      if (viewMode === 'archived') return 'Search Archived Meetings';
+      return 'Search Active Meetings';
+    }
+  };
+
+  // Get search button text based on current view
+  const getSearchButtonText = () => {
+    return "Search";
+  };
 
   return (
     <>
@@ -1478,7 +1596,7 @@ export default function Page() {
                       <div className="w-[70px] h-6 rounded-md bg-green-500" />
                       <div className="w-[70px] h-6 flex items-center justify-center rounded-md bg-yellow-300 border border-yellow-400 cursor-pointer" onClick={() => setShowSearchModal(true)}>
                         <Search className="w-4 h-4 mr-1" />
-                        <span className="text-xs font-semibold text-black">Search</span>
+                        <span className="text-xs font-semibold text-black">{getSearchButtonText()}</span>
                       </div>
                     </div>
                   </div>
@@ -2065,6 +2183,8 @@ export default function Page() {
                   </div>
                 )}
                 
+
+                
                 <div className="flex flex-col gap-4">
                   {(residentViewMode === 'active' ? residentUploads : residentTrashedUploads).length === 0 ? (
                     <div className="text-center text-gray-500 py-8">
@@ -2091,7 +2211,9 @@ export default function Page() {
                       return (
                         <div
                           key={upload._id}
-                          className={`flex flex-col sm:flex-row ${residentViewMode === 'trash' ? 'bg-red-50 border-red-200' : 'bg-blue-50 border-blue-200'} border rounded-lg shadow-sm p-4 sm:px-6 sm:py-4 w-full items-stretch gap-4 sm:gap-0`}
+                          className={`flex flex-col sm:flex-row ${residentViewMode === 'trash' ? 'bg-red-50 border-red-200' : 'bg-blue-50 border-blue-200'} border rounded-lg shadow-sm p-4 sm:px-6 sm:py-4 w-full items-stretch gap-4 sm:gap-0 cursor-pointer hover:shadow-md transition-all duration-200`}
+                          onDoubleClick={() => handleUploadDoubleClick(upload)}
+                          title="Double-click to view upload details"
                         >
                           {/* Left: Date */}
                           <div className="flex flex-col justify-center items-start sm:min-w-[120px] sm:pr-6">
@@ -2281,7 +2403,7 @@ export default function Page() {
               {/* Header bar like other modals */}
               <div className="flex items-center justify-between bg-purple-500 text-white p-4 m-0 rounded-t-2xl relative sticky top-0 z-20">
                 <div className="flex-1 flex items-center justify-center relative">
-                  <h2 className="text-base font-semibold text-center w-full">Search Records</h2>
+                  <h2 className="text-base font-semibold text-center w-full">{getSearchModalTitle()}</h2>
                   <button
                     onClick={() => setShowSearchModal(false)}
                     aria-label="Close"
@@ -2375,11 +2497,9 @@ export default function Page() {
                   </div>
                 </div>
                 <div className="border-t border-gray-100 my-3" />
-                {/* Place the Target Time and Repair Details fields just before Special Notes at the end */}
                 <div>
                   <input type="text" value={searchFields.repair_detail} onChange={e => handleSearchFieldChange('repair_detail', e.target.value)} className="w-full h-14 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-base bg-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="Repair details" />
                 </div>
-                {/* Special Notes full width at the end */}
                 <div className="border-t border-gray-100 my-3" />
                 <div>
                   <input type="text" value={searchFields.special_notes} onChange={e => handleSearchFieldChange('special_notes', e.target.value)} className="w-full h-14 border border-gray-300 rounded-xl pl-4 pr-3 py-2 text-base bg-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:shadow-md focus:scale-[1.02] transition-all duration-200 outline-none" placeholder="Special notes" />
@@ -2390,7 +2510,27 @@ export default function Page() {
                 </div>
                 <div className="border-t border-gray-100 my-3" />
                 <div className="flex justify-end gap-2 pt-2">
-                  <button type="button" className="border border-gray-300 bg-white hover:bg-gray-100 text-gray-700 font-bold px-6 py-3 rounded-xl shadow-sm transition-all duration-200 outline-none focus:ring-2 focus:ring-blue-300 min-w-[160px] flex items-center justify-center gap-2" onClick={() => { setShowSearchModal(false); setSearchFields({ first_name: '', last_name: '', house_name_number: '', flat_apartment_room: '', street_road: '', city: '', country: '', post_code: '', phone_number: '', repair_detail: '', special_notes: '', target_time: '', reference: '', date_from: '', date_to: '', email: '' }); setIsInSearchMode(false); fetchMeetings(); }}>
+                  <button type="button" className="border border-gray-300 bg-white hover:bg-gray-100 text-gray-700 font-bold px-6 py-3 rounded-xl shadow-sm transition-all duration-200 outline-none focus:ring-2 focus:ring-blue-300 min-w-[160px] flex items-center justify-center gap-2" onClick={() => { 
+                    setShowSearchModal(false); 
+                    setSearchFields({ 
+                      first_name: '', last_name: '', house_name_number: '', flat_apartment_room: '', street_road: '', city: '', country: '', post_code: '', phone_number: '', repair_detail: '', special_notes: '', target_time: '', reference: '', date_from: '', date_to: '', email: '', accessCode: '', description: '' 
+                    }); 
+                    setIsInSearchMode(false); 
+                    if (user?.role === 'landlord') {
+                      fetchMeetings();
+                    } else {
+                      // Reload uploads based on current view mode
+                      if (residentViewMode === 'trash') {
+                        getMyTrashedUploadsRequest().then(res => {
+                          setResidentTrashedUploads(res.data.data.uploads || []);
+                        });
+                      } else {
+                        getMyUploadsRequest().then(res => {
+                          setResidentUploads(res.data.data.uploads || []);
+                        });
+                      }
+                    }
+                  }}>
                     <img src="/erase.svg" alt="Clear" className="w-5 h-5" />
                     Clear
                   </button>
