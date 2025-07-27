@@ -7,11 +7,13 @@ import Image from "next/image";
 import { AlertTriangle, FileQuestion, Key, User, ImageIcon, Video, X, Printer } from "lucide-react";
 import moment from "moment";
 import { useRouter } from "next/navigation";
+import { useUser } from '@/provider/UserProvider';
 
 export default function ViewUploadPage() {
   const params = useParams();
   const accessCode = params?.accessCode;
   const router = useRouter();
+  const { user } = useUser();
   
   const [upload, setUpload] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -45,6 +47,16 @@ export default function ViewUploadPage() {
               // Check if notification was already sent
               if (res.data?.data?.upload.notificationSent) {
                 console.log('✅ Notification already sent for this upload');
+                return;
+              }
+              
+              // Check if current user is the creator (resident) of this upload
+              const uploadData = res.data?.data?.upload;
+              const isCreator = user?.role === 'resident' && 
+                               user?.email === uploadData?.email;
+              
+              if (isCreator) {
+                console.log('✅ Creator accessing own upload - skipping notification');
                 return;
               }
               
