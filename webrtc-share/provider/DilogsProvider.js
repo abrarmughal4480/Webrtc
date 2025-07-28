@@ -118,7 +118,7 @@ export const DialogProvider = ({ children }) => {
 
   // Add new state for history modal
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [selectedMeetingForHistory, setSelectedMeetingForHistory] = useState(null);
+  const [selectedItemForHistory, setSelectedItemForHistory] = useState(null);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyInterval, setHistoryInterval] = useState(null);
 
@@ -970,68 +970,76 @@ export const DialogProvider = ({ children }) => {
   useEffect(() => {
     console.log('🔍 History useEffect triggered:', {
       historyOpen,
-      selectedMeetingId: selectedMeetingForHistory?._id,
-      meetingName: selectedMeetingForHistory?.name,
+      selectedMeetingId: selectedItemForHistory?._id,
+      meetingName: selectedItemForHistory?.name,
+      meetingId: selectedItemForHistory?.meeting_id,
+      accessCode: selectedItemForHistory?.accessCode,
       initialMeetingId
     });
 
-    if (historyOpen && selectedMeetingForHistory?._id) {
-      // Function to fetch updated meeting data (for background refresh - no skeleton)
-      const fetchHistoryDataSilent = async () => {
-        try {
-          console.log('🔄 Silently fetching history data for:', selectedMeetingForHistory._id);
-          const response = await getMeetingById(selectedMeetingForHistory._id);
-          console.log('📦 API Response:', response.data);
-          if (response.data.success && response.data.data && response.data.data.meeting) {
-            console.log('✅ History data updated silently:', response.data.data.meeting.name);
-            setSelectedMeetingForHistory(response.data.data.meeting);
-          } else {
-            console.log('❌ Invalid API response structure:', response.data);
+    if (historyOpen && selectedItemForHistory && (selectedItemForHistory._id || selectedItemForHistory.accessCode)) {
+      // Only fetch data for meetings (not uploads)
+      if (selectedItemForHistory.meeting_id) {
+        // Function to fetch updated meeting data (for background refresh - no skeleton)
+        const fetchHistoryDataSilent = async () => {
+          try {
+            console.log('🔄 Silently fetching history data for:', selectedItemForHistory._id);
+            const response = await getMeetingById(selectedItemForHistory._id);
+            console.log('📦 API Response:', response.data);
+            if (response.data.success && response.data.data && response.data.data.meeting) {
+              console.log('✅ History data updated silently:', response.data.data.meeting.name);
+              setSelectedItemForHistory(response.data.data.meeting);
+            } else {
+              console.log('❌ Invalid API response structure:', response.data);
+            }
+          } catch (error) {
+            console.error('❌ Error fetching history data:', error);
           }
-        } catch (error) {
-          console.error('❌ Error fetching history data:', error);
-        }
-      };
+        };
 
-      // Function to fetch updated meeting data (for initial load - with skeleton)
-      const fetchHistoryDataWithLoading = async () => {
-        try {
-          setHistoryLoading(true);
-          console.log('🔄 Fetching history data with loading for:', selectedMeetingForHistory._id);
-          const response = await getMeetingById(selectedMeetingForHistory._id);
-          console.log('📦 API Response:', response.data);
-          if (response.data.success && response.data.data && response.data.data.meeting) {
-            console.log('✅ History data updated:', response.data.data.meeting.name);
-            setSelectedMeetingForHistory(response.data.data.meeting);
-          } else {
-            console.log('❌ Invalid API response structure:', response.data);
+        // Function to fetch updated meeting data (for initial load - with skeleton)
+        const fetchHistoryDataWithLoading = async () => {
+          try {
+            setHistoryLoading(true);
+            console.log('🔄 Fetching history data with loading for:', selectedItemForHistory._id);
+            const response = await getMeetingById(selectedItemForHistory._id);
+            console.log('📦 API Response:', response.data);
+            if (response.data.success && response.data.data && response.data.data.meeting) {
+              console.log('✅ History data updated:', response.data.data.meeting.name);
+              setSelectedItemForHistory(response.data.data.meeting);
+            } else {
+              console.log('❌ Invalid API response structure:', response.data);
+            }
+          } catch (error) {
+            console.error('❌ Error fetching history data:', error);
+          } finally {
+            setHistoryLoading(false);
           }
-        } catch (error) {
-          console.error('❌ Error fetching history data:', error);
-        } finally {
-          setHistoryLoading(false);
+        };
+
+        // If modal just opened or meeting changed, immediately fetch data and set up interval
+        if (!historyInterval || selectedItemForHistory._id !== initialMeetingId) {
+          console.log('✅ Starting auto-fetch for meeting:', selectedItemForHistory._id);
+
+          // Clean up existing interval if any
+          if (historyInterval) {
+            clearInterval(historyInterval);
+          }
+
+          // Set the initial meeting ID to track changes
+          setInitialMeetingId(selectedItemForHistory._id);
+
+          // Immediately fetch data with loading when modal opens
+          fetchHistoryDataWithLoading();
+
+          // Set interval for silent auto-fetch every 5 seconds (no skeleton)
+          const interval = setInterval(fetchHistoryDataSilent, 5000);
+          setHistoryInterval(interval);
+          console.log('⏰ Auto-fetch interval started');
         }
-      };
-
-      // If modal just opened or meeting changed, immediately fetch data and set up interval
-      if (!historyInterval || selectedMeetingForHistory._id !== initialMeetingId) {
-        console.log('✅ Starting auto-fetch for meeting:', selectedMeetingForHistory._id);
-
-        // Clean up existing interval if any
-        if (historyInterval) {
-          clearInterval(historyInterval);
-        }
-
-        // Set the initial meeting ID to track changes
-        setInitialMeetingId(selectedMeetingForHistory._id);
-
-        // Immediately fetch data with loading when modal opens
-        fetchHistoryDataWithLoading();
-
-        // Set interval for silent auto-fetch every 5 seconds (no skeleton)
-        const interval = setInterval(fetchHistoryDataSilent, 5000);
-        setHistoryInterval(interval);
-        console.log('⏰ Auto-fetch interval started');
+      } else if (selectedItemForHistory.accessCode) {
+        // For uploads, no need to fetch data - just set loading to false
+        setHistoryLoading(false);
       }
     } else if (!historyOpen) {
       console.log('❌ Modal closed - cleaning up');
@@ -1047,7 +1055,7 @@ export const DialogProvider = ({ children }) => {
         setInitialMeetingId(null);
       }
     }
-  }, [historyOpen, selectedMeetingForHistory?._id]);
+  }, [historyOpen, selectedItemForHistory?._id]);
 
   // Cleanup interval on component unmount
   useEffect(() => {
@@ -2145,17 +2153,17 @@ ${senderName}`;
   };
 
   // Helper function to open history modal with meeting
-  const openHistoryModal = (open, meeting = null) => {
-    console.log('🔍 openHistoryModal called:', { open, meeting: meeting?.name || 'none' });
+  const openHistoryModal = (open, item = null) => {
+    console.log('🔍 openHistoryModal called:', { open, item: item?.name || item?.accessCode || 'none' });
     setHistoryOpen(open);
-    if (open && meeting) {
-      console.log('🔍 Setting selected meeting for history:', meeting);
-      setSelectedMeetingForHistory(meeting);
+    if (open && item) {
+      console.log('🔍 Setting selected item for history:', item);
+      setSelectedItemForHistory(item);
       // Set loading to true when opening modal to show skeleton immediately
       setHistoryLoading(true);
     } else if (!open) {
-      console.log('🔍 Clearing selected meeting for history');
-      setSelectedMeetingForHistory(null);
+      console.log('🔍 Clearing selected item for history');
+      setSelectedItemForHistory(null);
       setHistoryLoading(false);
     }
   };
@@ -2210,7 +2218,7 @@ ${senderName}`;
     checkVisitorAccess: () => true, // Add this for external checks if needed
     setHistoryOpen: openHistoryModal,
     historyOpen,
-    selectedMeetingForHistory,
+    selectedItemForHistory,
     historyLoading,
     // Add new share link dialog methods
     setShareLinkOpen: (open, meeting = null) => {
@@ -2363,7 +2371,7 @@ ${senderName}`;
   // Reset form fields when history modal closes
   useEffect(() => {
     if (!historyOpen) {
-      setSelectedMeetingForHistory(null);
+              setSelectedItemForHistory(null);
       setHistoryLoading(false);
       if (historyInterval) {
         clearInterval(historyInterval);
@@ -3658,26 +3666,30 @@ ${senderName}`;
                   </div>
                 </div>
               </div>
-            ) : selectedMeetingForHistory ? (
+            ) : selectedItemForHistory ? (
               <div className="space-y-4">
                 {/* Meeting Info Header */}
                 <div className="bg-gray-50 p-4 rounded-lg">
                   <h3 className="font-semibold text-lg mb-3">Details</h3>
                   <div className="space-y-3 text-sm">
-                    {/* Row 1: Meeting ID and Resident Name */}
+                    {/* Row 1: Meeting ID/Share Code and Resident Name */}
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <span className="font-medium text-gray-700">Meeting ID:</span>
-                        <p className="text-gray-600 mt-0.5">{selectedMeetingForHistory.meeting_id}</p>
+                        <span className="font-medium text-gray-700">
+                          {selectedItemForHistory.accessCode ? 'Share Code:' : 'Meeting ID:'}
+                        </span>
+                        <p className="text-gray-600 mt-0.5">
+                          {selectedItemForHistory.accessCode || selectedItemForHistory.meeting_id}
+                        </p>
                       </div>
                       <div>
                         <span className="font-medium text-gray-700">Resident Name:</span>
                         <p className="text-gray-600 mt-0.5">
                           {(() => {
                             // Format resident name using new structured fields
-                            const residentName = selectedMeetingForHistory.first_name || selectedMeetingForHistory.last_name
-                              ? `${selectedMeetingForHistory.first_name || ''} ${selectedMeetingForHistory.last_name || ''}`.trim()
-                              : selectedMeetingForHistory.name || 'Unknown Resident';
+                            const residentName = selectedItemForHistory.first_name || selectedItemForHistory.last_name
+                              ? `${selectedItemForHistory.first_name || ''} ${selectedItemForHistory.last_name || ''}`.trim()
+                              : selectedItemForHistory.name || 'Unknown Resident';
                             return residentName;
                           })()}
                         </p>
@@ -3693,27 +3705,30 @@ ${senderName}`;
                           {(() => {
                             // Format address in single line like dashboard
                             const addressParts = [];
-                            if (selectedMeetingForHistory.house_name_number) {
-                              addressParts.push(selectedMeetingForHistory.house_name_number.trim());
+                            if (selectedItemForHistory.house_name_number) {
+                              addressParts.push(selectedItemForHistory.house_name_number.trim());
                             }
-                            if (selectedMeetingForHistory.flat_apartment_room) {
-                              addressParts.push(selectedMeetingForHistory.flat_apartment_room.trim());
+                            if (selectedItemForHistory.flat_apartment_room) {
+                              addressParts.push(selectedItemForHistory.flat_apartment_room.trim());
                             }
-                            if (selectedMeetingForHistory.street_road) {
-                              addressParts.push(selectedMeetingForHistory.street_road.trim());
+                            if (selectedItemForHistory.street_road) {
+                              addressParts.push(selectedItemForHistory.street_road.trim());
                             }
-                            if (selectedMeetingForHistory.city) {
-                              addressParts.push(selectedMeetingForHistory.city.trim());
+                            if (selectedItemForHistory.city) {
+                              addressParts.push(selectedItemForHistory.city.trim());
                             }
-                            if (selectedMeetingForHistory.country) {
-                              addressParts.push(selectedMeetingForHistory.country.trim());
+                            if (selectedItemForHistory.country) {
+                              addressParts.push(selectedItemForHistory.country.trim());
                             }
-                            if (selectedMeetingForHistory.post_code) {
-                              addressParts.push(selectedMeetingForHistory.post_code.trim());
+                            // Handle both post_code (meetings) and postCode (uploads)
+                            if (selectedItemForHistory.post_code) {
+                              addressParts.push(selectedItemForHistory.post_code.trim());
+                            } else if (selectedItemForHistory.postCode) {
+                              addressParts.push(selectedItemForHistory.postCode.trim());
                             }
                             // Fallback to old address field if no structured address
-                            if (addressParts.length === 0 && selectedMeetingForHistory.address) {
-                              addressParts.push(selectedMeetingForHistory.address.trim());
+                            if (addressParts.length === 0 && selectedItemForHistory.address) {
+                              addressParts.push(selectedItemForHistory.address.trim());
                             }
                             return addressParts.length > 0 ? addressParts.join(', ') : 'No address provided';
                           })()}
@@ -3722,15 +3737,15 @@ ${senderName}`;
 
                       {/* Phone and Created Date - Right Side (Vertical Stack) */}
                       <div className="space-y-4">
-                        {selectedMeetingForHistory.phone_number && (
+                        {(selectedItemForHistory.phone_number || selectedItemForHistory.phoneNumber) && (
                           <div>
                             <span className="font-medium text-gray-700">Phone Number:</span>
-                            <p className="text-gray-600 mt-0.5">{selectedMeetingForHistory.phone_number}</p>
+                            <p className="text-gray-600 mt-0.5">{selectedItemForHistory.phone_number || selectedItemForHistory.phoneNumber}</p>
                           </div>
                         )}
                         <div>
                           <span className="font-medium text-gray-700">Created Date:</span>
-                          <p className="text-gray-600 mt-0.5">{formatHistoryDate(selectedMeetingForHistory.createdAt)}</p>
+                          <p className="text-gray-600 mt-0.5">{formatHistoryDate(selectedItemForHistory.createdAt)}</p>
                         </div>
                       </div>
                     </div>
@@ -3738,10 +3753,10 @@ ${senderName}`;
 
 
                     {/* Repair Details - Full Width if exists */}
-                    {selectedMeetingForHistory.repair_detail && (
+                    {selectedItemForHistory.repair_detail && (
                       <div>
                         <span className="font-medium text-gray-700">Repair Details:</span>
-                        <p className="text-gray-600 mt-0.5">{selectedMeetingForHistory.repair_detail}</p>
+                        <p className="text-gray-600 mt-0.5">{selectedItemForHistory.repair_detail}</p>
                       </div>
                     )}
                   </div>
@@ -3753,20 +3768,20 @@ ${senderName}`;
                   <div className="grid grid-cols-3 gap-4 text-center">
                     <div>
                       <div className="text-2xl font-bold text-blue-600">
-                        {selectedMeetingForHistory.total_access_count || selectedMeetingForHistory.access_history?.length || 0}
+                        {selectedItemForHistory.total_access_count || selectedItemForHistory.access_history?.length || 0}
                       </div>
                       <div className="text-xs text-gray-600">Total Accesses</div>
                     </div>
                     <div>
                       <div className="text-2xl font-bold text-green-600">
-                        {getUniqueVisitors(selectedMeetingForHistory.access_history).length}
+                        {getUniqueVisitors(selectedItemForHistory.access_history).length}
                       </div>
                       <div className="text-xs text-gray-600">Unique Visitors</div>
                     </div>
                     <div>
                       <div className="text-2xl font-bold text-purple-600">
-                        {selectedMeetingForHistory.access_history?.length > 0 ?
-                          formatHistoryDate(selectedMeetingForHistory.access_history[selectedMeetingForHistory.access_history.length - 1].access_time).split(' ')[0] :
+                        {selectedItemForHistory.access_history?.length > 0 ?
+                          formatHistoryDate(selectedItemForHistory.access_history[selectedItemForHistory.access_history.length - 1].access_time).split(' ')[0] :
                           'N/A'
                         }
                       </div>
@@ -3779,29 +3794,37 @@ ${senderName}`;
                 <div>
                   <h4 className="font-semibold mb-3">Visitor Access Log</h4>
                   {(() => {
-                    const allAccesses = (selectedMeetingForHistory.access_history || []).slice().sort((a, b) =>
+                    const allAccesses = (selectedItemForHistory.access_history || []).slice().sort((a, b) =>
                       new Date(a.access_time) - new Date(b.access_time)
                     );
+
+                    // Debug: Log the access history data
+                    console.log('🔍 Access History Debug:', {
+                      totalAccesses: selectedItemForHistory.total_access_count,
+                      accessHistoryLength: selectedItemForHistory.access_history?.length,
+                      allAccessesLength: allAccesses.length,
+                      accessHistory: selectedItemForHistory.access_history
+                    });
 
                     if (allAccesses.length > 0) {
                       return (
                         <div className="space-y-3 max-h-60 overflow-y-auto">
                           {allAccesses.map((access, index) => (
                             <div key={index} className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50">
-                              <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                                  <span className="text-blue-600 font-semibold text-lg">
-                                    {access.visitor_name ? access.visitor_name.charAt(0).toUpperCase() : 'V'}
-                                  </span>
-                                </div>
-                                <div className="flex-1">
-                                  <p className="font-semibold text-base text-gray-900">
-                                    {access.visitor_name || 'Unknown Visitor'}
-                                  </p>
-                                  <p className="text-sm text-gray-600">
-                                    {access.visitor_email || 'No email provided'}
-                                  </p>
-                                </div>
+                                                              <div className="flex items-center gap-3">
+                                  <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                                    <span className="text-blue-600 font-semibold text-lg">
+                                      {access.visitor_email ? access.visitor_email.charAt(0).toUpperCase() : 'A'}
+                                    </span>
+                                  </div>
+                                  <div className="flex-1">
+                                    <p className="font-semibold text-base text-gray-900">
+                                      {access.visitor_email === 'anonymous@visitor' ? 'Anonymous Visitor' : access.visitor_email}
+                                    </p>
+                                    <p className="text-sm text-gray-600">
+                                      {access.creator ? 'Creator Access' : 'Visitor Access'}
+                                    </p>
+                                  </div>
                                 <div className="text-right">
                                   <div className="text-xs text-gray-400 mb-1">
                                     #{index + 1}
@@ -3827,7 +3850,7 @@ ${senderName}`;
                   })()}
                 </div>
 
-                {/* Meeting Content Summary */}
+                {/* Content Summary */}
                 <div className="border-t pt-4">
                   <h4 className="font-semibold mb-3">Content Summary</h4>
                   <div className="grid grid-cols-2 gap-4">
@@ -3835,7 +3858,7 @@ ${senderName}`;
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-medium">Video Recordings</span>
                         <span className="text-lg font-bold text-green-600">
-                          {selectedMeetingForHistory.recordings?.length || 0}
+                          {selectedItemForHistory.recordings?.length || selectedItemForHistory.videos?.length || 0}
                         </span>
                       </div>
                     </div>
@@ -3843,7 +3866,7 @@ ${senderName}`;
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-medium">Screenshots</span>
                         <span className="text-lg font-bold text-blue-600">
-                          {selectedMeetingForHistory.screenshots?.length || 0}
+                          {selectedItemForHistory.screenshots?.length || selectedItemForHistory.images?.length || 0}
                         </span>
                       </div>
                     </div>
@@ -3855,11 +3878,76 @@ ${senderName}`;
                   <span className="text-sm font-medium block mb-2">Share Link:</span>
                   <div className="flex items-center gap-2">
                     <code className="bg-white p-2 rounded text-xs flex-1 border">
-                      {`${window.location.origin}/share/${selectedMeetingForHistory.meeting_id}`}
+                      {(() => {
+                        let fullLink;
+                        
+                        // For resident uploads (accessCode), use the shortened URL with address parameters
+                        if (selectedItemForHistory.accessCode) {
+                          const urlParams = new URLSearchParams();
+                          
+                          // Add house number if available
+                          if (selectedItemForHistory.house_name_number && selectedItemForHistory.house_name_number.trim() !== '') {
+                            urlParams.append('house_number', selectedItemForHistory.house_name_number.trim());
+                          }
+                          
+                          // Add flat number if available
+                          if (selectedItemForHistory.flat_apartment_room && selectedItemForHistory.flat_apartment_room.trim() !== '') {
+                            urlParams.append('flat_number', selectedItemForHistory.flat_apartment_room.trim());
+                          }
+                          
+                          // Add postcode if available (check all possible fields)
+                          const postcode = selectedItemForHistory.post_code || selectedItemForHistory.postCode || selectedItemForHistory.actualPostCode;
+                          if (postcode && postcode.trim() !== '') {
+                            urlParams.append('postcode', postcode.trim());
+                          }
+                          
+                          // Build the shortened URL for residents
+                          const baseUrl = `${window.location.origin}/${selectedItemForHistory.accessCode}`;
+                          const paramString = urlParams.toString();
+                          fullLink = paramString ? `${baseUrl}?${paramString}` : baseUrl;
+                        } else {
+                          // For landlord meetings (meeting_id), use the generateShareLink function
+                          fullLink = generateShareLink(selectedItemForHistory.meeting_id);
+                        }
+                        
+                        // Limit display to 50 characters with "...." for the rest
+                        return fullLink.length > 50 ? `${fullLink.substring(0, 50)}....` : fullLink;
+                      })()}
                     </code>
                     <button
                       onClick={() => {
-                        navigator.clipboard.writeText(`${window.location.origin}/share/${selectedMeetingForHistory.meeting_id}`);
+                        let shareLink;
+                        
+                        // For resident uploads (accessCode), use the shortened URL with address parameters
+                        if (selectedItemForHistory.accessCode) {
+                          const urlParams = new URLSearchParams();
+                          
+                          // Add house number if available
+                          if (selectedItemForHistory.house_name_number && selectedItemForHistory.house_name_number.trim() !== '') {
+                            urlParams.append('house_number', selectedItemForHistory.house_name_number.trim());
+                          }
+                          
+                          // Add flat number if available
+                          if (selectedItemForHistory.flat_apartment_room && selectedItemForHistory.flat_apartment_room.trim() !== '') {
+                            urlParams.append('flat_number', selectedItemForHistory.flat_apartment_room.trim());
+                          }
+                          
+                          // Add postcode if available (check all possible fields)
+                          const postcode = selectedItemForHistory.post_code || selectedItemForHistory.postCode || selectedItemForHistory.actualPostCode;
+                          if (postcode && postcode.trim() !== '') {
+                            urlParams.append('postcode', postcode.trim());
+                          }
+                          
+                          // Build the shortened URL for residents
+                          const baseUrl = `${window.location.origin}/${selectedItemForHistory.accessCode}`;
+                          const paramString = urlParams.toString();
+                          shareLink = paramString ? `${baseUrl}?${paramString}` : baseUrl;
+                        } else {
+                          // For landlord meetings (meeting_id), use the generateShareLink function
+                          shareLink = generateShareLink(selectedItemForHistory.meeting_id);
+                        }
+                        
+                        navigator.clipboard.writeText(shareLink);
                         toast.success("Link copied to clipboard!");
                       }}
                       className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-xs font-medium transition-colors"
@@ -4189,6 +4277,8 @@ ${senderName}`;
           </form>
         </div>
       </CustomDialog>
+
+      {/* History Modal */}
 
 
     </DialogContext.Provider>

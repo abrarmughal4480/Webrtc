@@ -1,36 +1,49 @@
 "use client"
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, Suspense } from 'react';
 import Image from 'next/image';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Trash2, VideoIcon, PlayIcon, Minimize2, Expand, ZoomIn, X, Info, Loader2, Printer } from 'lucide-react';
+import { Plus, Trash2, VideoIcon, PlayIcon, Minimize2, Expand, ZoomIn, X, Info, Loader2, Printer, LogOut, Monitor } from 'lucide-react';
 import { toast } from "sonner";
 import AccessCodeDialog from '@/components/dialogs/AccessCodeDialog';
 import { publicApi } from '@/http';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Dialog, DialogContent, DialogOverlay } from '@/components/ui/dialog';
 import { createPortal } from 'react-dom';
-import { registerResidentRequest } from '@/http/authHttp';
+import { registerResidentRequest, logoutRequest } from '@/http/authHttp';
 import { getMyLatestUploadRequest } from '@/http/uploadHttp';
 import { useUser } from '@/provider/UserProvider';
+import EnterShareCodeDialog from '@/components/EnterShareCodeDialog';
 
 const MAX_VIDEOS = 2;
 const MAX_IMAGES = 6;
 const MAX_VIDEO_DURATION = 15; // in seconds
 
-// Add helper to convert file to base64
+// Add helper to convert file to base64 with proper format detection
 function fileToBase64(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
+    reader.onload = () => {
+      const result = reader.result;
+      console.log(`📁 File converted to base64:`, {
+        fileName: file.name,
+        fileType: file.type,
+        fileSize: file.size,
+        base64Length: result.length,
+        base64Start: result.substring(0, 100)
+      });
+      resolve(result);
+    };
     reader.onerror = reject;
     reader.readAsDataURL(file);
   });
 }
 
-export default function UploadPage() {
+// Main component that uses useSearchParams
+function UploadPageContent() {
   const { user } = useUser();
+  const searchParams = useSearchParams();
   const [form, setForm] = useState({
     first_name: "",
     last_name: "",
@@ -51,11 +64,44 @@ export default function UploadPage() {
   const [pendingShowSignup, setPendingShowSignup] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [isSignupLoading, setIsSignupLoading] = useState(false);
+  
+  // State for Enter Share Code dialog
+  const [isEnterShareCodeOpen, setIsEnterShareCodeOpen] = useState(false);
+  const [prefilledShareCodeData, setPrefilledShareCodeData] = useState({
+    code: '',
+    house: '',
+    postcode: '',
+    email: ''
+  });
+  const [consentChecked, setConsentChecked] = useState(false);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm(prev => ({ ...prev, [name]: value }));
   };
+
+  // Check for URL parameters and auto-open Enter Share Code dialog
+  useEffect(() => {
+    const houseNumber = searchParams.get('house_number');
+    const flatNumber = searchParams.get('flat_number');
+    const postcode = searchParams.get('postcode');
+    
+    // If any of these parameters exist, open the Enter Share Code dialog
+    if (houseNumber || flatNumber || postcode) {
+      console.log('🔍 URL parameters detected:', { houseNumber, flatNumber, postcode });
+      
+      // Set prefilled data
+      setPrefilledShareCodeData({
+        code: '', // Access code will be entered by user
+        house: houseNumber || flatNumber || '', // Use house number or flat number
+        postcode: postcode || '',
+        email: ''
+      });
+      
+      // Open the dialog
+      setIsEnterShareCodeOpen(true);
+    }
+  }, [searchParams]);
 
   const requiredFields = [
     'first_name', 'last_name', 'actualPostCode', 'phoneNumber', 'email'
@@ -86,20 +132,45 @@ export default function UploadPage() {
 
     // Convert videos to base64
     const videosWithBase64 = await Promise.all(
-      recordings.map(async (vid) => ({
-        name: vid.name,
-        label: vid.label,
-        duration: vid.duration,
-        data: await fileToBase64(vid.file),
-      }))
+      recordings.map(async (vid) => {
+        const base64Data = await fileToBase64(vid.file);
+        console.log(`🎥 Converting video to base64:`, {
+          name: vid.name,
+          duration: vid.duration,
+          base64Length: base64Data ? base64Data.length : 0,
+          base64Start: base64Data ? base64Data.substring(0, 100) : 'no data'
+        });
+        return {
+          name: vid.name,
+          label: vid.label,
+          duration: vid.duration,
+          data: base64Data,
+        };
+      })
     );
 
-    const submissionData = {
+    // Remove spaces from postcode before saving
+    const cleanedForm = {
       ...form,
+      actualPostCode: form.actualPostCode.replace(/\s/g, ''), // Remove all spaces
+    };
+
+    const submissionData = {
+      ...cleanedForm,
       images: imagesWithBase64,
       videos: videosWithBase64,
       accessCode: generatedCode,
     };
+
+    console.log('📤 Submitting data:', {
+      accessCode: generatedCode,
+      imagesCount: imagesWithBase64.length,
+      videosCount: videosWithBase64.length,
+      videos: videosWithBase64.map(v => ({
+        name: v.name,
+        dataLength: v.data ? v.data.length : 0
+      }))
+    });
 
     setIsUploading(true);
     try {
@@ -246,6 +317,22 @@ export default function UploadPage() {
     setRecordings(prev => prev.map(rec => rec.id === id ? { ...rec, label: value } : rec));
   };
 
+  // Logout function
+  const handleLogout = async () => {
+    try {
+      const res = await logoutRequest();
+      if (res.success) {
+        toast.success('Logged out successfully');
+        router.push('/');
+      } else {
+        toast.error('Logout failed');
+      }
+    } catch (error) {
+      console.error('Logout error:', error);
+      toast.error('Logout failed');
+    }
+  };
+
   const router = useRouter();
   const [showSignupPrompt, setShowSignupPrompt] = useState(false);
   const [signupEmailEditable, setSignupEmailEditable] = useState(false);
@@ -310,7 +397,7 @@ export default function UploadPage() {
           </div>
           <form onSubmit={handleSubmit}>
             <div className="bg-white rounded-3xl shadow-xl p-6 sm:p-8 mb-6 md:mb-8 border-2 border-gray-200 relative">
-              {/* Top-right Print and Close icons */}
+              {/* Top-right icons */}
               <div className="absolute top-4 right-4 flex gap-2 z-10">
                 <button
                   type="button"
@@ -320,6 +407,26 @@ export default function UploadPage() {
                 >
                   <Printer className="w-5 h-5" />
                 </button>
+                {user && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => router.push('/dashboard')}
+                      className="inline-flex items-center justify-center p-2 bg-green-600 hover:bg-green-700 text-white rounded-full border border-green-500 transition-all duration-200 hover:scale-105 shadow-md"
+                      title="Go to Dashboard"
+                    >
+                      <Monitor className="w-5 h-5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleLogout}
+                      className="inline-flex items-center justify-center p-2 bg-orange-600 hover:bg-orange-700 text-white rounded-full border border-orange-500 transition-all duration-200 hover:scale-105 shadow-md"
+                      title="Logout"
+                    >
+                      <LogOut className="w-5 h-5" />
+                    </button>
+                  </>
+                )}
                 <button
                   type="button"
                   onClick={() => router.back()}
@@ -405,7 +512,7 @@ export default function UploadPage() {
                   ref={imageInputRef} 
                   onChange={(e) => handleFileChange(e, 'image')}
                   className="hidden"
-                  accept="image/*"
+                  accept="image/jpeg,image/png,image/gif,image/webp,image/bmp,image/tiff,image/svg+xml"
                   multiple
                 />
 
@@ -421,10 +528,11 @@ export default function UploadPage() {
                             onClick={() => setModalImage(image)}
                           />
                           <div className="absolute top-2 md:top-3 right-2 md:right-3 flex flex-row gap-1 md:gap-2 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-300">
-                             <button onClick={() => removeImage(image.id)} className="p-1.5 md:p-2 bg-black/20 backdrop-blur-sm hover:bg-red-500/80 rounded-full text-white transition-all duration-200 hover:scale-110">
+                             <button type="button" onClick={() => removeImage(image.id)} className="p-1.5 md:p-2 bg-black/20 backdrop-blur-sm hover:bg-red-500/80 rounded-full text-white transition-all duration-200 hover:scale-110">
                                 <Trash2 className="w-3.5 h-3.5 md:w-4 md:h-4" />
                               </button>
                             <button 
+                              type="button"
                               onClick={() => setModalImage(image)}
                               className="p-1.5 md:p-2 bg-black/20 backdrop-blur-sm hover:bg-black/40 rounded-full text-white transition-all duration-200 hover:scale-110"
                             >
@@ -478,7 +586,7 @@ export default function UploadPage() {
                   ref={recordingInputRef} 
                   onChange={(e) => handleFileChange(e, 'video')}
                   className="hidden"
-                  accept="video/*"
+                  accept="video/mp4,video/webm,video/ogg,video/avi,video/mov,video/wmv,video/flv,video/mkv"
                   multiple
                 />
 
@@ -513,10 +621,11 @@ export default function UploadPage() {
                               </div>
                             )}
                             <div className="absolute top-2 md:top-3 right-2 md:right-3 flex flex-row gap-1 md:gap-2 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-300">
-                              <button onClick={() => removeRecording(recording.id)} className="p-1.5 md:p-2 bg-black/20 backdrop-blur-sm hover:bg-red-500/80 rounded-full text-white transition-all duration-200 hover:scale-110">
+                              <button type="button" onClick={() => removeRecording(recording.id)} className="p-1.5 md:p-2 bg-black/20 backdrop-blur-sm hover:bg-red-500/80 rounded-full text-white transition-all duration-200 hover:scale-110">
                                 <Trash2 className="w-3.5 h-3.5 md:w-4 md:h-4" />
                               </button>
                               <button 
+                                type="button"
                                 onClick={() => {
                                   const newExpanded = new Set(expandedVideos);
                                   if (isExpanded) newExpanded.delete(recording.id);
@@ -553,12 +662,41 @@ export default function UploadPage() {
               </div>
             </div>
 
+            {/* Consent Checkbox Section */}
+            <div className="mt-6">
+              <div className="bg-white rounded-3xl shadow-xl p-6 sm:p-8 border-2 border-gray-200">
+                <div className="flex items-start gap-3 p-4 bg-gray-50 rounded-xl border border-gray-200">
+                  <input
+                    type="checkbox"
+                    id="consent"
+                    checked={consentChecked}
+                    onChange={(e) => setConsentChecked(e.target.checked)}
+                    className="mt-1 w-4 h-4 text-purple-600 bg-gray-100 border-gray-300 rounded focus:ring-0 focus:outline-none flex-shrink-0"
+                    required
+                  />
+                  <label htmlFor="consent" className="text-sm text-gray-700 leading-relaxed">
+                    By checking this box and continuing to 'Save/Get Share Code', you consent to sharing your personal information, and the photo(s) and video(s) you uploaded with the person(s) or organisation(s) that you give or send the Share Code to.
+                  </label>
+                </div>
+              </div>
+            </div>
+
             {/* Submit Button Section */}
             <div className="mt-8">
               <div className="max-w-md mx-auto">
-                <Button type="submit" size="lg" className="w-full h-14 text-lg font-semibold bg-gradient-to-r from-purple-400 to-purple-500 hover:from-purple-500 hover:to-purple-600 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 rounded-full" disabled={isUploading}>
-                    {isUploading ? (<><Loader2 className="w-5 h-5 mr-2 animate-spin" /> Saving...</>) : 'Save/Get Share Code'}
+                <Button 
+                  type="submit" 
+                  size="lg" 
+                  className="w-full h-14 text-lg font-semibold bg-gradient-to-r from-purple-400 to-purple-500 hover:from-purple-500 hover:to-purple-600 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 rounded-full" 
+                  disabled={isUploading || !consentChecked}
+                >
+                    {isUploading ? (<><Loader2 className="w-5 h-5 mr-2 animate-spin" /> Saving...</>) : 'Save/Get Share Code'}
                 </Button>
+                {!consentChecked && (
+                  <p className="text-xs text-red-500 text-center mt-2">
+                    Please check the consent box to continue
+                  </p>
+                )}
               </div>
             </div>
           </form>
@@ -580,6 +718,7 @@ export default function UploadPage() {
                 className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl"
               />
               <button
+                type="button"
                 onClick={() => setModalImage(null)}
                 className="absolute top-4 right-4 z-10 p-2.5 bg-red-600 hover:bg-red-700 text-white rounded-full transition-all duration-300"
               >
@@ -616,6 +755,16 @@ export default function UploadPage() {
                     Sign up for an easier and faster <br/> experience next time!
                   </span>
                 </div>
+                <button
+                  onClick={() => {
+                    setShowSignupPrompt(false);
+                    setPendingShowSignup(false);
+                    setPendingShareCode(null);
+                  }}
+                  className="absolute top-2 right-2 p-1.5 bg-white/20 hover:bg-white/30 rounded-full transition-all duration-200"
+                >
+                  <X className="w-4 h-4 text-white" />
+                </button>
               </div>
               <div className="w-full bg-white rounded-b-2xl shadow-2xl border border-gray-200 p-4 sm:p-6 flex flex-col items-center gap-3 pointer-events-auto">
                 <div className="text-gray-500 text-xs sm:text-sm text-center mb-2">Create a password to save your uploads.</div>
@@ -686,6 +835,26 @@ export default function UploadPage() {
         </>,
         document.body
       )}
+      
+      {/* Enter Share Code Dialog */}
+      <EnterShareCodeDialog 
+        open={isEnterShareCodeOpen} 
+        setOpen={setIsEnterShareCodeOpen} 
+        prefilledData={prefilledShareCodeData}
+      />
     </>
+  );
+}
+
+// Wrapper component with Suspense boundary
+export default function UploadPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+      </div>
+    }>
+      <UploadPageContent />
+    </Suspense>
   );
 }

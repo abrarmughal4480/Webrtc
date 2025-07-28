@@ -1,5 +1,6 @@
 import { api } from ".";
 import axios from 'axios';
+import { publicApi } from './index.js';
 
 export const getMyUploadsRequest = async () => await api.get("/uploads/my");
 export const getMyLatestUploadRequest = async () => await api.get("/uploads/my-latest");
@@ -9,10 +10,10 @@ export const restoreUploadRequest = async (id) => await api.put(`/uploads/restor
 export const permanentDeleteUploadRequest = async (id) => await api.delete(`/uploads/permanent/${id}`);
 export const searchUploadsRequest = async (searchParams) => await api.post("/uploads/search", searchParams);
 
-export const validateAccessCode = async ({ code, house, postcode }) => {
-  console.log('🚀 Frontend: Making validation request to:', '/api/v1/validate-access-code');
-  console.log('📤 Frontend: Sending data:', { code, house, postcode });
-  const response = await api.post('/api/v1/validate-access-code', { code, house, postcode });
-  console.log('📥 Frontend: Received response:', response.data);
-  return response;
+export const validateAccessCode = async (data) => {
+  return await publicApi.post('/api/v1/validate-access-code', data);
+};
+
+export const recordVisitorAccessRequest = async (accessCode, visitorData) => {
+  return await publicApi.post(`/api/v1/upload/${accessCode}/access`, visitorData);
 };

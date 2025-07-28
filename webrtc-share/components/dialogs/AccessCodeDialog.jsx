@@ -31,7 +31,7 @@ const AccessCodeDialog = ({ isOpen, onOpenChange, accessCode, onAfterCloseCopy, 
   const handleShare = async () => {
     const shareData = {
       title: 'Videodesk Share Code',
-      text: `Here is your share code for Videodesk: ${accessCode}`,
+      text: `${accessCode} is your Share Code for Videodesk. Go to www.Videodesk.co.uk and click on 'Enter Share Code' (blue button) in the bottom right corner of the website. Then follow the on screen instructions. For added security, you will also need to enter my house/flat number and my postcode (full 6 digits) to access the photo(s)/video(s) that I uploaded. Thanks`,
     };
     try {
       if (navigator.share) {

@@ -16,7 +16,7 @@ const VideoGuidesDialog = ({ open, setOpen }) => {
   const videoGuides = [
     {
       id: 1,
-      title: "Getting Started with Videodesk",
+      title: "Launching a New Video Link",
       description: "Learn the basics of using Videodesk for video calls and sharing",
       thumbnail: "https://drive.google.com/thumbnail?id=1UYVX7P5_QDluYAtcxuEi7zvcqJlYCdbT&sz=w400",
       embedUrl: "https://drive.google.com/file/d/1UYVX7P5_QDluYAtcxuEi7zvcqJlYCdbT/preview",

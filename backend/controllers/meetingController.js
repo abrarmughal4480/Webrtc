@@ -826,7 +826,14 @@ export const getMeetingById = catchAsyncError(async (req, res, next) => {
         return next(new ErrorHandler("Meeting not found", 404));
     }
 
-    sendResponse(res, 200, true, { meeting }, "Meeting retrieved successfully");
+    // Ensure access_history is included in the response
+    const meetingData = {
+        ...meeting.toObject(),
+        access_history: meeting.access_history || [],
+        total_access_count: meeting.total_access_count || 0
+    };
+
+    sendResponse(res, 200, true, { meeting: meetingData }, "Meeting retrieved successfully");
 });
 
 export const getMeetingForShare = catchAsyncError(async (req, res, next) => {
@@ -932,12 +939,7 @@ export const recordVisitorAccess = catchAsyncError(async (req, res, next) => {
         meeting.access_history.push(creatorAccess);
         meeting.total_access_count = (meeting.total_access_count || 0) + 1;
 
-        // Keep only last 24 hours
-        const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-        meeting.access_history = meeting.access_history.filter(access =>
-            access.access_time > twentyFourHoursAgo
-        );
-
+        // Keep all access logs (removed 24-hour filter)
         await meeting.save();
 
         return res.status(200).json({
@@ -988,11 +990,7 @@ export const recordVisitorAccess = catchAsyncError(async (req, res, next) => {
     meeting.access_history.push(visitorAccess);
     meeting.total_access_count = (meeting.total_access_count || 0) + 1;
 
-    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    meeting.access_history = meeting.access_history.filter(access =>
-        access.access_time > twentyFourHoursAgo
-    );
-
+    // Keep all access logs (removed 24-hour filter)
     await meeting.save();
 
     res.status(200).json({

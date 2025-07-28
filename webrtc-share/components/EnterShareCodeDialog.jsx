@@ -1,18 +1,26 @@
 import React, { useState, useEffect } from "react";
-import { validateAccessCode } from "../http/uploadHttp";
+import { validateAccessCode, recordVisitorAccessRequest } from "../http/uploadHttp";
 import { useRouter } from "next/navigation";
 
-export default function EnterShareCodeDialog({ open, setOpen, onSubmit }) {
-  const [form, setForm] = useState({ code: '', house: '', postcode: '' });
+export default function EnterShareCodeDialog({ open, setOpen, onSubmit, prefilledData = null }) {
+  const [form, setForm] = useState({ code: '', house: '', postcode: '', email: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const router = useRouter();
 
   useEffect(() => {
     if (!open) {
-      setForm({ code: '', house: '', postcode: '' });
+      setForm({ code: '', house: '', postcode: '', email: '' });
       setError("");
       setLoading(false);
+    } else if (prefilledData) {
+      // Prefill form with provided data
+      setForm({
+        code: prefilledData.code || '',
+        house: prefilledData.house || '',
+        postcode: prefilledData.postcode || '',
+        email: prefilledData.email || ''
+      });
     }
     if (open) {
       document.body.style.overflow = 'hidden';
@@ -22,24 +30,41 @@ export default function EnterShareCodeDialog({ open, setOpen, onSubmit }) {
     return () => {
       document.body.style.overflow = '';
     };
-  }, [open]);
+  }, [open, prefilledData]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
     setLoading(true);
+    
+    // Remove spaces from postcode before sending to backend
+    const cleanedForm = {
+      ...form,
+      postcode: form.postcode.replace(/\s/g, ''), // Remove all spaces
+    };
+    
     try {
-      const res = await validateAccessCode(form);
+      const res = await validateAccessCode(cleanedForm);
       if (res.data.valid && res.data.accessCode) {
+        // Record visitor access
+        try {
+          await recordVisitorAccessRequest(res.data.accessCode, {
+            visitor_email: form.email || 'anonymous@visitor'
+          });
+        } catch (accessError) {
+          console.log('Visitor access recording failed:', accessError);
+          // Don't block the user if visitor recording fails
+        }
+
         // Set session flag
         sessionStorage.setItem(`accessCodeValidated:${res.data.accessCode}`, "true");
         setOpen(false);
         router.push(`/room/upload/${res.data.accessCode}`);
       } else {
-        setError("Invalid details. Please check and try again.");
+        setError("Please check the details you entered and try again.");
       }
     } catch (err) {
-      setError(err.response?.data?.message || "Invalid details. Please check and try again.");
+      setError(err.response?.data?.message || "Please check the details you entered and try again.");
     } finally {
       setLoading(false);
     }
@@ -68,7 +93,7 @@ export default function EnterShareCodeDialog({ open, setOpen, onSubmit }) {
           <div className="w-full bg-white rounded-b-2xl shadow-2xl border border-gray-200 p-4 sm:p-6 flex flex-col items-center gap-3 pointer-events-auto">
             <form className="space-y-4 w-full" onSubmit={handleSubmit}>
               <div>
-                <label className="text-xs font-semibold text-gray-600 ml-1">Share Code<br /></label>
+                <label className="text-xs font-semibold text-gray-600 ml-1">Share Code<span className="text-red-500">*</span><br /></label>
                 <input
                   type="text"
                   className="w-full px-3 py-2 rounded-lg border border-gray-300 bg-white text-sm"
@@ -79,9 +104,20 @@ export default function EnterShareCodeDialog({ open, setOpen, onSubmit }) {
                   disabled={loading}
                 />
               </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-600 ml-1">Email (Optional)<br /></label>
+                <input
+                  type="email"
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 bg-white text-sm"
+                  value={form.email}
+                  onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+                  placeholder="Enter your email (optional)"
+                  disabled={loading}
+                />
+              </div>
               <div className="flex flex-col sm:flex-row gap-4">
                 <div className="w-full sm:w-1/2">
-                  <label className="text-xs font-semibold text-gray-600 ml-1">House/Flat number<br /></label>
+                  <label className="text-xs font-semibold text-gray-600 ml-1">House/Flat number<span className="text-red-500">*</span><br /></label>
                   <input
                     type="text"
                     className="w-full max-w-[180px] sm:max-w-full px-3 py-2 rounded-lg border border-gray-300 bg-white text-sm"
@@ -93,7 +129,7 @@ export default function EnterShareCodeDialog({ open, setOpen, onSubmit }) {
                   />
                 </div>
                 <div className="w-full sm:w-1/2">
-                  <label className="text-xs font-semibold text-gray-600 ml-1">Postcode<br /></label>
+                  <label className="text-xs font-semibold text-gray-600 ml-1">Postcode<span className="text-red-500">*</span><br /></label>
                   <input
                     type="text"
                     className="w-full max-w-[180px] sm:max-w-full px-3 py-2 rounded-lg border border-gray-300 bg-white text-sm"

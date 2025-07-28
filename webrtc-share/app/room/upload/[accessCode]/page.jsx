@@ -23,6 +23,11 @@ export default function ViewUploadPage() {
   const [allowed, setAllowed] = useState(false);
   const [checked, setChecked] = useState(false);
   const [notificationSent, setNotificationSent] = useState(false);
+  
+  // Share code search functionality
+  const [shareCodeInput, setShareCodeInput] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState('');
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -115,16 +120,96 @@ export default function ViewUploadPage() {
     window.print();
   };
 
+  // Search for another share code from same customer
+  const handleShareCodeSearch = async () => {
+    if (!shareCodeInput.trim()) {
+      setSearchError('Please enter a share code');
+      return;
+    }
+
+    if (!upload) {
+      setSearchError('No current upload data available');
+      return;
+    }
+
+    setIsSearching(true);
+    setSearchError('');
+
+    try {
+      const res = await publicApi.get(`/api/v1/upload/${shareCodeInput.trim()}`);
+      const newUpload = res.data?.data?.upload;
+      
+      if (!newUpload) {
+        setSearchError('Share code not found');
+        return;
+      }
+
+      // Check if it's the same customer
+      if (newUpload.email === upload.email) {
+        console.log('✅ Same customer found, switching to new upload');
+        setUpload(newUpload);
+        setImageErrors({}); // Reset image errors for new upload
+        setSelectedMedia(null); // Close any open modal
+        setShareCodeInput(''); // Clear input
+        setSearchError('');
+        
+        // Update URL without page reload
+        window.history.pushState({}, '', `/room/upload/${shareCodeInput.trim()}`);
+      } else {
+        setSearchError('This share code belongs to a different customer');
+      }
+    } catch (err) {
+      console.error('Search error:', err);
+      setSearchError(err.response?.data?.message || 'Failed to find upload');
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
       <div className="max-w-4xl mx-auto p-6 relative">
         {/* Header with Close Button */}
         <div className="flex items-center justify-between mb-8">
-          <div className="text-center w-full">
+          <div className="text-center flex-1">
             <h1 className="text-4xl font-bold text-gray-800 mb-2">Upload Details</h1>
             <div className="w-24 h-1 bg-gradient-to-r from-blue-500 to-indigo-600 mx-auto rounded-full"></div>
           </div>
-          <div className="flex items-center gap-2 ml-4">
+          <div className="flex items-center gap-2">
+            {/* Share Code Search Input */}
+            <div className="flex items-center gap-2 bg-white rounded-full shadow-md border border-gray-200 px-3 py-1">
+              <input
+                type="text"
+                value={shareCodeInput}
+                onChange={(e) => {
+                  setShareCodeInput(e.target.value);
+                  if (searchError) setSearchError(''); // Clear error when typing
+                }}
+                placeholder="Enter share code..."
+                className="w-32 sm:w-40 text-sm border-none outline-none bg-transparent"
+                onKeyPress={(e) => e.key === 'Enter' && handleShareCodeSearch()}
+                disabled={isSearching}
+              />
+              <button
+                onClick={handleShareCodeSearch}
+                disabled={isSearching || !shareCodeInput.trim()}
+                className="p-1.5 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-400 text-white rounded-full transition-all duration-200"
+                title="Search share code"
+              >
+                {isSearching ? (
+                  <div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin"></div>
+                ) : (
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                )}
+              </button>
+            </div>
+            {searchError && (
+              <div className="absolute top-16 right-0 bg-red-50 border border-red-200 rounded-lg p-2 z-50">
+                <p className="text-red-600 text-xs whitespace-nowrap">{searchError}</p>
+              </div>
+            )}
             <button
               onClick={handlePrint}
               className="inline-flex items-center justify-center p-2 bg-blue-600 hover:bg-blue-700 text-white rounded-full border border-blue-500 transition-all duration-200 hover:scale-105 shadow-md"
@@ -141,6 +226,8 @@ export default function ViewUploadPage() {
             </button>
           </div>
         </div>
+
+
 
         {/* Personal Information Card */}
         <div className="bg-white rounded-2xl shadow-xl p-6 mb-8 border border-gray-100">
@@ -212,9 +299,19 @@ export default function ViewUploadPage() {
                         alt={img.label || 'Upload image'}
                         width={200}
                         height={200}
-                        className="w-full h-full object-cover rounded-3xl cursor-pointer"
+                        className="w-full h-full object-cover rounded-3xl cursor-pointer transition-transform duration-300 hover:scale-105"
                         onClick={() => setSelectedMedia({type: 'image', ...img})}
                         onError={() => setImageErrors(prev => ({ ...prev, [img.url]: true }))}
+                        onLoad={(e) => {
+                          // Log thumbnail dimensions for debugging
+                          console.log(`🖼️ Thumbnail ${index + 1} loaded:`, {
+                            naturalWidth: e.target.naturalWidth,
+                            naturalHeight: e.target.naturalHeight,
+                            displayWidth: e.target.offsetWidth,
+                            displayHeight: e.target.offsetHeight,
+                            aspectRatio: e.target.naturalWidth / e.target.naturalHeight
+                          });
+                        }}
                         unoptimized
                       />
                     ) : (
@@ -227,10 +324,13 @@ export default function ViewUploadPage() {
                     </div>
                     <div className="absolute top-2 md:top-3 right-2 md:right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                       <button 
+                        type="button"
                         onClick={() => setSelectedMedia({type: 'image', ...img})}
                         className="p-1.5 md:p-2 bg-black/20 backdrop-blur-sm hover:bg-black/40 rounded-full text-white transition-all duration-200 hover:scale-110"
                       >
-                        <ImageIcon className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                        <svg className="w-3.5 h-3.5 md:w-4 md:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                        </svg>
                       </button>
                     </div>
                   </div>
@@ -272,13 +372,34 @@ export default function ViewUploadPage() {
                       controls
                       className="w-full h-full object-cover rounded-3xl"
                       preload="metadata"
+                      playsInline
                       onError={(e) => {
+                        console.error('Video error:', e);
                         e.target.style.display = 'none';
-                        e.target.parentElement.querySelector('.fallback-video').style.display = 'flex';
+                        const fallback = e.target.parentElement.querySelector('.fallback-video');
+                        if (fallback) fallback.style.display = 'flex';
+                      }}
+                      onLoadStart={() => {
+                        console.log('Video loading started:', vid.url);
+                      }}
+                      onCanPlay={() => {
+                        console.log('Video can play:', vid.url);
                       }}
                     />
                     <div className="fallback-video absolute inset-0 bg-gray-100 flex items-center justify-center text-gray-400 hidden rounded-3xl">
                       <Video className="w-12 h-12" />
+                      <p className="text-sm text-gray-500 mt-2">Video unavailable</p>
+                    </div>
+                    <div className="absolute top-2 md:top-3 right-2 md:right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                      <button 
+                        type="button"
+                        onClick={() => setSelectedMedia({type: 'video', ...vid})}
+                        className="p-1.5 md:p-2 bg-black/20 backdrop-blur-sm hover:bg-black/40 rounded-full text-white transition-all duration-200 hover:scale-110"
+                      >
+                        <svg className="w-3.5 h-3.5 md:w-4 md:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                        </svg>
+                      </button>
                     </div>
                   </div>
                   <div className="mt-2 md:mt-3 text-center px-2">
@@ -299,34 +420,59 @@ export default function ViewUploadPage() {
       {/* Media Modal */}
       {selectedMedia && (
         <div 
-          className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-4"
+          className="fixed inset-0 bg-black bg-opacity-90 backdrop-blur-sm flex items-center justify-center z-50 p-2 sm:p-4"
           onClick={() => setSelectedMedia(null)}
         >
-          <div className="max-w-4xl max-h-full relative">
+          <div className="w-full h-full max-w-[95vw] max-h-[95vh] flex flex-col items-center justify-center relative">
             <button 
+              type="button"
               onClick={e => { e.stopPropagation(); setSelectedMedia(null); }}
-              className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/2 bg-red-500 hover:bg-red-600 text-white rounded-full w-10 h-10 flex items-center justify-center shadow-lg transition-all duration-200 z-10 border-2 border-white focus:outline-none focus:ring-2 focus:ring-red-400"
+              className="absolute top-2 right-2 sm:top-4 sm:right-4 bg-red-500 hover:bg-red-600 text-white rounded-full w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center shadow-lg transition-all duration-200 z-10 border-2 border-white focus:outline-none focus:ring-2 focus:ring-red-400"
               aria-label="Close modal"
             >
-              <X className="w-6 h-6" />
+              <X className="w-4 h-4 sm:w-6 sm:h-6" />
             </button>
-            {selectedMedia.type === 'image' ? (
-              <img 
-                src={selectedMedia.url} 
-                alt={selectedMedia.label}
-                className="max-w-full max-h-full object-contain rounded-lg"
-                style={{ backgroundColor: 'transparent' }}
-              />
-            ) : (
-              <video 
-                src={selectedMedia.url}
-                controls
-                className="max-w-full max-h-full rounded-lg"
-                autoPlay
-              />
-            )}
-            <div className="text-white text-center mt-4">
-              <div className="font-semibold text-lg">{selectedMedia.label}</div>
+            
+            <div className="w-full h-full flex items-center justify-center">
+              {selectedMedia.type === 'image' ? (
+                <img 
+                  src={selectedMedia.url} 
+                  alt={selectedMedia.label}
+                  className="w-auto h-auto max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+                  style={{ 
+                    backgroundColor: 'transparent',
+                    maxWidth: 'calc(100vw - 2rem)',
+                    maxHeight: 'calc(100vh - 8rem)'
+                  }}
+                  onLoad={(e) => {
+                    // Log image dimensions for debugging
+                    console.log('🖼️ Image loaded:', {
+                      naturalWidth: e.target.naturalWidth,
+                      naturalHeight: e.target.naturalHeight,
+                      displayWidth: e.target.offsetWidth,
+                      displayHeight: e.target.offsetHeight
+                    });
+                  }}
+                />
+              ) : (
+                <video 
+                  src={selectedMedia.url}
+                  controls
+                  className="w-auto h-auto max-w-full max-h-full rounded-lg shadow-2xl"
+                  style={{ 
+                    maxWidth: 'calc(100vw - 2rem)',
+                    maxHeight: 'calc(100vh - 8rem)'
+                  }}
+                  autoPlay
+                  playsInline
+                />
+              )}
+            </div>
+            
+            <div className="absolute bottom-2 sm:bottom-4 left-1/2 transform -translate-x-1/2 bg-black bg-opacity-50 backdrop-blur-sm rounded-full px-4 py-2">
+              <div className="text-white text-sm sm:text-base font-medium text-center">
+                {selectedMedia.label || selectedMedia.name}
+              </div>
             </div>
           </div>
         </div>

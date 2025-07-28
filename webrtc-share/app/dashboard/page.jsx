@@ -88,14 +88,16 @@ export default function Page() {
     if (user?.role === 'resident') {
       getMyUploadsRequest().then(res => {
         console.log('Resident uploads API response:', res.data);
-        setResidentUploads(res.data.data.uploads || []);
+        const uploads = res.data.data.uploads || [];
+        setResidentUploads(sortUploadsByDate(uploads));
       }).catch(() => {
         setResidentUploads([]);
       });
       
       getMyTrashedUploadsRequest().then(res => {
         console.log('Resident trashed uploads API response:', res.data);
-        setResidentTrashedUploads(res.data.data.uploads || []);
+        const trashedUploads = res.data.data.uploads || [];
+        setResidentTrashedUploads(sortUploadsByDate(trashedUploads));
       }).catch(() => {
         setResidentTrashedUploads([]);
       });
@@ -140,7 +142,7 @@ export default function Page() {
     }
   };
 
-  const { setResetOpen, setMessageOpen, setLandlordDialogOpen, setTickerOpen, setFeedbackOpen, setFaqOpen, setExportOpen, setHistoryOpen, setInviteOpen } = useDialog();
+  const { setResetOpen, setMessageOpen, setLandlordDialogOpen, setTickerOpen, setFeedbackOpen, setFaqOpen, setExportOpen, setHistoryOpen, setInviteOpen, historyOpen, selectedItemForHistory, historyLoading } = useDialog();
   
   // Video guides dialog state
   const [videoGuidesOpen, setVideoGuidesOpen] = useState(false);
@@ -178,6 +180,15 @@ export default function Page() {
   });
 
   const [roleLoading, setRoleLoading] = useState(false);
+
+  // Helper function to sort uploads by date (latest first)
+  const sortUploadsByDate = (uploads) => {
+    return uploads.sort((a, b) => {
+      const dateA = new Date(a.createdAt || a.created_at || 0);
+      const dateB = new Date(b.createdAt || b.created_at || 0);
+      return dateB - dateA; // Latest first
+    });
+  };
 
   const handleRoleToggle = () => {
     if (!user) return;
@@ -236,8 +247,8 @@ export default function Page() {
   ]);
   const [showAccessCodeDialog, setShowAccessCodeDialog] = useState(false);
   const [selectedShareCode, setSelectedShareCode] = useState('');
-  const [showHistoryDialog, setShowHistoryDialog] = useState(false);
-  const [selectedHistory, setSelectedHistory] = useState([]);
+
+
 
   useEffect(() => {
     fetchMeetings();
@@ -566,8 +577,19 @@ export default function Page() {
         getMyUploadsRequest(),
         getMyTrashedUploadsRequest()
       ]);
-      setResidentUploads(activeRes.data.data.uploads || []);
-      setResidentTrashedUploads(trashedRes.data.data.uploads || []);
+      // Sort uploads by createdAt date (latest first)
+      const sortedActiveUploads = (activeRes.data.data.uploads || []).sort((a, b) => {
+        const dateA = new Date(a.createdAt || a.created_at || 0);
+        const dateB = new Date(b.createdAt || b.created_at || 0);
+        return dateB - dateA; // Latest first
+      });
+      const sortedTrashedUploads = (trashedRes.data.data.uploads || []).sort((a, b) => {
+        const dateA = new Date(a.createdAt || a.created_at || 0);
+        const dateB = new Date(b.createdAt || b.created_at || 0);
+        return dateB - dateA; // Latest first
+      });
+      setResidentUploads(sortedActiveUploads);
+      setResidentTrashedUploads(sortedTrashedUploads);
     } catch (error) {
       toast.error(error.response?.data?.message || "Failed to delete upload");
     }
@@ -582,8 +604,19 @@ export default function Page() {
         getMyUploadsRequest(),
         getMyTrashedUploadsRequest()
       ]);
-      setResidentUploads(activeRes.data.data.uploads || []);
-      setResidentTrashedUploads(trashedRes.data.data.uploads || []);
+      // Sort uploads by createdAt date (latest first)
+      const sortedActiveUploads = (activeRes.data.data.uploads || []).sort((a, b) => {
+        const dateA = new Date(a.createdAt || a.created_at || 0);
+        const dateB = new Date(b.createdAt || b.created_at || 0);
+        return dateB - dateA; // Latest first
+      });
+      const sortedTrashedUploads = (trashedRes.data.data.uploads || []).sort((a, b) => {
+        const dateA = new Date(a.createdAt || a.created_at || 0);
+        const dateB = new Date(b.createdAt || b.created_at || 0);
+        return dateB - dateA; // Latest first
+      });
+      setResidentUploads(sortedActiveUploads);
+      setResidentTrashedUploads(sortedTrashedUploads);
     } catch (error) {
       toast.error(error.response?.data?.message || "Failed to restore upload");
     }
@@ -595,7 +628,13 @@ export default function Page() {
       toast.success("Upload permanently deleted");
       // Refresh trashed uploads
       const trashedRes = await getMyTrashedUploadsRequest();
-      setResidentTrashedUploads(trashedRes.data.data.uploads || []);
+      // Sort trashed uploads by createdAt date (latest first)
+      const sortedTrashedUploads = (trashedRes.data.data.uploads || []).sort((a, b) => {
+        const dateA = new Date(a.createdAt || a.created_at || 0);
+        const dateB = new Date(b.createdAt || b.created_at || 0);
+        return dateB - dateA; // Latest first
+      });
+      setResidentTrashedUploads(sortedTrashedUploads);
     } catch (error) {
       toast.error(error.response?.data?.message || "Failed to permanently delete upload");
     }
@@ -828,6 +867,39 @@ export default function Page() {
     });
   };
 
+  // Helper functions for history modal
+  const formatHistoryDate = (dateString) => {
+    if (!dateString) return 'Unknown';
+    const date = new Date(dateString);
+    return date.toLocaleString('en-GB', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+  };
+
+  const getLocationFromIP = (ip) => {
+    if (!ip || ip === 'Unknown' || ip === '127.0.0.1' || ip === 'localhost') {
+      return 'Local/Unknown';
+    }
+    return 'Location data not available';
+  };
+
+  const parseUserAgent = (userAgent) => {
+    if (!userAgent) return 'Unknown Device';
+    
+    if (userAgent.includes('Mobile')) return 'Mobile Device';
+    if (userAgent.includes('Tablet')) return 'Tablet';
+    if (userAgent.includes('Windows')) return 'Windows PC';
+    if (userAgent.includes('Mac')) return 'Mac';
+    if (userAgent.includes('Linux')) return 'Linux PC';
+    
+    return 'Desktop';
+  };
+
   // Helper function to open share URL in new tab
   const openShareUrl = (meetingId) => {
     const shareUrl = generateShareUrl(meetingId);
@@ -1053,10 +1125,24 @@ export default function Page() {
           // Reload uploads based on current view mode
           if (residentViewMode === 'trash') {
             const res = await getMyTrashedUploadsRequest();
-            setResidentTrashedUploads(res.data.data.uploads || []);
+            const uploads = res.data.data.uploads || [];
+            // Sort uploads by createdAt date (latest first)
+            const sortedUploads = uploads.sort((a, b) => {
+              const dateA = new Date(a.createdAt || a.created_at || 0);
+              const dateB = new Date(b.createdAt || b.created_at || 0);
+              return dateB - dateA; // Latest first
+            });
+            setResidentTrashedUploads(sortedUploads);
           } else {
             const res = await getMyUploadsRequest();
-            setResidentUploads(res.data.data.uploads || []);
+            const uploads = res.data.data.uploads || [];
+            // Sort uploads by createdAt date (latest first)
+            const sortedUploads = uploads.sort((a, b) => {
+              const dateA = new Date(a.createdAt || a.created_at || 0);
+              const dateB = new Date(b.createdAt || b.created_at || 0);
+              return dateB - dateA; // Latest first
+            });
+            setResidentUploads(sortedUploads);
           }
           setLoading(false);
           return;
@@ -1074,10 +1160,16 @@ export default function Page() {
           setIsInSearchMode(true);
           
           const uploads = response.data.data.uploads || [];
+          // Sort uploads by createdAt date (latest first)
+          const sortedUploads = uploads.sort((a, b) => {
+            const dateA = new Date(a.createdAt || a.created_at || 0);
+            const dateB = new Date(b.createdAt || b.created_at || 0);
+            return dateB - dateA; // Latest first
+          });
           if (residentViewMode === 'trash') {
-            setResidentTrashedUploads(uploads);
+            setResidentTrashedUploads(sortedUploads);
           } else {
-            setResidentUploads(uploads);
+            setResidentUploads(sortedUploads);
           }
         }
       }
@@ -1229,7 +1321,7 @@ export default function Page() {
               {user?.role === "resident" ? (
                 <>
                   <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold mt-8 sm:mt-12">Videodesk</h1>
-                  <div className="text-base sm:text-lg mt-1 font-semibold">Dashboard</div>
+                  <div className="text-base sm:text-lg mt-1 font-semibold">Resident Portal</div>
                 </>
               ) : (
                 <>
@@ -1390,15 +1482,6 @@ export default function Page() {
                           >
                             <LogOut className="w-4 h-4" />
                             Logout
-                          </button>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem>
-                          <button 
-                            className="bg-none border-none cursor-pointer w-full text-left flex items-center gap-2" 
-                            onClick={() => setVideoGuidesOpen(true)}
-                          >
-                            <VideoIcon className="w-4 h-4" />
-                            How to Video Guides
                           </button>
                         </DropdownMenuItem>
                       </DropdownMenuContent>
@@ -2157,7 +2240,7 @@ export default function Page() {
               <>
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-3 sm:gap-0">
                   <h2 className="text-lg sm:text-xl font-bold text-blue-700">
-                    {residentViewMode === 'trash' ? 'Trashed Uploads' : 'Your Shared Uploads'}
+                    {residentViewMode === 'trash' ? 'Trashed Uploads' : 'Your Share Code Uploads'}
                   </h2>
                   <div className="flex items-center gap-3">
                     <Button
@@ -2216,31 +2299,47 @@ export default function Page() {
                           title="Double-click to view upload details"
                         >
                           {/* Left: Date */}
-                          <div className="flex flex-col justify-center items-start sm:min-w-[120px] sm:pr-6">
-                            <span className="text-xs text-gray-500">Date</span>
-                            <span className="font-semibold text-lg text-blue-900">
-                              {formattedDate}
-                              {formattedTime && <span className="text-xs text-gray-500 ml-2 font-mono">{formattedTime}</span>}
-                            </span>
+                          <div className="flex flex-col justify-center sm:min-w-[120px] sm:pr-6">
+                            <span className="text-xs text-gray-500 text-left">Date</span>
+                            <div className="flex flex-col items-center">
+                              <span className="font-semibold text-lg text-blue-900">
+                                {formattedDate}
+                                {formattedTime && <span className="text-xs text-gray-500 ml-2 font-mono">{formattedTime}</span>}
+                              </span>
+                              <span
+                                onClick={() => handleUploadDoubleClick(upload)}
+                                className="mt-2 text-xs text-blue-600 hover:text-blue-800 cursor-pointer transition-colors duration-200"
+                                title="View upload details"
+                              >
+                                View upload details
+                              </span>
+                            </div>
                           </div>
                           {/* Divider */}
                           <div className="hidden sm:block w-px bg-blue-200 mx-4" />
-                          {/* Center: Images & Videos */}
-                          <div className="flex flex-col justify-center items-center flex-grow sm:min-w-[180px]">
-                            <div className="flex items-center gap-8">
+                          {/* Center: Images, Videos & Visitors */}
+                          <div className="flex flex-col justify-center items-center flex-grow sm:min-w-[240px]">
+                            <div className="flex items-center gap-6">
                               <div className="flex flex-col items-center">
                                 <div className="flex items-center gap-1">
                                   <ImageIcon className="w-5 h-5 text-blue-700" />
                                   <span className="font-semibold text-blue-700 text-lg">{upload.images?.length || 0}</span>
                                 </div>
-                                <span className="text-xs text-gray-500 mt-1">Images</span>
+                                <span className="text-xs text-gray-500 mt-1">Image(s)</span>
                               </div>
                               <div className="flex flex-col items-center">
                                 <div className="flex items-center gap-1">
                                   <VideoIcon className="w-5 h-5 text-blue-700" />
                                   <span className="font-semibold text-blue-700 text-lg">{upload.videos?.length || 0}</span>
                                 </div>
-                                <span className="text-xs text-gray-500 mt-1">Videos</span>
+                                <span className="text-xs text-gray-500 mt-1">Video(s)</span>
+                              </div>
+                              <div className="flex flex-col items-center">
+                                <div className="flex items-center gap-1">
+                                  <User className="w-5 h-5 text-blue-700" />
+                                  <span className="font-semibold text-blue-700 text-lg">{upload.visitors || 0}</span>
+                                </div>
+                                <span className="text-xs text-gray-500 mt-1">Visitor(s)</span>
                               </div>
                             </div>
                           </div>
@@ -2265,7 +2364,7 @@ export default function Page() {
                                       <span>Delete</span>
                                     </button>
                                     <button
-                                      onClick={() => setShowHistoryDialog(true)}
+                                      onClick={() => setHistoryOpen(true, upload)}
                                       className="flex items-center gap-1 text-blue-600 hover:text-blue-800 text-sm transition-all duration-200 hover:scale-105"
                                       title="History"
                                     >
@@ -2307,35 +2406,7 @@ export default function Page() {
                     {/* Floating Resend Button */}
           <FloatingResendButton />
           
-          {/* History Dialog for Resident */}
-          {showHistoryDialog && user?.role === "resident" && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
-              <div className="bg-white rounded-xl shadow-2xl p-7 w-full max-w-md border border-gray-200">
-                <h2 className="text-xl font-bold text-blue-700 mb-3">Upload History</h2>
-                <ul className="mb-4 text-gray-800">
-                  {selectedHistory.length === 0 ? (
-                    <li>No history available.</li>
-                  ) : (
-                    selectedHistory.map((h, i) => (
-                      <li key={i} className="mb-2 flex items-center gap-2">
-                        <Clock className="w-4 h-4 text-blue-400" />
-                        <span className="font-semibold">{h.action}</span>
-                        <span className="text-xs text-gray-500">{h.date}</span>
-                      </li>
-                    ))
-                  )}
-                </ul>
-                <div className="flex justify-end">
-                  <button
-                    className="px-5 py-2 bg-blue-100 text-blue-900 rounded-full shadow-sm hover:bg-blue-200 transition-all font-semibold"
-                    onClick={() => setShowHistoryDialog(false)}
-                  >
-                    Close
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
+
 
           </div>
 
@@ -2522,11 +2593,25 @@ export default function Page() {
                       // Reload uploads based on current view mode
                       if (residentViewMode === 'trash') {
                         getMyTrashedUploadsRequest().then(res => {
-                          setResidentTrashedUploads(res.data.data.uploads || []);
+                          const uploads = res.data.data.uploads || [];
+                          // Sort uploads by createdAt date (latest first)
+                          const sortedUploads = uploads.sort((a, b) => {
+                            const dateA = new Date(a.createdAt || a.created_at || 0);
+                            const dateB = new Date(b.createdAt || b.created_at || 0);
+                            return dateB - dateA; // Latest first
+                          });
+                          setResidentTrashedUploads(sortedUploads);
                         });
                       } else {
                         getMyUploadsRequest().then(res => {
-                          setResidentUploads(res.data.data.uploads || []);
+                          const uploads = res.data.data.uploads || [];
+                          // Sort uploads by createdAt date (latest first)
+                          const sortedUploads = uploads.sort((a, b) => {
+                            const dateA = new Date(a.createdAt || a.created_at || 0);
+                            const dateB = new Date(b.createdAt || b.created_at || 0);
+                            return dateB - dateA; // Latest first
+                          });
+                          setResidentUploads(sortedUploads);
                         });
                       }
                     }
@@ -2622,7 +2707,7 @@ export default function Page() {
                         <p className="font-semibold text-sm text-gray-800">Congratulations! 🎉</p>
                       </div>
                       <p className="text-xs text-gray-600">
-                        Your shared information has been viewed successfully. Your landlord/councilor has accessed your uploaded content.
+                        Your shared information has been viewed successfully. Your Landlord/Councillor has accessed your uploaded content.
                         <br />
                         <span className="font-semibold text-blue-600">Share Code: {notification.accessCode}</span>
                       </p>
@@ -2653,12 +2738,12 @@ export default function Page() {
             </div>
           </div>
         </div>
-      )}
-      
-      {/* Video Guides Dialog */}
-      <VideoGuidesDialog open={videoGuidesOpen} setOpen={setVideoGuidesOpen} />
-    </>
-  )
+              )}
+        
+        {/* Video Guides Dialog */}
+        <VideoGuidesDialog open={videoGuidesOpen} setOpen={setVideoGuidesOpen} />
+      </>
+    )
 }
 
 

@@ -14,6 +14,7 @@ import { StarIcon } from 'lucide-react'
 import PriceAndPlan from '@/components/section/PriceAndPlanSectionComponent'
 import SendFriendSectionComponent from '@/components/section/SendFriendSectionComponent'
 import FloatingResendButton from '@/components/FloatingResendButton'
+import EnterShareCodeDialog from '@/components/EnterShareCodeDialog'
 
 const FeedbackDialog = () => {
   const [showFeedback, setShowFeedback] = useState(false);
@@ -250,12 +251,47 @@ const FeedbackDialog = () => {
   );
 };
 
-const Page = () => {
+// Main content component that uses useSearchParams
+const PageContent = () => {
   const [mounted, setMounted] = useState(false);
+  const searchParams = useSearchParams();
+  
+  // State for Enter Share Code dialog
+  const [isEnterShareCodeOpen, setIsEnterShareCodeOpen] = useState(false);
+  const [prefilledShareCodeData, setPrefilledShareCodeData] = useState({
+    code: '',
+    house: '',
+    postcode: '',
+    email: ''
+  });
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Check for URL parameters and auto-open Enter Share Code dialog
+  useEffect(() => {
+    const accessCode = searchParams.get('access_code');
+    const houseNumber = searchParams.get('house_number');
+    const flatNumber = searchParams.get('flat_number');
+    const postcode = searchParams.get('postcode');
+    
+    // If access_code parameter exists, open the Enter Share Code dialog
+    if (accessCode) {
+      console.log('🔍 Access code parameter detected:', accessCode);
+      
+      // Set prefilled data
+      setPrefilledShareCodeData({
+        code: accessCode, // Pre-fill the access code
+        house: houseNumber || flatNumber || '', // Use house number or flat number
+        postcode: postcode || '',
+        email: ''
+      });
+      
+      // Open the dialog
+      setIsEnterShareCodeOpen(true);
+    }
+  }, [searchParams]);
 
   if (!mounted) {
     return null;
@@ -279,8 +315,28 @@ const Page = () => {
       
       {/* Floating Resend Button */}
       <FloatingResendButton />
+      
+      {/* Enter Share Code Dialog */}
+      <EnterShareCodeDialog 
+        open={isEnterShareCodeOpen} 
+        setOpen={setIsEnterShareCodeOpen} 
+        prefilledData={prefilledShareCodeData}
+      />
     </div>
   )
+}
+
+// Wrapper component with Suspense boundary
+const Page = () => {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+      </div>
+    }>
+      <PageContent />
+    </Suspense>
+  );
 }
 
 export default Page

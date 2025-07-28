@@ -6,6 +6,7 @@ import { S3Client, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { Upload as S3Upload } from '@aws-sdk/lib-storage';
 import crypto from 'crypto';
 import { sendNotification } from '../services/socketService.js';
+import sendEmail from '../utils/sendEmail.js';
 
 // S3 setup (copied from meetingController.js)
 const s3Client = new S3Client({
@@ -51,14 +52,61 @@ const uploadToS3 = async (data, options, retries = 2) => {
             let contentType;
             let fileExtension;
             if (options.fileType === 'video') {
-                buffer = Buffer.from(data, 'base64');
-                contentType = 'video/webm';
-                fileExtension = 'webm';
-            } else if (options.fileType === 'image') {
-                const base64Data = data.replace(/^data:image\/\w+;base64,/, '');
+                console.log(`🎬 Processing video data:`, {
+                    dataLength: data ? data.length : 0,
+                    dataStart: data ? data.substring(0, 100) : 'no data'
+                });
+                
+                // Extract original file format from base64 data
+                let contentType, fileExtension;
+                if (data.startsWith('data:video/')) {
+                    const match = data.match(/data:video\/([^;]+)/);
+                    if (match) {
+                        const format = match[1];
+                        contentType = `video/${format}`;
+                        fileExtension = format;
+                    } else {
+                        contentType = 'video/mp4';
+                        fileExtension = 'mp4';
+                    }
+                } else {
+                    // Fallback for raw base64 data
+                    contentType = 'video/mp4';
+                    fileExtension = 'mp4';
+                }
+                
+                // Remove data URL prefix if present
+                const base64Data = data.startsWith('data:') ? data.split(',')[1] : data;
                 buffer = Buffer.from(base64Data, 'base64');
-                contentType = 'image/png';
-                fileExtension = 'png';
+                
+                console.log(`🎬 Video buffer created:`, {
+                    bufferLength: buffer.length,
+                    contentType,
+                    fileExtension,
+                    originalFormat: data.startsWith('data:') ? data.split(';')[0] : 'raw base64'
+                });
+            } else if (options.fileType === 'image') {
+                // Extract original file format from base64 data
+                let contentType, fileExtension;
+                if (data.startsWith('data:image/')) {
+                    const match = data.match(/data:image\/([^;]+)/);
+                    if (match) {
+                        const format = match[1];
+                        contentType = `image/${format}`;
+                        fileExtension = format;
+                    } else {
+                        contentType = 'image/jpeg';
+                        fileExtension = 'jpg';
+                    }
+                } else {
+                    // Fallback for raw base64 data
+                    contentType = 'image/jpeg';
+                    fileExtension = 'jpg';
+                }
+                
+                // Remove data URL prefix if present
+                const base64Data = data.startsWith('data:') ? data.split(',')[1] : data;
+                buffer = Buffer.from(base64Data, 'base64');
             } else {
                 throw new Error(`Unsupported file type: ${options.fileType}`);
             }
@@ -154,12 +202,27 @@ export const createUpload = catchAsyncError(async (req, res, next) => {
   // Upload videos to S3
   const uploadedVideos = videos && videos.length > 0 ? await Promise.all(videos.map(async (vid, i) => {
     if (!vid.data) return null;
+    
+    console.log(`🎥 Processing video ${i + 1}:`, {
+      name: vid.name,
+      duration: vid.duration,
+      dataLength: vid.data ? vid.data.length : 0,
+      dataStart: vid.data ? vid.data.substring(0, 50) : 'no data'
+    });
+    
     const uploadResult = await uploadToS3(vid.data, {
       folder: 'upload_videos',
       accessCode,
       index: i,
       fileType: 'video'
     });
+    
+    console.log(`✅ Video ${i + 1} uploaded to S3:`, {
+      url: uploadResult.secure_url,
+      key: uploadResult.key,
+      size: uploadResult.bytes
+    });
+    
     return {
       url: uploadResult.secure_url,
       name: vid.name,
@@ -200,10 +263,18 @@ export const getMyUploads = catchAsyncError(async (req, res, next) => {
     console.log(`[getMyUploads] Resident user: ${email}`);
   }
   const uploads = await Upload.find({ email, deleted: { $ne: true } });
+  
+  // Add visitor count to each upload
+  const uploadsWithVisitors = uploads.map(upload => {
+    const uploadObj = upload.toObject();
+    uploadObj.visitors = upload.total_access_count || 0;
+    return uploadObj;
+  });
+  
   if (role === 'resident') {
-    console.log(`[getMyUploads] Uploads found for resident: ${uploads.length}`);
+    console.log(`[getMyUploads] Uploads found for resident: ${uploadsWithVisitors.length}`);
   }
-  sendResponse(res, 200, true, { uploads }, 'User uploads fetched successfully');
+  sendResponse(res, 200, true, { uploads: uploadsWithVisitors }, 'User uploads fetched successfully');
 }); 
 
 export const getMyLatestUpload = catchAsyncError(async (req, res, next) => {
@@ -302,7 +373,15 @@ export const getMyTrashedUploads = catchAsyncError(async (req, res, next) => {
   }
   
   const trashedUploads = await Upload.find({ email, deleted: true });
-  sendResponse(res, 200, true, { uploads: trashedUploads }, 'Trashed uploads fetched successfully');
+  
+  // Add visitor count to each upload
+  const uploadsWithVisitors = trashedUploads.map(upload => {
+    const uploadObj = upload.toObject();
+    uploadObj.visitors = upload.total_access_count || 0;
+    return uploadObj;
+  });
+  
+  sendResponse(res, 200, true, { uploads: uploadsWithVisitors }, 'Trashed uploads fetched successfully');
 });
 
 // --- SEARCH UPLOADS ENDPOINT ---
@@ -362,7 +441,14 @@ export const searchUploads = catchAsyncError(async (req, res, next) => {
 
   const uploads = await Upload.find(filter).sort({ createdAt: -1 });
 
-  sendResponse(res, 200, true, { uploads }, 'Uploads search completed successfully');
+  // Add visitor count to each upload
+  const uploadsWithVisitors = uploads.map(upload => {
+    const uploadObj = upload.toObject();
+    uploadObj.visitors = upload.total_access_count || 0;
+    return uploadObj;
+  });
+
+  sendResponse(res, 200, true, { uploads: uploadsWithVisitors }, 'Uploads search completed successfully');
 });
 
 export const markNotificationSent = catchAsyncError(async (req, res, next) => {
@@ -392,6 +478,28 @@ export const markNotificationSent = catchAsyncError(async (req, res, next) => {
     } catch (error) {
       console.log('⚠️ Could not send socket notification:', error.message);
     }
+
+    // Send email notification
+    try {
+      const emailSubject = 'Your Share Code Has Been Accessed - Videodesk';
+      const emailBody = `
+Congratulations! Your shared information has been viewed successfully.
+
+Your Landlord/Councillor has accessed your uploaded content. Log into your account and click the 'History' icon to see more details.
+
+Share Code: ${upload.accessCode}
+Accessed At: ${new Date().toLocaleString()}
+
+Thanks
+Videodesk Share Code Team
+      `;
+
+      await sendEmail(upload.email, emailSubject, emailBody);
+      
+      console.log(`📧 Email notification sent to: ${upload.email}`);
+    } catch (emailError) {
+      console.log('⚠️ Could not send email notification:', emailError.message);
+    }
   }
 
   sendResponse(res, 200, true, { notificationSent: upload.notificationSent }, 'Notification status updated');
@@ -415,4 +523,99 @@ export const checkNotificationStatus = catchAsyncError(async (req, res, next) =>
     hasNotifications: pendingNotifications.length > 0,
     notifications: pendingNotifications 
   }, 'Notification status checked');
+});
+
+export const recordVisitorAccess = catchAsyncError(async (req, res, next) => {
+    const { visitor_name, visitor_email, creator } = req.body;
+    const accessCode = req.params.accessCode;
+    
+    console.log('🔍 Upload visitor access request:', { accessCode, visitor_name, visitor_email, creator });
+
+    // If creator flag is set, auto-log as creator
+    if (creator === true || creator === 'true') {
+        const upload = await Upload.findOne({
+            accessCode: accessCode,
+            deleted: { $ne: true }
+        });
+
+        if (!upload) {
+            return next(new ErrorHandler("Upload not found", 404));
+        }
+
+        const ip_address = req.ip || req.connection.remoteAddress || req.socket.remoteAddress ||
+            (req.connection.socket ? req.connection.socket.remoteAddress : null);
+        const user_agent = req.get('User-Agent') || 'Unknown';
+
+        const creatorAccess = {
+            visitor_email: visitor_email || 'creator@system',
+            access_time: new Date(),
+            creator: true
+        };
+
+        if (!upload.access_history) {
+            upload.access_history = [];
+        }
+
+        upload.access_history.push(creatorAccess);
+        upload.total_access_count = (upload.total_access_count || 0) + 1;
+
+        await upload.save();
+
+        return res.status(200).json({
+            success: true,
+            message: "Creator access recorded successfully",
+            access_count: upload.total_access_count,
+            visitor_info: {
+                name: creatorAccess.visitor_name,
+                email: creatorAccess.visitor_email,
+                access_time: creatorAccess.access_time
+            }
+        });
+    }
+
+    // For regular visitors, email is optional
+    const upload = await Upload.findOne({
+        accessCode: accessCode,
+        deleted: { $ne: true }
+    });
+
+    if (!upload) {
+        return next(new ErrorHandler("Upload not found", 404));
+    }
+
+    const ip_address = req.ip || req.connection.remoteAddress || req.socket.remoteAddress ||
+        (req.connection.socket ? req.connection.socket.remoteAddress : null);
+    const user_agent = req.get('User-Agent') || 'Unknown';
+
+    const visitorAccess = {
+        visitor_email: visitor_email ? visitor_email.trim().toLowerCase() : 'anonymous@visitor',
+        access_time: new Date()
+    };
+
+    if (!upload.access_history) {
+        upload.access_history = [];
+    }
+
+    upload.access_history.push(visitorAccess);
+    upload.total_access_count = (upload.total_access_count || 0) + 1;
+
+    console.log('📝 Saving upload access history:', {
+      accessCode,
+      total_access_count: upload.total_access_count,
+      access_history_length: upload.access_history.length,
+      visitor_info: visitorAccess
+    });
+
+    await upload.save();
+
+    res.status(200).json({
+        success: true,
+        message: "Visitor access recorded successfully",
+        access_count: upload.total_access_count,
+        visitor_info: {
+            name: visitorAccess.visitor_name,
+            email: visitorAccess.visitor_email,
+            access_time: visitorAccess.access_time
+        }
+    });
 });

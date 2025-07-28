@@ -1,9 +1,9 @@
 import express from 'express';
 const router = express.Router();
 import {changePassword, loadme, login, logout, register, updateUser,forgotPassword,resetPassword, verify, sendFriendLink, resetPasswordFromDashboard, sendFeedback, raiseSupportTicket, updateUserLogo, updateLandlordInfo, bookDemoMeeting, requestCallback, updateMessageSettings, getMessageSettings, createFolder, updateFolder, deleteFolder, moveFolderToTrash, restoreFolderFromTrash, getFolders, assignMeetingToFolder, getMeetingFolders, updatePaginationSettings, getPaginationSettings, registerResident } from './controllers/authController.js';
-import { createUpload, getUploadByAccessCode, getMyUploads, getMyLatestUpload, deleteUpload, restoreUpload, permanentDeleteUpload, getMyTrashedUploads, markNotificationSent, checkNotificationStatus, searchUploads } from './controllers/uploadController.js';
+import { createUpload, getUploadByAccessCode, getMyUploads, getMyLatestUpload, deleteUpload, restoreUpload, permanentDeleteUpload, getMyTrashedUploads, markNotificationSent, checkNotificationStatus, searchUploads, recordVisitorAccess } from './controllers/uploadController.js';
 import {isAuthenticate} from "./middlewares/auth.js"
-import { create, getAllMeetings, getMeetingById, updateMeetingController, deleteMeeting, getMeetingForShare, getMeetingByMeetingId, deleteRecording, deleteScreenshot, archiveMeeting, unarchiveMeeting, getArchivedCount, recordVisitorAccess, restoreMeeting, permanentDeleteMeeting, searchMeetings, getSpecialNotes, saveSpecialNotes, getStructuredSpecialNotes, saveStructuredSpecialNotes } from './controllers/meetingController.js';
+import { create, getAllMeetings, getMeetingById, updateMeetingController, deleteMeeting, getMeetingForShare, getMeetingByMeetingId, deleteRecording, deleteScreenshot, archiveMeeting, unarchiveMeeting, getArchivedCount, recordVisitorAccess as recordMeetingVisitorAccess, restoreMeeting, permanentDeleteMeeting, searchMeetings, getSpecialNotes, saveSpecialNotes, getStructuredSpecialNotes, saveStructuredSpecialNotes } from './controllers/meetingController.js';
 import { getUserRoomInfo } from './controllers/userRoomInfoController.js';
 import Upload from './models/upload.js';
 
@@ -70,7 +70,7 @@ router.patch('/meetings/:meeting_id/structured-special-notes', isAuthenticate, s
 router.route('/meetings/share/:id').get(getMeetingForShare);
 
 // New public route for recording visitor access (no authentication required)
-router.route('/meetings/share/:id/access').post(recordVisitorAccess);
+router.route('/meetings/share/:id/access').post(recordMeetingVisitorAccess);
 
 // Add route to get token info for profile data
 router.route('/get-token-info/:token').get((req, res) => {
@@ -122,8 +122,11 @@ router.route('/uploads/search').post(isAuthenticate, searchUploads);
 router.route('/upload').post(createUpload);
 router.route('/upload/:accessCode').get(getUploadByAccessCode);
 
+// New public route for recording visitor access to uploads (no authentication required)
+router.route('/upload/:accessCode/access').post(recordVisitorAccess);
+
 // Validate access code, house/flat, and postcode
-router.post('/api/v1/validate-access-code', async (req, res) => {
+router.post('/validate-access-code', async (req, res) => {
   const { code, house, postcode } = req.body;
   console.log('🔍 Validation request received:', { code, house, postcode });
   
