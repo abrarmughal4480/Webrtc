@@ -13,9 +13,9 @@ export default function ChatKarla() {
   };
 
   const features = [
-    "Advice and Guidance on damp and mould issues",
-    "Making any referrals to our Damp and Mould Team",
-    "Personalized solutions for your specific situation",
+    "Advice on damp and mould issues",
+    "Making referrals to our Damp and Mould Team",
+    "Personalized solutions for your situation",
     "I'm here 24/7 for instant support and advice"
   ];
 
