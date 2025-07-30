@@ -6,7 +6,7 @@ import ChatBot from '@/components/ChatBot';
 
 export default function ChatKarla() {
   const [isChatOpen, setIsChatOpen] = useState(false);
-  const [subheadingColor, setSubheadingColor] = useState('#92400e'); // amber-900
+
 
   const handleStart = () => {
     setIsChatOpen(true);
@@ -33,10 +33,7 @@ export default function ChatKarla() {
             Hello, I'm Karla
             </h2>
             
-            <p 
-              className="text-xl md:text-2xl lg:text-3xl max-w-2xl mx-auto leading-relaxed font-medium"
-              style={{ color: subheadingColor }}
-            >
+            <p className="text-xl md:text-2xl lg:text-3xl max-w-2xl mx-auto leading-relaxed font-medium text-white">
               I'm a Damp and Mould AI Assistant
             </p>
           </div>
@@ -62,27 +59,13 @@ export default function ChatKarla() {
             <Button 
               onClick={handleStart}
               className="bg-white hover:bg-gray-50 text-amber-600 font-medium py-3 px-8 rounded-full text-lg transition-all transform hover:scale-105 shadow-lg hover:shadow-xl border-2 border-white"
+              
             >
               Start Chat with Karla
             </Button>
           </div>
           
-          {/* Color Selector */}
-          <div className="mt-8 text-center">
-            <div className="inline-flex items-center gap-4 bg-white/20 backdrop-blur-sm rounded-lg p-4">
-              <label className="text-white font-medium">Subheading Color:</label>
-              <input
-                type="color"
-                value={subheadingColor}
-                onChange={(e) => setSubheadingColor(e.target.value)}
-                className="w-12 h-10 rounded border-2 border-white cursor-pointer"
-                title="Choose subheading color"
-              />
-              <span className="text-white text-sm font-mono bg-black/20 px-2 py-1 rounded">
-                {subheadingColor}
-              </span>
-            </div>
-          </div>
+
         </div>
       </div>
       

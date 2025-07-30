@@ -170,14 +170,17 @@ export default function ViewUploadPage() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
       <div className="max-w-4xl mx-auto p-6 relative">
         {/* Header with Close Button */}
-        <div className="flex items-center justify-between mb-8">
-          <div className="text-center flex-1">
-            <h1 className="text-4xl font-bold text-gray-800 mb-2">Upload Details</h1>
-            <div className="w-24 h-1 bg-gradient-to-r from-blue-500 to-indigo-600 mx-auto rounded-full"></div>
+        <div className="flex flex-col sm:flex-row items-center justify-between mb-6 sm:mb-8 gap-4">
+          {/* Title Section */}
+          <div className="text-center sm:text-left flex-1 order-1 sm:order-1">
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-800 mb-2">Upload Details</h1>
+            <div className="w-16 sm:w-20 md:w-24 h-1 bg-gradient-to-r from-blue-500 to-indigo-600 mx-auto sm:mx-0 rounded-full"></div>
           </div>
-          <div className="flex items-center gap-2">
+          
+          {/* Actions Section */}
+          <div className="flex items-center gap-2 order-2 sm:order-2 w-full sm:w-auto justify-center sm:justify-end">
             {/* Share Code Search Input */}
-            <div className="flex items-center gap-2 bg-white rounded-full shadow-md border border-gray-200 px-3 py-1">
+            <div className="flex items-center gap-2 bg-white rounded-full shadow-md border border-gray-200 px-2 sm:px-3 py-1 flex-1 sm:flex-none max-w-[200px] sm:max-w-none">
               <input
                 type="text"
                 value={shareCodeInput}
@@ -185,46 +188,52 @@ export default function ViewUploadPage() {
                   setShareCodeInput(e.target.value);
                   if (searchError) setSearchError(''); // Clear error when typing
                 }}
-                placeholder="Enter share code..."
-                className="w-32 sm:w-40 text-sm border-none outline-none bg-transparent"
+                placeholder="Share code..."
+                className="w-full sm:w-32 md:w-40 text-xs sm:text-sm border-none outline-none bg-transparent"
                 onKeyPress={(e) => e.key === 'Enter' && handleShareCodeSearch()}
                 disabled={isSearching}
               />
               <button
                 onClick={handleShareCodeSearch}
                 disabled={isSearching || !shareCodeInput.trim()}
-                className="p-1.5 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-400 text-white rounded-full transition-all duration-200"
+                className="p-1 sm:p-1.5 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-400 text-white rounded-full transition-all duration-200 flex-shrink-0"
                 title="Search share code"
               >
                 {isSearching ? (
-                  <div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin"></div>
+                  <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 border border-white border-t-transparent rounded-full animate-spin"></div>
                 ) : (
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-2.5 h-2.5 sm:w-3 sm:h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                   </svg>
                 )}
               </button>
             </div>
-            {searchError && (
-              <div className="absolute top-16 right-0 bg-red-50 border border-red-200 rounded-lg p-2 z-50">
-                <p className="text-red-600 text-xs whitespace-nowrap">{searchError}</p>
-              </div>
-            )}
+            
+            {/* Print Button */}
             <button
               onClick={handlePrint}
-              className="inline-flex items-center justify-center p-2 bg-blue-600 hover:bg-blue-700 text-white rounded-full border border-blue-500 transition-all duration-200 hover:scale-105 shadow-md"
+              className="inline-flex items-center justify-center p-1.5 sm:p-2 bg-blue-600 hover:bg-blue-700 text-white rounded-full border border-blue-500 transition-all duration-200 hover:scale-105 shadow-md flex-shrink-0"
               title="Print this page"
             >
-              <Printer className="w-5 h-5" />
+              <Printer className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
+            
+            {/* Close Button */}
             <button
               onClick={() => router.back()}
-              className="bg-red-500 hover:bg-red-600 text-white rounded-full w-10 h-10 flex items-center justify-center shadow-lg transition-all duration-200 z-20 border-2 border-white focus:outline-none focus:ring-2 focus:ring-red-400"
+              className="bg-red-500 hover:bg-red-600 text-white rounded-full w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center shadow-lg transition-all duration-200 z-20 border-2 border-white focus:outline-none focus:ring-2 focus:ring-red-400 flex-shrink-0"
               aria-label="Close details"
             >
-              <X className="w-6 h-6" />
+              <X className="w-4 h-4 sm:w-6 sm:h-6" />
             </button>
           </div>
+          
+          {/* Error Message - Positioned below on mobile */}
+          {searchError && (
+            <div className="w-full sm:absolute sm:top-16 sm:right-0 bg-red-50 border border-red-200 rounded-lg p-2 z-50 order-3 sm:order-3">
+              <p className="text-red-600 text-xs text-center sm:text-left">{searchError}</p>
+            </div>
+          )}
         </div>
 
 
@@ -237,36 +246,36 @@ export default function ViewUploadPage() {
             </div>
             <h2 className="text-2xl font-bold text-gray-800">Customer Information</h2>
           </div>
-          <div className="grid md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-3">
-              <div className="flex items-center">
-                <span className="text-gray-500 font-medium w-20">Name:</span>
-                <span className="text-gray-800 font-semibold">{upload.first_name} {upload.last_name}</span>
+              <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-0">
+                <span className="text-gray-500 font-medium w-full sm:w-20 text-sm sm:text-base">Name:</span>
+                <span className="text-gray-800 font-semibold text-sm sm:text-base">{upload.first_name} {upload.last_name}</span>
               </div>
-              <div className="flex items-center">
-                <span className="text-gray-500 font-medium w-20">Phone:</span>
-                <span className="text-gray-800">{upload.phoneNumber}</span>
+              <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-0">
+                <span className="text-gray-500 font-medium w-full sm:w-20 text-sm sm:text-base">Phone:</span>
+                <span className="text-gray-800 text-sm sm:text-base">{upload.phoneNumber}</span>
               </div>
-              <div className="flex items-center">
-                <span className="text-gray-500 font-medium w-20">Email:</span>
-                <span className="text-gray-800">{upload.email}</span>
+              <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-0">
+                <span className="text-gray-500 font-medium w-full sm:w-20 text-sm sm:text-base">Email:</span>
+                <span className="text-gray-800 text-sm sm:text-base break-all">{upload.email}</span>
               </div>
               {/* Created Date */}
-              <div className="flex items-center">
-                <span className="text-gray-500 font-medium w-20">Created:</span>
-                <span className="text-gray-800">{upload.createdAt ? moment(upload.createdAt).format('D MMMM YYYY, h:mm a') : '-'}</span>
+              <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-0">
+                <span className="text-gray-500 font-medium w-full sm:w-20 text-sm sm:text-base">Created:</span>
+                <span className="text-gray-800 text-sm sm:text-base">{upload.createdAt ? moment(upload.createdAt).format('D MMMM YYYY, h:mm a') : '-'}</span>
               </div>
             </div>
             <div>
-              <div className="flex items-start mb-3">
-                <span className="text-gray-500 font-medium w-20 mt-1">Address:</span>
-                <div className="text-gray-800 leading-relaxed">
+              <div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-0 mb-3">
+                <span className="text-gray-500 font-medium w-full sm:w-20 text-sm sm:text-base">Address:</span>
+                <div className="text-gray-800 leading-relaxed text-sm sm:text-base">
                   {upload.house_name_number}, {upload.flat_apartment_room}, {upload.street_road}, {upload.city}, {upload.country}
                 </div>
               </div>
-              <div className="flex items-center">
-                <span className="text-gray-500 font-medium w-20">Postcode:</span>
-                <span className="inline-block bg-blue-100 text-blue-800 text-lg font-bold px-3 py-1 rounded-lg">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-0">
+                <span className="text-gray-500 font-medium w-full sm:w-20 text-sm sm:text-base">Postcode:</span>
+                <span className="inline-block bg-blue-100 text-blue-800 text-base sm:text-lg font-bold px-2 sm:px-3 py-1 rounded-lg w-fit">
                   {upload.actualPostCode}
                 </span>
               </div>

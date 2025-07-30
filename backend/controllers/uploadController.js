@@ -8,6 +8,9 @@ import crypto from 'crypto';
 import { sendNotification } from '../services/socketService.js';
 import sendEmail from '../utils/sendEmail.js';
 
+// In-memory storage for upload sessions (in production, use Redis)
+const uploadSessions = new Map();
+
 // S3 setup (copied from meetingController.js)
 const s3Client = new S3Client({
     region: process.env.AWS_REGION || 'ap-southeast-2',
@@ -162,6 +165,172 @@ const uploadToS3 = async (data, options, retries = 2) => {
     }
 };
 
+// Create upload session
+export const createUploadSession = catchAsyncError(async (req, res, next) => {
+  const {
+    first_name, last_name, house_name_number, flat_apartment_room, street_road, city, country, postCode, actualPostCode, phoneNumber, email: bodyEmail, accessCode, totalImages, totalVideos
+  } = req.body;
+
+  // Use logged-in user's email if available
+  const email = req.user?.email || bodyEmail;
+
+  // Check for duplicate accessCode
+  const existing = await Upload.findOne({ accessCode });
+  if (existing) {
+    return next(new ErrorHandler('Access code already exists. Please try again.', 409));
+  }
+
+  // Generate session ID
+  const sessionId = crypto.randomUUID();
+  
+  // Create session data
+  const sessionData = {
+    sessionId,
+    accessCode,
+    email,
+    userData: {
+      first_name, last_name, house_name_number, flat_apartment_room, street_road, city, country, postCode, actualPostCode, phoneNumber, email
+    },
+    totalImages,
+    totalVideos,
+    uploadedImages: [],
+    uploadedVideos: [],
+    createdAt: new Date(),
+    status: 'active'
+  };
+
+  // Store session
+  uploadSessions.set(sessionId, sessionData);
+
+  console.log(`🚀 Created upload session: ${sessionId} for access code: ${accessCode}`);
+  console.log(`📊 Expected files: ${totalImages} images, ${totalVideos} videos`);
+
+  sendResponse(res, 201, true, { sessionId }, 'Upload session created successfully');
+});
+
+// Upload individual file
+export const uploadFile = catchAsyncError(async (req, res, next) => {
+  const { sessionId } = req.params;
+  const { fileData, fileName, fileLabel, fileType, fileIndex, duration } = req.body;
+
+  // Get session
+  const session = uploadSessions.get(sessionId);
+  if (!session) {
+    return next(new ErrorHandler('Upload session not found or expired.', 404));
+  }
+
+  console.log(`📁 Uploading ${fileType} ${fileIndex + 1}: ${fileName}`);
+
+  try {
+    // Upload to S3
+    const uploadResult = await uploadToS3(fileData, {
+      folder: fileType === 'image' ? 'upload_images' : 'upload_videos',
+      accessCode: session.accessCode,
+      index: fileIndex,
+      fileType
+    });
+
+    // Create file object
+    const fileObject = {
+      url: uploadResult.secure_url,
+      name: fileName,
+      label: fileLabel,
+      timestamp: new Date(),
+      s3_key: uploadResult.key,
+      size: uploadResult.bytes || 0,
+      etag: uploadResult.etag
+    };
+
+    // Add duration for videos
+    if (fileType === 'video' && duration) {
+      fileObject.duration = duration;
+    }
+
+    // Add to session
+    if (fileType === 'image') {
+      session.uploadedImages.push(fileObject);
+    } else {
+      session.uploadedVideos.push(fileObject);
+    }
+
+    // Update session
+    uploadSessions.set(sessionId, session);
+
+    console.log(`✅ ${fileType} ${fileIndex + 1} uploaded successfully: ${uploadResult.key}`);
+
+    sendResponse(res, 200, true, { 
+      uploaded: true, 
+      fileType, 
+      fileIndex,
+      totalUploaded: session.uploadedImages.length + session.uploadedVideos.length,
+      totalExpected: session.totalImages + session.totalVideos
+    }, `${fileType} uploaded successfully`);
+  } catch (error) {
+    console.error(`❌ Failed to upload ${fileType} ${fileIndex + 1}:`, error);
+    return next(new ErrorHandler(`Failed to upload ${fileType}: ${error.message}`, 500));
+  }
+});
+
+// Complete upload
+export const completeUpload = catchAsyncError(async (req, res, next) => {
+  const { sessionId } = req.params;
+
+  // Get session
+  const session = uploadSessions.get(sessionId);
+  if (!session) {
+    return next(new ErrorHandler('Upload session not found or expired.', 404));
+  }
+
+  console.log(`🎯 Completing upload session: ${sessionId}`);
+
+  try {
+    // Check if this email already has an upload
+    const alreadyUploaded = await Upload.exists({ email: session.email });
+
+    // Create upload in database
+    const upload = await Upload.create({
+      ...session.userData,
+      images: session.uploadedImages,
+      videos: session.uploadedVideos,
+      accessCode: session.accessCode
+    });
+
+    // Clean up session
+    uploadSessions.delete(sessionId);
+
+    console.log(`✅ Upload completed successfully. AccessCode: ${upload.accessCode}`);
+    console.log(`🎉 Total files uploaded: ${session.uploadedImages.length} images, ${session.uploadedVideos.length} videos`);
+
+    sendResponse(res, 201, true, { upload, alreadyUploaded: !!alreadyUploaded }, 'Upload completed successfully');
+  } catch (error) {
+    console.error(`❌ Failed to complete upload:`, error);
+    return next(new ErrorHandler(`Failed to complete upload: ${error.message}`, 500));
+  }
+});
+
+// Get upload progress
+export const getUploadProgress = catchAsyncError(async (req, res, next) => {
+  const { sessionId } = req.params;
+
+  // Get session
+  const session = uploadSessions.get(sessionId);
+  if (!session) {
+    return next(new ErrorHandler('Upload session not found or expired.', 404));
+  }
+
+  const totalUploaded = session.uploadedImages.length + session.uploadedVideos.length;
+  const totalExpected = session.totalImages + session.totalVideos;
+  const progress = totalExpected > 0 ? Math.round((totalUploaded / totalExpected) * 100) : 0;
+
+  sendResponse(res, 200, true, { 
+    progress, 
+    totalUploaded, 
+    totalExpected,
+    uploadedImages: session.uploadedImages.length,
+    uploadedVideos: session.uploadedVideos.length
+  }, 'Upload progress retrieved successfully');
+});
+
 export const createUpload = catchAsyncError(async (req, res, next) => {
   const {
     first_name, last_name, house_name_number, flat_apartment_room, street_road, city, country, postCode, actualPostCode, phoneNumber, email: bodyEmail, images, videos, accessCode
@@ -169,6 +338,9 @@ export const createUpload = catchAsyncError(async (req, res, next) => {
 
   // Use logged-in user's email if available
   const email = req.user?.email || bodyEmail;
+
+  console.log(`🚀 Starting upload process for access code: ${accessCode}`);
+  console.log(`📊 Files to upload: ${images?.length || 0} images, ${videos?.length || 0} videos`);
 
   // Check for duplicate accessCode
   const existing = await Upload.findOne({ accessCode });
@@ -182,12 +354,14 @@ export const createUpload = catchAsyncError(async (req, res, next) => {
   // Upload images to S3
   const uploadedImages = images && images.length > 0 ? await Promise.all(images.map(async (img, i) => {
     if (!img.data) return null;
+    console.log(`📸 Uploading image ${i + 1}/${images.length}: ${img.name}`);
     const uploadResult = await uploadToS3(img.data, {
       folder: 'upload_images',
       accessCode,
       index: i,
       fileType: 'image'
     });
+    console.log(`✅ Image ${i + 1} uploaded successfully: ${uploadResult.key}`);
     return {
       url: uploadResult.secure_url,
       name: img.name,
@@ -203,6 +377,7 @@ export const createUpload = catchAsyncError(async (req, res, next) => {
   const uploadedVideos = videos && videos.length > 0 ? await Promise.all(videos.map(async (vid, i) => {
     if (!vid.data) return null;
     
+    console.log(`🎥 Uploading video ${i + 1}/${videos.length}: ${vid.name}`);
     console.log(`🎥 Processing video ${i + 1}:`, {
       name: vid.name,
       duration: vid.duration,
@@ -240,6 +415,7 @@ export const createUpload = catchAsyncError(async (req, res, next) => {
   });
 
   console.log(`✅ Upload successful in DB. AccessCode: ${upload.accessCode}`);
+  console.log(`🎉 Total files uploaded: ${uploadedImages.length} images, ${uploadedVideos.length} videos`);
 
   sendResponse(res, 201, true, { upload, alreadyUploaded: !!alreadyUploaded }, 'Upload created successfully');
 });

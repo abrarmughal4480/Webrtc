@@ -3554,7 +3554,7 @@ ${senderName}`;
 
       {/* History Modal */}
       <DialogComponent open={historyOpen} setOpen={setHistoryOpen} isCloseable={true}>
-        <div className="w-[600px] max-h-[90vh] rounded-2xl bg-purple-500 shadow-md overflow-hidden">
+        <div className="max-w-[95vw] w-full sm:max-w-[600px] max-h-[90vh] rounded-2xl bg-purple-500 shadow-md overflow-hidden">
           {/* Header */}
           <div className="flex items-center justify-center bg-purple-500 text-white p-4 m-0 relative">
             <div className="flex items-center gap-2">
@@ -3577,7 +3577,7 @@ ${senderName}`;
                 {/* Meeting Info Header Skeleton */}
                 <div className="bg-gray-50 p-4 rounded-lg">
                   <div className="h-6 bg-gray-300 rounded w-20 mb-2"></div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <div className="h-4 bg-gray-300 rounded w-8 mb-1"></div>
                       <div className="h-4 bg-gray-200 rounded w-24"></div>
@@ -3600,7 +3600,7 @@ ${senderName}`;
                 {/* Access Statistics Skeleton */}
                 <div className="bg-blue-50 p-4 rounded-lg">
                   <div className="h-5 bg-gray-300 rounded w-32 mb-2"></div>
-                  <div className="grid grid-cols-3 gap-4 text-center">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
                     <div>
                       <div className="h-8 bg-gray-300 rounded w-16 mx-auto mb-1"></div>
                       <div className="h-3 bg-gray-200 rounded w-20 mx-auto"></div>
@@ -3641,7 +3641,7 @@ ${senderName}`;
                 {/* Content Summary Skeleton */}
                 <div className="border-t pt-4">
                   <div className="h-5 bg-gray-300 rounded w-32 mb-3"></div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="bg-green-50 p-3 rounded">
                       <div className="flex items-center justify-between">
                         <div className="h-4 bg-gray-300 rounded w-24"></div>
@@ -3697,7 +3697,7 @@ ${senderName}`;
                     </div>
 
                     {/* Row 2: Address and Phone+Created vertically */}
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       {/* Address - Left Side */}
                       <div>
                         <span className="font-medium text-gray-700">Address:</span>
@@ -3709,6 +3709,7 @@ ${senderName}`;
                               addressParts.push(selectedItemForHistory.house_name_number.trim());
                             }
                             if (selectedItemForHistory.flat_apartment_room) {
+                              
                               addressParts.push(selectedItemForHistory.flat_apartment_room.trim());
                             }
                             if (selectedItemForHistory.street_road) {

@@ -1,6 +1,22 @@
 "use client"
 import React, { useEffect, useRef, useState } from "react";
 
+// Simple markdown parser for basic formatting
+const parseMarkdown = (text) => {
+  if (!text) return text;
+  
+  // Convert **text** to <strong>text</strong>
+  text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  
+  // Convert *text* to <em>text</em>
+  text = text.replace(/\*(.*?)\*/g, '<em>$1</em>');
+  
+  // Convert \n to <br> for line breaks
+  text = text.replace(/\n/g, '<br>');
+  
+  return text;
+};
+
 export default function ChatBot({ isOpen, onClose }) {
   const textareaRef = useRef(null);
   const messagesEndRef = useRef(null);
@@ -16,84 +32,25 @@ export default function ChatBot({ isOpen, onClose }) {
   const [isLoading, setIsLoading] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const [n8nChatInstance, setN8nChatInstance] = useState(null);
-  const [sessionId] = useState(() => `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`);
+  const [sessionId] = useState(() => {
+    // Generate UUID format session ID
+    const generateUUID = () => {
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        const r = Math.random() * 16 | 0;
+        const v = c == 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+      });
+    };
+    return generateUUID();
+  });
 
   useEffect(() => {
     if (!isOpen) return;
 
     document.body.style.overflow = 'hidden';
     
-    // Load n8n chat library and create instance
-    const loadN8nChat = async () => {
-      try {
-        // Create script element to load n8n chat library
-        const script = document.createElement("script");
-        script.type = "module";
-        script.defer = true;
-        script.innerHTML = `
-          import Chatbot from "https://cdn.n8nchatui.com/v1/embed.js";
-          
-          // Create a hidden chat instance for communication
-          window.n8nChatInstance = Chatbot.init({
-            "n8nChatUrl": "https://mannanr.app.n8n.cloud/webhook/a889d2ae-2159-402f-b326-5f61e90f602e/chat",
-            "metadata": {},
-            "theme": {
-              "button": {
-                "backgroundColor": "#f59e0b",
-                "right": -9999, // Hide the button
-                "bottom": -9999,
-                "size": 0,
-                "autoWindowOpen": {
-                  "autoOpen": false
-                }
-              },
-              "chatWindow": {
-                "showTitle": false,
-                "height": 0,
-                "width": 0,
-                "renderHTML": false
-              }
-            }
-          });
-          
-          // Make it available globally
-          window.n8nChatReady = true;
-        `;
-        
-        document.body.appendChild(script);
-        
-        // Wait for the script to load
-        const checkN8nReady = () => {
-          if (window.n8nChatInstance && window.n8nChatReady) {
-            setN8nChatInstance(window.n8nChatInstance);
-            
-            // Listen for messages from n8n
-            if (window.n8nChatInstance.onMessage) {
-              window.n8nChatInstance.onMessage((response) => {
-                const botMessage = {
-                  id: Date.now() + 1,
-                  type: 'bot',
-                  text: response.message || response.text || "Thank you for your message.",
-                  timestamp: new Date()
-                };
-                setMessages(prev => [...prev, botMessage]);
-                setIsLoading(false);
-                setIsTyping(false);
-              });
-            }
-          } else {
-            setTimeout(checkN8nReady, 100);
-          }
-        };
-        
-        checkN8nReady();
-        
-      } catch (error) {
-        console.error('Failed to load n8n chat:', error);
-      }
-    };
-    
-    loadN8nChat();
+    // Disable n8n chat library for now and use direct API calls
+    console.log('Using direct API calls to webhook');
     
     setTimeout(() => {
       if (textareaRef.current) {
@@ -145,104 +102,80 @@ export default function ChatBot({ isOpen, onClose }) {
 
     if (textareaRef.current) {
       textareaRef.current.style.height = '24px';
+      // Auto focus after sending message
       setTimeout(() => {
         textareaRef.current.focus();
-      }, 10);
+      }, 100);
     }
 
     try {
-      // Use n8n chat instance if available, otherwise fallback to direct API
-      if (window.n8nChatInstance && window.n8nChatInstance.sendMessage) {
-        window.n8nChatInstance.sendMessage(currentMessage);
-      } else if (n8nChatInstance && n8nChatInstance.sendMessage) {
-        n8nChatInstance.sendMessage(currentMessage);
-      } else {
-        // Enhanced fallback with multiple request format attempts
-        console.log('Attempting direct API call...');
+      // Direct API call to webhook
+      console.log('Making direct API call to webhook...');
+      
+      const webhookUrl = "https://mannanr.app.n8n.cloud/webhook/a889d2ae-2159-402f-b326-5f61e90f602e/chat";
+      console.log('Webhook URL:', webhookUrl);
+      
+      // Use the correct payload format as specified
+      const payload = {
+        action: "sendMessage",
+        sessionId: sessionId,
+        chatInput: currentMessage
+      };
+
+      try {
+        console.log('Sending payload:', payload);
+        console.log('Making request to:', webhookUrl);
         
-        // Try different request formats that n8n commonly accepts
-        const requestFormats = [
-          // Format 1: Standard message format
-          {
-            message: currentMessage,
-            sessionId: sessionId,
-            userId: sessionId
+        const response = await fetch(webhookUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
           },
-          // Format 2: Chat format
-          {
-            chatInput: currentMessage,
-            session: sessionId
-          },
-          // Format 3: Simple text format
-          {
-            text: currentMessage
-          },
-          // Format 4: Query format
-          {
-            query: currentMessage,
-            sessionId: sessionId
+          body: JSON.stringify(payload)
+        });
+
+        console.log(`Response status: ${response.status}`);
+        console.log(`Response URL: ${response.url}`);
+
+        if (response.ok) {
+          let data;
+          const contentType = response.headers.get('content-type');
+          
+          if (contentType && contentType.includes('application/json')) {
+            data = await response.json();
+          } else {
+            const textResponse = await response.text();
+            data = { response: textResponse };
           }
-        ];
-
-        let success = false;
-        let lastError = null;
-
-        for (let i = 0; i < requestFormats.length && !success; i++) {
-          try {
-            console.log(`Trying request format ${i + 1}:`, requestFormats[i]);
-            
-            const response = await fetch("https://mannanr.app.n8n.cloud/webhook/a889d2ae-2159-402f-b326-5f61e90f602e/chat", {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-                // Add CORS headers if needed
-                'Access-Control-Allow-Origin': '*',
-              },
-              body: JSON.stringify(requestFormats[i])
-            });
-
-            console.log(`Response status: ${response.status}`);
-            console.log(`Response headers:`, [...response.headers.entries()]);
-
-            if (response.ok) {
-              let data;
-              const contentType = response.headers.get('content-type');
-              
-              if (contentType && contentType.includes('application/json')) {
-                data = await response.json();
-              } else {
-                const textResponse = await response.text();
-                data = { response: textResponse };
-              }
-              
-              console.log('Response data:', data);
-              
-              const botMessage = {
-                id: Date.now() + 1,
-                type: 'bot',
-                text: data.response || data.message || data.text || data.output || "Thank you for your message. I'm here to help you with any questions you may have.",
-                timestamp: new Date()
-              };
-              
-              setMessages(prev => [...prev, botMessage]);
-              setIsLoading(false);
-              setIsTyping(false);
-              success = true;
-            } else {
-              const errorText = await response.text();
-              console.error(`Format ${i + 1} failed with status ${response.status}:`, errorText);
-              lastError = new Error(`HTTP ${response.status}: ${errorText}`);
+          
+          console.log('Response data:', data);
+          
+          const botMessage = {
+            id: Date.now() + 1,
+            type: 'bot',
+            text: data.output || data.response || data.message || data.text || "Thank you for your message. I'm here to help you with any questions you may have.",
+            timestamp: new Date()
+          };
+          
+          setMessages(prev => [...prev, botMessage]);
+          setIsLoading(false);
+          setIsTyping(false);
+          
+          // Auto focus after receiving response
+          setTimeout(() => {
+            if (textareaRef.current) {
+              textareaRef.current.focus();
             }
-          } catch (formatError) {
-            console.error(`Format ${i + 1} failed:`, formatError);
-            lastError = formatError;
-          }
+          }, 200);
+        } else {
+          const errorText = await response.text();
+          console.error(`Request failed with status ${response.status}:`, errorText);
+          throw new Error(`HTTP ${response.status}: ${errorText}`);
         }
-
-        if (!success) {
-          throw lastError || new Error('All request formats failed');
-        }
+      } catch (error) {
+        console.error('Request failed:', error);
+        throw error;
       }
     } catch (error) {
       console.error('Error sending message:', error);
@@ -268,6 +201,13 @@ export default function ChatBot({ isOpen, onClose }) {
       setMessages(prev => [...prev, botMessage]);
       setIsLoading(false);
       setIsTyping(false);
+      
+      // Auto focus after error response
+      setTimeout(() => {
+        if (textareaRef.current) {
+          textareaRef.current.focus();
+        }
+      }, 200);
     }
   };
 
@@ -280,19 +220,9 @@ export default function ChatBot({ isOpen, onClose }) {
         <div className="absolute inset-0 bg-black/10 backdrop-blur-sm"></div>
         <div className="relative p-4 md:p-6 flex items-center justify-between">
           <div className="flex items-center space-x-3 md:space-x-4">
-            <div className="relative">
-              <div className="w-10 h-10 md:w-14 md:h-14 bg-gradient-to-br from-white/30 to-white/10 rounded-xl md:rounded-2xl flex items-center justify-center backdrop-blur-sm border border-white/20 shadow-lg overflow-hidden">
-                <img 
-                  src="/image.png" 
-                  alt="Karla AI Assistant" 
-                  className="w-7 h-7 md:w-10 md:h-10 object-cover rounded-lg drop-shadow-sm"
-                />
-              </div>
-              <div className="absolute -bottom-1 -right-1 w-3 h-3 md:w-4 md:h-4 bg-green-400 rounded-full border-2 border-white shadow-sm animate-pulse"></div>
-            </div>
             <div>
               <h1 className="text-lg md:text-2xl font-bold tracking-tight drop-shadow-sm">Karla</h1>
-              <p className="text-amber-100 text-xs md:text-sm font-medium">Damp & Mould AI Specialist</p>
+              <p className="text-amber-100 text-xs md:text-sm font-medium">Damp & Mould AI Assistant</p>
             </div>
           </div>
           <button
@@ -329,7 +259,10 @@ export default function ChatBot({ isOpen, onClose }) {
                     <div className="group relative">
                       <div className="bg-white rounded-2xl md:rounded-3xl rounded-bl-lg p-4 md:p-6 shadow-xl shadow-slate-200/50 border border-slate-200/50 hover:shadow-2xl hover:shadow-slate-200/60 transition-all duration-300 backdrop-blur-sm">
                         <div className="text-slate-800 text-sm md:text-base leading-relaxed">
-                          <p className="whitespace-pre-wrap">{message.text}</p>
+                          <div 
+                            className="whitespace-pre-wrap"
+                            dangerouslySetInnerHTML={{ __html: parseMarkdown(message.text) }}
+                          />
                         </div>
                         <button
                           onClick={() => copyToClipboard(message.text)}
@@ -342,8 +275,8 @@ export default function ChatBot({ isOpen, onClose }) {
                         </button>
                       </div>
                       <div className="flex items-center mt-2 space-x-2">
-                        <div className="w-5 h-5 md:w-6 md:h-6 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full flex items-center justify-center">
-                          <span className="text-white text-xs font-bold">K</span>
+                        <div className="px-3 py-1 md:px-4 md:py-2 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full flex items-center justify-center">
+                          <span className="text-white text-xs md:text-sm font-bold">Karla</span>
                         </div>
                         <span className="text-xs text-gray-500">
                           {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}

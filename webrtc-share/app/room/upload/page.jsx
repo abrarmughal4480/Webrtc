@@ -64,6 +64,8 @@ function UploadPageContent() {
   const [pendingShowSignup, setPendingShowSignup] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [isSignupLoading, setIsSignupLoading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadStatus, setUploadStatus] = useState('');
   
   // State for Enter Share Code dialog
   const [isEnterShareCodeOpen, setIsEnterShareCodeOpen] = useState(false);
@@ -173,11 +175,81 @@ function UploadPageContent() {
     });
 
     setIsUploading(true);
+    setUploadProgress(0);
+    setUploadStatus('🚀 Initializing upload session...');
+    
     try {
-      const res = await publicApi.post('/api/v1/upload', submissionData);
-      const data = res.data;
+      // First, create upload session and get session ID
+      const sessionData = {
+        first_name: cleanedForm.first_name,
+        last_name: cleanedForm.last_name,
+        house_name_number: cleanedForm.house_name_number,
+        flat_apartment_room: cleanedForm.flat_apartment_room,
+        street_road: cleanedForm.street_road,
+        city: cleanedForm.city,
+        country: cleanedForm.country,
+        postCode: cleanedForm.postCode,
+        actualPostCode: cleanedForm.actualPostCode,
+        phoneNumber: cleanedForm.phoneNumber,
+        email: cleanedForm.email,
+        accessCode: generatedCode,
+        totalImages: imagesWithBase64.length,
+        totalVideos: videosWithBase64.length
+      };
+      
+      // Create upload session
+      const sessionRes = await publicApi.post('/api/v1/upload/session', sessionData);
+      const sessionId = sessionRes.data.data.sessionId;
+      
+      setUploadStatus('📸 Starting image uploads...');
+      
+      // Upload images one by one
+      for (let i = 0; i < imagesWithBase64.length; i++) {
+        const image = imagesWithBase64[i];
+        setUploadStatus(`📸 Uploading image ${i + 1}/${imagesWithBase64.length} (${image.name})`);
+        
+        await publicApi.post(`/api/v1/upload/file/${sessionId}`, {
+          fileData: image.data,
+          fileName: image.name,
+          fileLabel: image.label,
+          fileType: 'image',
+          fileIndex: i
+        });
+        
+        const imageProgress = Math.round(((i + 1) / imagesWithBase64.length) * 50); // Images are 50% of total
+        setUploadProgress(imageProgress);
+      }
+      
+      setUploadStatus('🎥 Starting video uploads...');
+      
+      // Upload videos one by one
+      for (let i = 0; i < videosWithBase64.length; i++) {
+        const video = videosWithBase64[i];
+        setUploadStatus(`🎥 Uploading video ${i + 1}/${videosWithBase64.length} (${video.name})`);
+        
+        await publicApi.post(`/api/v1/upload/file/${sessionId}`, {
+          fileData: video.data,
+          fileName: video.name,
+          fileLabel: video.label,
+          fileType: 'video',
+          fileIndex: i,
+          duration: video.duration
+        });
+        
+        const videoProgress = 50 + Math.round(((i + 1) / videosWithBase64.length) * 50); // Videos are 50% of total
+        setUploadProgress(videoProgress);
+      }
+      
+      // Complete upload
+      setUploadStatus('✨ Finalizing upload...');
+      const completeRes = await publicApi.post(`/api/v1/upload/complete/${sessionId}`);
+      const data = completeRes.data;
       const code = data?.data?.upload?.accessCode || generatedCode;
       setAccessCode(code);
+      
+      setUploadProgress(100);
+      setUploadStatus('🎉 Upload completed successfully!');
+      
       if (user?.role === 'resident' || data?.data?.alreadyUploaded) {
         setIsAccessCodeDialogOpen(true);
         setShowSignupPrompt(false);
@@ -195,6 +267,8 @@ function UploadPageContent() {
       toast.error("Upload failed", { description: errMsg });
     } finally {
       setIsUploading(false);
+      setUploadProgress(0);
+      setUploadStatus('');
     }
   };
 
@@ -684,13 +758,43 @@ function UploadPageContent() {
             {/* Submit Button Section */}
             <div className="mt-8">
               <div className="max-w-md mx-auto">
+
                 <Button 
                   type="submit" 
                   size="lg" 
-                  className="w-full h-14 text-lg font-semibold bg-gradient-to-r from-purple-400 to-purple-500 hover:from-purple-500 hover:to-purple-600 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 rounded-full" 
+                  className="w-full h-14 text-lg font-semibold bg-gradient-to-r from-purple-400 to-purple-500 hover:from-purple-500 hover:to-purple-600 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 rounded-full relative overflow-hidden" 
                   disabled={isUploading || !consentChecked}
                 >
-                    {isUploading ? (<><Loader2 className="w-5 h-5 mr-2 animate-spin" /> Saving...</>) : 'Save/Get Share Code'}
+                  {isUploading ? (
+                    <>
+                      <div className="absolute inset-0 bg-gradient-to-r from-purple-500 to-purple-600 transition-all duration-300" 
+                           style={{ width: `${uploadProgress}%` }}></div>
+                      <div className="relative z-10 flex items-center justify-center w-full">
+                        <div className="flex items-center space-x-3">
+                          <div className="relative">
+                            <Loader2 className="w-6 h-6 animate-spin text-white" />
+                            <div className="absolute inset-0 rounded-full border-2 border-white/30 animate-ping"></div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-sm font-semibold text-white drop-shadow-sm">
+                              {uploadStatus}
+                            </div>
+                            <div className="text-xs text-white/90 font-medium">
+                              {uploadProgress}% Complete
+                            </div>
+                            <div className="mt-1 w-16 h-1 bg-white/30 rounded-full overflow-hidden">
+                              <div 
+                                className="h-full bg-white rounded-full transition-all duration-300 ease-out"
+                                style={{ width: `${uploadProgress}%` }}
+                              ></div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    'Save/Get Share Code'
+                  )}
                 </Button>
                 {!consentChecked && (
                   <p className="text-xs text-red-500 text-center mt-2">

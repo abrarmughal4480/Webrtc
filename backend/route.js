@@ -1,7 +1,7 @@
 import express from 'express';
 const router = express.Router();
 import {changePassword, loadme, login, logout, register, updateUser,forgotPassword,resetPassword, verify, sendFriendLink, resetPasswordFromDashboard, sendFeedback, raiseSupportTicket, updateUserLogo, updateLandlordInfo, bookDemoMeeting, requestCallback, updateMessageSettings, getMessageSettings, createFolder, updateFolder, deleteFolder, moveFolderToTrash, restoreFolderFromTrash, getFolders, assignMeetingToFolder, getMeetingFolders, updatePaginationSettings, getPaginationSettings, registerResident } from './controllers/authController.js';
-import { createUpload, getUploadByAccessCode, getMyUploads, getMyLatestUpload, deleteUpload, restoreUpload, permanentDeleteUpload, getMyTrashedUploads, markNotificationSent, checkNotificationStatus, searchUploads, recordVisitorAccess } from './controllers/uploadController.js';
+import { createUpload, createUploadSession, uploadFile, completeUpload, getUploadProgress, getUploadByAccessCode, getMyUploads, getMyLatestUpload, deleteUpload, restoreUpload, permanentDeleteUpload, getMyTrashedUploads, markNotificationSent, checkNotificationStatus, searchUploads, recordVisitorAccess } from './controllers/uploadController.js';
 import {isAuthenticate} from "./middlewares/auth.js"
 import { create, getAllMeetings, getMeetingById, updateMeetingController, deleteMeeting, getMeetingForShare, getMeetingByMeetingId, deleteRecording, deleteScreenshot, archiveMeeting, unarchiveMeeting, getArchivedCount, recordVisitorAccess as recordMeetingVisitorAccess, restoreMeeting, permanentDeleteMeeting, searchMeetings, getSpecialNotes, saveSpecialNotes, getStructuredSpecialNotes, saveStructuredSpecialNotes } from './controllers/meetingController.js';
 import { getUserRoomInfo } from './controllers/userRoomInfoController.js';
@@ -119,6 +119,13 @@ router.route('/uploads/notification/check').get(isAuthenticate, checkNotificatio
 router.route('/uploads/notification/mark-sent/:accessCode').post(markNotificationSent);
 router.route('/uploads/search').post(isAuthenticate, searchUploads);
 
+// Session-based upload routes
+router.route('/upload/session').post(createUploadSession);
+router.route('/upload/file/:sessionId').post(uploadFile);
+router.route('/upload/complete/:sessionId').post(completeUpload);
+router.route('/upload/progress/:sessionId').get(getUploadProgress);
+
+// Legacy upload route (keep for backward compatibility)
 router.route('/upload').post(createUpload);
 router.route('/upload/:accessCode').get(getUploadByAccessCode);
 
