@@ -1,5 +1,6 @@
 "use client"
 import React, { useEffect, useRef, useState } from "react";
+import { getChatSessions, saveChatSession, getChatSession, deleteChatSession } from '../http/chatHttp.js';
 
 // Simple markdown parser for basic formatting
 const parseMarkdown = (text) => {
@@ -55,78 +56,8 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
 
   // Chat history state
   const [showChatHistory, setShowChatHistory] = useState(false);
-  const [chatHistory, setChatHistory] = useState([
-    {
-      id: '1',
-      title: 'Damp and Mould Issues',
-      preview: 'How to identify and fix damp problems in bathroom and kitchen areas...',
-      timestamp: new Date('2024-01-15T10:30:00'),
-      sessionId: 'session-1'
-    },
-    {
-      id: '2', 
-      title: 'Landlord Responsibilities',
-      preview: 'What are my landlord\'s obligations for repairs and maintenance...',
-      timestamp: new Date('2024-01-14T15:45:00'),
-      sessionId: 'session-2'
-    },
-    {
-      id: '3',
-      title: 'Emergency Repairs',
-      preview: 'Urgent repair procedures and emergency contacts for water leaks...',
-      timestamp: new Date('2024-01-13T09:20:00'),
-      sessionId: 'session-3'
-    },
-    {
-      id: '4',
-      title: 'Tenant Rights',
-      preview: 'Understanding your rights as a tenant and legal protections...',
-      timestamp: new Date('2024-01-12T14:15:00'),
-      sessionId: 'session-4'
-    },
-    {
-      id: '5',
-      title: 'Prevention Tips',
-      preview: 'How to prevent damp and mould through proper ventilation...',
-      timestamp: new Date('2024-01-11T11:00:00'),
-      sessionId: 'session-5'
-    },
-    {
-      id: '6',
-      title: 'Mould Removal Guide',
-      preview: 'Step-by-step guide to safely remove mould from walls and ceilings...',
-      timestamp: new Date('2024-01-10T16:20:00'),
-      sessionId: 'session-6'
-    },
-    {
-      id: '7',
-      title: 'Ventilation Solutions',
-      preview: 'Best practices for improving home ventilation and air circulation...',
-      timestamp: new Date('2024-01-09T13:45:00'),
-      sessionId: 'session-7'
-    },
-    {
-      id: '8',
-      title: 'Insurance Claims',
-      preview: 'How to file insurance claims for water damage and mould issues...',
-      timestamp: new Date('2024-01-08T11:30:00'),
-      sessionId: 'session-8'
-    },
-    {
-      id: '9',
-      title: 'Professional Help',
-      preview: 'When to call professionals for damp and mould assessment...',
-      timestamp: new Date('2024-01-07T14:15:00'),
-      sessionId: 'session-9'
-    },
-    {
-      id: '10',
-      title: 'Health Concerns',
-      preview: 'Health risks associated with damp and mould exposure...',
-      timestamp: new Date('2024-01-06T09:50:00'),
-      sessionId: 'session-10'
-    }
-  ]);
+  const [chatHistory, setChatHistory] = useState([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -147,179 +78,98 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
     };
   }, [isOpen]);
 
+  // Load chat history when component opens
+  useEffect(() => {
+    if (isOpen) {
+      loadChatHistory();
+    }
+  }, [isOpen]);
+
   // Handle selected chat changes
   useEffect(() => {
     if (selectedChat && isOpen) {
-      // Load chat history for selected chat
-      const chatMessages = getChatHistory(selectedChat.sessionId);
-      if (chatMessages.length > 0) {
-        setMessages(chatMessages);
-        setSessionId(selectedChat.sessionId);
-      }
+      loadSelectedChat(selectedChat.sessionId);
     }
   }, [selectedChat, isOpen]);
 
-  // Mock function to get chat history (replace with actual API call)
-  const getChatHistory = (sessionId) => {
-    const chatHistories = {
-      'session-1': [
-        {
-          id: 1,
-          type: 'bot',
-          text: "Hello! I'm Karla, your Damp and Mould AI Assistant. How can I help you today?",
-          timestamp: new Date('2024-01-15T10:30:00')
-        },
-        {
-          id: 2,
-          type: 'user',
-          text: "I have damp and mould in my bathroom. What should I do?",
-          timestamp: new Date('2024-01-15T10:31:00')
-        },
-        {
-          id: 3,
-          type: 'bot',
-          text: "I'm sorry to hear about the damp and mould issues in your bathroom. This is a common problem that needs immediate attention. Here's what you should do:\n\n1. **Document the issue** - Take photos and videos\n2. **Contact your landlord immediately** - This is their responsibility\n3. **Improve ventilation** - Open windows, use extractor fans\n4. **Clean affected areas** - Use appropriate cleaning products\n\nWould you like me to help you draft a message to your landlord?",
-          timestamp: new Date('2024-01-15T10:32:00')
-        },
-        {
-          id: 4,
-          type: 'user',
-          text: "Yes, please help me draft a message. The mould is black and spreading on the ceiling.",
-          timestamp: new Date('2024-01-15T10:33:00')
-        },
-        {
-          id: 5,
-          type: 'bot',
-          text: "Here's a professional message you can send to your landlord:\n\n**Subject: Urgent - Black Mould in Bathroom Ceiling**\n\nDear [Landlord's Name],\n\nI am writing to report a serious issue with black mould that has developed on the bathroom ceiling. The mould is spreading and poses a health risk.\n\n**Issue Details:**\n- Location: Bathroom ceiling\n- Type: Black mould\n- Status: Spreading rapidly\n- Health concern: Yes\n\n**Immediate Action Required:**\n- Professional mould assessment\n- Ceiling repair/replacement\n- Improved ventilation system\n\nI have documented the issue with photos and videos. Please respond within 24 hours as this is affecting my health and safety.\n\nThank you for your prompt attention to this matter.\n\nBest regards,\n[Your Name]",
-          timestamp: new Date('2024-01-15T10:34:00')
-        },
-        {
-          id: 6,
-          type: 'user',
-          text: "Thank you! How long should I wait for a response?",
-          timestamp: new Date('2024-01-15T10:35:00')
-        },
-        {
-          id: 7,
-          type: 'bot',
-          text: "For mould issues, your landlord should respond within **24-48 hours**. Here's the timeline:\n\n**24 hours**: Initial response acknowledging the issue\n**48 hours**: Assessment visit arranged\n**1 week**: Work should begin\n\n**If no response within 48 hours:**\n1. Send a follow-up email\n2. Contact your local council's environmental health department\n3. Consider legal action if necessary\n\n**Emergency contacts:**\n- Environmental Health: [Your Council Number]\n- Citizens Advice: 0800 144 8848\n- Shelter: 0808 800 4444\n\nWould you like me to help you with the follow-up process?",
-          timestamp: new Date('2024-01-15T10:36:00')
-        }
-      ],
-      'session-2': [
-        {
-          id: 1,
-          type: 'bot',
-          text: "Hello! I'm Karla, your Damp and Mould AI Assistant. How can I help you today?",
-          timestamp: new Date('2024-01-14T15:45:00')
-        },
-        {
-          id: 2,
-          type: 'user',
-          text: "What are my landlord's responsibilities for repairs?",
-          timestamp: new Date('2024-01-14T15:46:00')
-        },
-        {
-          id: 3,
-          type: 'bot',
-          text: "Your landlord has several legal responsibilities for repairs:\n\n**Structural repairs**: Roof, walls, foundations\n**Heating and hot water**: Boilers, radiators\n**Plumbing**: Pipes, drains, toilets\n**Electrical**: Wiring, sockets, lighting\n**Damp and mould**: Must be addressed promptly\n\nThey must respond within reasonable timeframes. For urgent issues, they should respond within 24 hours.",
-          timestamp: new Date('2024-01-14T15:47:00')
-        },
-        {
-          id: 4,
-          type: 'user',
-          text: "What if they refuse to fix something?",
-          timestamp: new Date('2024-01-14T15:48:00')
-        },
-        {
-          id: 5,
-          type: 'bot',
-          text: "If your landlord refuses to make repairs, you have several options:\n\n**1. Document Everything**\n- Keep all communication in writing\n- Take photos and videos\n- Keep receipts for any temporary fixes\n\n**2. Contact Environmental Health**\n- Your local council can inspect the property\n- They can serve improvement notices\n- They can prosecute landlords who fail to comply\n\n**3. Legal Action**\n- Small claims court for damages\n- County court for specific performance\n- Rent repayment orders\n\n**4. Withhold Rent (Carefully)**\n- Only in specific circumstances\n- Must follow proper procedures\n- Risk of eviction if done incorrectly\n\n**5. Emergency Repairs**\n- You can arrange urgent repairs\n- Recover costs from rent (with notice)\n- Maximum £250 per repair\n\nWould you like me to help you with any of these steps?",
-          timestamp: new Date('2024-01-14T15:49:00')
-        },
-        {
-          id: 6,
-          type: 'user',
-          text: "How do I contact environmental health?",
-          timestamp: new Date('2024-01-14T15:50:00')
-        },
-        {
-          id: 7,
-          type: 'bot',
-          text: "Here's how to contact Environmental Health:\n\n**Find Your Council:**\n1. Go to gov.uk/find-local-council\n2. Enter your postcode\n3. Look for 'Environmental Health' or 'Housing Standards'\n\n**What to Prepare:**\n- Photos and videos of the issues\n- Timeline of when you reported problems\n- Copies of all communication with landlord\n- Details of any health impacts\n\n**What They'll Do:**\n1. Inspect your property within 5 working days\n2. Assess if issues breach housing standards\n3. Serve improvement notices if necessary\n4. Follow up to ensure compliance\n\n**Contact Methods:**\n- Phone: Usually available during office hours\n- Email: Often preferred for documentation\n- Online form: Available on most council websites\n\n**Emergency Issues:**\n- Call immediately for serious health risks\n- They may visit same day for emergencies\n\nWould you like me to help you prepare your complaint?",
-          timestamp: new Date('2024-01-14T15:51:00')
-        }
-      ],
-      'session-3': [
-        {
-          id: 1,
-          type: 'bot',
-          text: "Hello! I'm Karla, your Damp and Mould AI Assistant. How can I help you today?",
-          timestamp: new Date('2024-01-13T09:20:00')
-        },
-        {
-          id: 2,
-          type: 'user',
-          text: "There's a water leak in my ceiling. What should I do?",
-          timestamp: new Date('2024-01-13T09:21:00')
-        },
-        {
-          id: 3,
-          type: 'bot',
-          text: "A water leak is an emergency that needs immediate action:\n\n**Immediate steps**:\n1. Turn off water if safe to do so\n2. Move valuables away from the area\n3. Place buckets to catch water\n4. Contact your landlord immediately\n\n**Document everything**: Take photos and videos\n\n**If landlord doesn't respond**: Contact your local council's environmental health department.",
-          timestamp: new Date('2024-01-13T09:22:00')
-        }
-      ],
-      'session-4': [
-        {
-          id: 1,
-          type: 'bot',
-          text: "Hello! I'm Karla, your Damp and Mould AI Assistant. How can I help you today?",
-          timestamp: new Date('2024-01-12T14:15:00')
-        },
-        {
-          id: 2,
-          type: 'user',
-          text: "Can my landlord evict me for reporting problems?",
-          timestamp: new Date('2024-01-12T14:16:00')
-        },
-        {
-          id: 3,
-          type: 'bot',
-          text: "**No, your landlord cannot legally evict you for reporting problems.** This would be a retaliatory eviction and is illegal.\n\n**Your rights**:\n- You have the right to report disrepair\n- You have the right to contact environmental health\n- You have the right to withhold rent (in certain circumstances)\n\n**Protection**: If you've lived there less than 6 months, they cannot serve a Section 21 notice for 6 months after you report issues.",
-          timestamp: new Date('2024-01-12T14:17:00')
-        }
-      ],
-      'session-5': [
-        {
-          id: 1,
-          type: 'bot',
-          text: "Hello! I'm Karla, your Damp and Mould AI Assistant. How can I help you today?",
-          timestamp: new Date('2024-01-11T11:00:00')
-        },
-        {
-          id: 2,
-          type: 'user',
-          text: "How can I prevent damp and mould in my home?",
-          timestamp: new Date('2024-01-11T11:01:00')
-        },
-        {
-          id: 3,
-          type: 'bot',
-          text: "Here are effective ways to prevent damp and mould:\n\n**Ventilation**:\n- Open windows regularly\n- Use extractor fans in bathrooms/kitchens\n- Don't block air vents\n\n**Heating**:\n- Keep home warm (18-21°C)\n- Don't let rooms get too cold\n\n**Daily habits**:\n- Wipe condensation from windows\n- Dry clothes outside when possible\n- Don't overfill wardrobes\n\n**Maintenance**:\n- Report leaks immediately\n- Check for blocked gutters\n- Ensure proper insulation",
-          timestamp: new Date('2024-01-11T11:02:00')
-        }
-      ]
-    };
-    
-    return chatHistories[sessionId] || [
-      {
-        id: 1,
-        type: 'bot',
-        text: "Hello! I'm Karla, your Damp and Mould AI Assistant. How can I help you today?",
-        timestamp: new Date()
+  // Load chat history from backend
+  const loadChatHistory = async () => {
+    try {
+      console.log('🔄 Loading chat history...');
+      setIsLoadingHistory(true);
+      const response = await getChatSessions();
+      console.log('📥 Chat history response:', response);
+      
+      if (response && response.data && response.data.chatSessions) {
+        console.log('✅ Chat sessions found:', response.data.chatSessions.length);
+        
+        // Convert timestamp strings to Date objects
+        const formattedSessions = response.data.chatSessions.map(session => ({
+          ...session,
+          timestamp: new Date(session.timestamp)
+        }));
+        
+        setChatHistory(formattedSessions);
+      } else {
+        console.log('ℹ️ No chat sessions found or invalid response');
+        setChatHistory([]);
       }
-    ];
+    } catch (error) {
+      console.error('❌ Error loading chat history:', error);
+      // If user is not logged in, use empty array
+      setChatHistory([]);
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
+
+  // Load specific chat session
+  const loadSelectedChat = async (sessionId) => {
+    try {
+      const response = await getChatSession(sessionId);
+      if (response.success && response.data.chatSession) {
+        // Convert message timestamps to Date objects
+        const messagesWithDates = response.data.chatSession.messages.map(message => ({
+          ...message,
+          timestamp: new Date(message.timestamp)
+        }));
+        setMessages(messagesWithDates);
+        setSessionId(sessionId);
+      }
+    } catch (error) {
+      console.error('Error loading chat session:', error);
+      // Fallback to default message if session not found
+      setMessages([
+        {
+          id: 1,
+          type: 'bot',
+          text: "Hello! I'm Karla, your Damp and Mould AI Assistant. How can I help you today?",
+          timestamp: new Date()
+        }
+      ]);
+    }
+  };
+
+  // Save chat session to backend
+  const saveChatToBackend = async (title, preview) => {
+    try {
+      console.log('💾 Saving chat session...', { sessionId, title, preview, messageCount: messages.length });
+      const response = await saveChatSession({
+        sessionId,
+        title,
+        preview,
+        messages
+      });
+      console.log('✅ Chat session saved successfully:', response);
+      
+      // Reload chat history after saving
+      setTimeout(() => {
+        loadChatHistory();
+      }, 500);
+    } catch (error) {
+      console.error('❌ Error saving chat session:', error);
+      // Continue without saving if user is not logged in
+    }
   };
 
   useEffect(() => {
@@ -385,7 +235,10 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
   };
 
   const handleShowChatHistory = () => {
+    console.log('📋 Opening chat history...');
     setShowChatHistory(true);
+    // Reload chat history when opening modal
+    loadChatHistory();
   };
 
   const handleCloseChatHistory = () => {
@@ -393,11 +246,7 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
   };
 
   const handleSelectChat = (chat) => {
-    const chatMessages = getChatHistory(chat.sessionId);
-    if (chatMessages.length > 0) {
-      setMessages(chatMessages);
-      setSessionId(chat.sessionId);
-    }
+    loadSelectedChat(chat.sessionId);
     setShowChatHistory(false);
     
     // Focus on textarea after loading chat
@@ -409,13 +258,33 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
   };
 
   const formatDate = (date) => {
+    // Convert string to Date object if needed
+    const dateObj = typeof date === 'string' ? new Date(date) : date;
+    
+    // Check if date is valid
+    if (!dateObj || isNaN(dateObj.getTime())) {
+      return 'Unknown date';
+    }
+    
     const now = new Date();
-    const diffTime = Math.abs(now - date);
+    const diffTime = Math.abs(now - dateObj);
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     
     if (diffDays === 1) return 'Yesterday';
     if (diffDays < 7) return `${diffDays} days ago`;
-    return date.toLocaleDateString();
+    return dateObj.toLocaleDateString();
+  };
+
+  const formatMessageTime = (timestamp) => {
+    // Convert string to Date object if needed
+    const dateObj = typeof timestamp === 'string' ? new Date(timestamp) : timestamp;
+    
+    // Check if date is valid
+    if (!dateObj || isNaN(dateObj.getTime())) {
+      return '--:--';
+    }
+    
+    return dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
   const sendMessage = async () => {
@@ -434,6 +303,13 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
     };
 
     setMessages(prev => [...prev, userMessage]);
+
+    // Auto-save chat session after user message
+    if (messages.length === 1) { // First user message
+      const title = currentMessage.length > 50 ? currentMessage.substring(0, 50) + '...' : currentMessage;
+      const preview = currentMessage;
+      saveChatToBackend(title, preview);
+    }
 
     if (textareaRef.current) {
       textareaRef.current.style.height = '24px';
@@ -496,6 +372,13 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
           setMessages(prev => [...prev, botMessage]);
           setIsLoading(false);
           setIsTyping(false);
+          
+          // Update chat session with new messages
+          if (messages.length > 0) {
+            const title = messages[1]?.text?.length > 50 ? messages[1].text.substring(0, 50) + '...' : messages[1]?.text || 'New Chat';
+            const preview = messages[1]?.text || 'New conversation with Karla';
+            saveChatToBackend(title, preview);
+          }
           
           // Auto focus after receiving response
           setTimeout(() => {
@@ -609,7 +492,7 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
                     </div>
                     <div className="flex justify-end mt-2">
                       <span className="text-xs text-gray-500 px-2">
-                        {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        {formatMessageTime(message.timestamp)}
                       </span>
                     </div>
                   </div>
@@ -635,7 +518,7 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
                       </div>
                       <div className="flex items-center justify-end mt-2 space-x-2">
                         <span className="text-xs text-gray-500">
-                          {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          {formatMessageTime(message.timestamp)}
                         </span>
                         <div className="px-3 py-1 md:px-4 md:py-2 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full flex items-center justify-center">
                           <span className="text-white text-xs md:text-sm font-bold">Karla</span>
@@ -769,30 +652,38 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
                     </svg>
                     <h3 className="text-lg font-semibold text-gray-700">Recent Chats</h3>
                   </div>
-                  {chatHistory.map((chat) => (
-                    <button
-                      key={chat.id}
-                      onClick={() => handleSelectChat(chat)}
-                      className="w-full text-left p-4 rounded-xl border border-gray-200 hover:border-amber-300 hover:bg-gradient-to-r hover:from-amber-50 hover:to-orange-50 transition-all group shadow-sm hover:shadow-md"
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center space-x-2 mb-2">
-                            <div className="w-2 h-2 bg-amber-500 rounded-full"></div>
-                            <h4 className="font-semibold text-gray-900 group-hover:text-amber-700 transition-colors truncate">
-                              {chat.title}
-                            </h4>
+                  
+                  {isLoadingHistory ? (
+                    <div className="text-center py-8">
+                      <div className="w-6 h-6 border-2 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+                      <p className="text-sm text-gray-500">Loading chat history...</p>
+                    </div>
+                  ) : (
+                                        chatHistory.map((chat) => (
+                      <button
+                        key={chat.id}
+                        onClick={() => handleSelectChat(chat)}
+                        className="w-full text-left p-4 rounded-xl border border-gray-200 hover:border-amber-300 hover:bg-gradient-to-r hover:from-amber-50 hover:to-orange-50 transition-all group shadow-sm hover:shadow-md"
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center space-x-2 mb-2">
+                              <div className="w-2 h-2 bg-amber-500 rounded-full"></div>
+                              <h4 className="font-semibold text-gray-900 group-hover:text-amber-700 transition-colors truncate">
+                                {chat.title}
+                              </h4>
+                            </div>
+                            <p className="text-sm text-gray-600 mt-1 line-clamp-2 leading-relaxed">
+                              {chat.preview}
+                            </p>
                           </div>
-                          <p className="text-sm text-gray-600 mt-1 line-clamp-2 leading-relaxed">
-                            {chat.preview}
-                          </p>
+                          <div className="text-xs text-gray-400 ml-3 flex-shrink-0 bg-gray-100 px-2 py-1 rounded-full">
+                            {formatDate(chat.timestamp)}
+                          </div>
                         </div>
-                        <div className="text-xs text-gray-400 ml-3 flex-shrink-0 bg-gray-100 px-2 py-1 rounded-full">
-                          {formatDate(chat.timestamp)}
-                        </div>
-                      </div>
-                    </button>
-                  ))}
+                      </button>
+                    ))
+                  )}
                 </div>
 
                 {/* No chats message */}
