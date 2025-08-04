@@ -128,3 +128,6 @@ export const getPaginationSettings = async () => {
 };
 
 export const registerResidentRequest = async (formData) => await api.post("/register-resident", formData);
+
+// Demo functionality
+export const requestDemoRequest = async (formData) => await api.post("/request-demo", formData);

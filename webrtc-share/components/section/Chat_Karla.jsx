@@ -1,22 +1,141 @@
 "use client"
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { requestDemoRequest } from '@/http/authHttp';
 
 import ChatBot from '@/components/ChatBot';
 
 export default function ChatKarla() {
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [isDemoOpen, setIsDemoOpen] = useState(false);
+  const [isDemoCodePopupOpen, setIsDemoCodePopupOpen] = useState(false);
+  const [demoName, setDemoName] = useState('');
+  const [demoEmail, setDemoEmail] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitMessage, setSubmitMessage] = useState('');
+  const [demoCode, setDemoCode] = useState('');
+  const [chatDemoCode, setChatDemoCode] = useState('');
+  const [chatDemoCodeError, setChatDemoCodeError] = useState('');
+  const [demoCodeBlocks, setDemoCodeBlocks] = useState(['', '', '', '']);
 
+  // Valid demo codes - you can modify this array as needed
+  const validDemoCodes = ['7002'];
 
   const handleStart = () => {
-    setIsChatOpen(true);
+    setIsDemoCodePopupOpen(true);
   };
 
-  const features = [
-    "Advice on damp and mould issues",
-    "Making referrals to our Damp and Mould Team",
+  const handleDemoOpen = () => {
+    setIsDemoOpen(true);
+  };
+
+  const handleDemoClose = () => {
+    setIsDemoOpen(false);
+    setDemoName('');
+    setDemoEmail('');
+    setSubmitMessage('');
+    setIsSubmitting(false);
+  };
+
+  const handleDemoCodeClose = () => {
+    setIsDemoCodePopupOpen(false);
+    setChatDemoCode('');
+    setChatDemoCodeError('');
+    setDemoCodeBlocks(['', '', '', '']);
+  };
+
+  const handleDemoCodeChange = (index, value) => {
+    // Only allow alphanumeric characters and limit to 1 character per block
+    if (value.length <= 1 && /^[A-Za-z0-9]*$/.test(value)) {
+      const newBlocks = [...demoCodeBlocks];
+      newBlocks[index] = value.toUpperCase();
+      setDemoCodeBlocks(newBlocks);
+      
+      // Auto-focus next input
+      if (value && index < 3) {
+        const nextInput = document.getElementById(`demo-code-${index + 1}`);
+        if (nextInput) nextInput.focus();
+      }
+      
+      // Update the combined demo code
+      setChatDemoCode(newBlocks.join(''));
+    }
+  };
+
+  const handleDemoCodeKeyDown = (index, e) => {
+    // Handle backspace to go to previous input
+    if (e.key === 'Backspace' && !demoCodeBlocks[index] && index > 0) {
+      const prevInput = document.getElementById(`demo-code-${index - 1}`);
+      if (prevInput) prevInput.focus();
+    }
+  };
+
+  const handleDemoCodeSubmit = (e) => {
+    e.preventDefault();
+    const combinedCode = demoCodeBlocks.join('');
+    if (combinedCode.length === 4) {
+      if (validDemoCodes.some(code => code.includes(combinedCode))) {
+        setChatDemoCodeError('');
+        setIsDemoCodePopupOpen(false);
+        setChatDemoCode('');
+        setDemoCodeBlocks(['', '', '', '']);
+        setIsChatOpen(true);
+      } else {
+        setChatDemoCodeError('Invalid demo code. Please try again.');
+      }
+    } else {
+      setChatDemoCodeError('Please enter a complete 4-character demo code.');
+    }
+  };
+
+  const handleDemoRequest = async (e) => {
+    e.preventDefault();
+    if (!demoName.trim() || !demoEmail.trim()) {
+      setSubmitMessage('Please fill in both name and email fields.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setSubmitMessage('');
+
+    try {
+      const response = await requestDemoRequest({
+        name: demoName.trim(),
+        email: demoEmail.trim()
+      });
+      
+      if (response.data.success) {
+        setSubmitMessage('Thank you! Your demo code has been sent to your email.');
+        setDemoName('');
+        setDemoEmail('');
+        
+        // Close the popup after 3 seconds
+        setTimeout(() => {
+          handleDemoClose();
+        }, 3000);
+      } else {
+        setSubmitMessage('Sorry, there was an error sending your request. Please try again.');
+      }
+    } catch (error) {
+      console.error('Demo request error:', error);
+      setSubmitMessage('Sorry, there was an error sending your request. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const residentFeatures = [
+    "Advice and guidance on Damp and Mould issues",
+    "Referrals to your Landlord's D&M Team",
     "Personalized solutions for your situation",
     "I'm here 24/7 for instant support and advice"
+  ];
+
+  const landlordFeatures = [
+    "Automate your Damp and Mould reporting processes",
+    "Eliminate repetitive tasks, freeing up Officer time",
+    "Offer advice to your residents 24/7",
+    "Help you to get ready for Awaabs Law"
   ];
 
   return (
@@ -39,26 +158,45 @@ export default function ChatKarla() {
           </div>
           
           {/* Features List */}
-          <div className="max-w-xl sm:max-w-2xl mx-auto mb-6 sm:mb-8 md:mb-10 lg:mb-12">
-            <h3 className="text-base sm:text-lg md:text-xl font-semibold text-gray-800 mb-4 sm:mb-6 text-center">
-              I can offer:
-            </h3>
-            <div className="space-y-3 sm:space-y-4 text-center px-2 sm:px-0">
-              {features.map((feature, index) => (
-                <div key={index} className="group">
-                  <p className="text-sm sm:text-base md:text-lg text-gray-800 leading-relaxed font-medium group-hover:text-gray-900 transition-colors duration-300">
-                    {feature}
-                  </p>
-                </div>
-              ))}
+          <div className="max-w-4xl mx-auto mb-6 sm:mb-8 md:mb-10 lg:mb-12">
+            {/* For Residents Section */}
+            <div className="mb-8 sm:mb-10">
+              <h3 className="text-base sm:text-lg md:text-xl font-semibold text-gray-800 mb-4 sm:mb-6 text-center">
+                For residents, I can offer:
+              </h3>
+              <div className="space-y-3 sm:space-y-4 text-center px-2 sm:px-0">
+                {residentFeatures.map((feature, index) => (
+                  <div key={index} className="group">
+                    <p className="text-sm sm:text-base md:text-lg text-gray-800 leading-relaxed font-medium group-hover:text-gray-900 transition-colors duration-300">
+                      {feature}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* For Social Landlords Section */}
+            <div>
+              <h3 className="text-base sm:text-lg md:text-xl font-semibold text-gray-800 mb-4 sm:mb-6 text-center">
+                For Social Landlords, I can:
+              </h3>
+              <div className="space-y-3 sm:space-y-4 text-center px-2 sm:px-0">
+                {landlordFeatures.map((feature, index) => (
+                  <div key={index} className="group">
+                    <p className="text-sm sm:text-base md:text-lg text-gray-800 leading-relaxed font-medium group-hover:text-gray-900 transition-colors duration-300">
+                      {feature}
+                    </p>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
           
-          {/* CTA Section */}
-          <div className="text-center px-4 sm:px-0">
+                    {/* CTA Section */}
+          <div className="text-center px-4 sm:px-0 mb-8 sm:mb-10">
             <Button 
               onClick={handleStart}
-              className="bg-white hover:bg-gray-50 text-amber-600 font-medium py-2.5 sm:py-3 px-6 sm:px-8 rounded-full text-base sm:text-lg transition-all transform hover:scale-105 shadow-lg hover:shadow-xl border-2 border-white w-full sm:w-auto max-w-xs sm:max-w-none"
+              className="bg-white hover:bg-gray-50 text-amber-600 font-medium py-2.5 sm:py-3 px-6 sm:px-8 rounded-full text-base sm:text-lg transition-all transform hover:scale-105 shadow-lg hover:shadow-xl border-2 border-white w-full sm:w-auto max-w-xs sm:max-w-none block mx-auto flex justify-center items-center"
             >
               Start Chat with Karla
             </Button>
@@ -70,6 +208,157 @@ export default function ChatKarla() {
       
       {/* Chat Modal */}
       <ChatBot isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
+      
+      {/* Demo Request Modal */}
+      {isDemoOpen && (
+        <>
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[150] pointer-events-none"></div>
+          <div className="fixed inset-0 z-[200] flex items-center justify-center">
+            <div className="min-w-[0] max-w-[95vw] w-full sm:w-[400px] bg-white rounded-2xl shadow-2xl pointer-events-auto flex flex-col mx-2 sm:mx-0">
+              {/* Purple header strip above modal */}
+              <div className="flex items-center justify-center bg-purple-500 text-white p-3 sm:p-4 m-0 rounded-t-2xl relative">
+                <div className="flex-1 flex items-center justify-center">
+                  <span className="text-base sm:text-lg font-bold text-center">Request Demo</span>
+                </div>
+                <button
+                  onClick={handleDemoClose}
+                  className="absolute right-4 bg-purple-500 hover:bg-purple-700 text-white transition p-2 rounded-full shadow"
+                  aria-label="Close"
+                >
+                  <span style={{fontWeight: 'bold', fontSize: 20}}>×</span>
+                </button>
+              </div>
+              <div className="w-full bg-white rounded-b-2xl shadow-2xl border border-gray-200 p-4 sm:p-6 flex flex-col items-center gap-3 pointer-events-auto">
+                <form className="space-y-4 w-full" onSubmit={handleDemoRequest}>
+                  <div>
+                    <label className="text-xs font-semibold text-gray-600 ml-1">Name<span className="text-red-500">*</span><br /></label>
+                    <input
+                      type="text"
+                      className="w-full px-3 py-2 rounded-lg border border-gray-300 bg-white text-sm"
+                      value={demoName}
+                      onChange={(e) => setDemoName(e.target.value)}
+                      placeholder="Enter your name"
+                      required
+                      disabled={isSubmitting}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-gray-600 ml-1">Email<span className="text-red-500">*</span><br /></label>
+                    <input
+                      type="email"
+                      className="w-full px-3 py-2 rounded-lg border border-gray-300 bg-white text-sm"
+                      value={demoEmail}
+                      onChange={(e) => setDemoEmail(e.target.value)}
+                      placeholder="Enter your email"
+                      required
+                      disabled={isSubmitting}
+                    />
+                  </div>
+                  {submitMessage && <div className="text-red-600 text-xs font-semibold text-center">{submitMessage}</div>}
+                  <button 
+                    type="submit" 
+                    className="bg-purple-600 hover:bg-purple-700 text-white font-semibold px-4 py-2 rounded-full transition-all w-full disabled:opacity-60"
+                    disabled={isSubmitting}
+                  >
+                    {isSubmitting ? 'Sending...' : 'Request Demo'}
+                  </button>
+                </form>
+                
+                {/* Link to enter demo code */}
+                <div className="text-center mt-1 pt-1">
+                  <p className="text-sm text-gray-600">
+                    Already have a demo code?{' '}
+                    <button
+                      onClick={() => {
+                        setIsDemoOpen(false);
+                        setDemoName('');
+                        setDemoEmail('');
+                        setSubmitMessage('');
+                        setIsSubmitting(false);
+                        setIsDemoCodePopupOpen(true);
+                      }}
+                      className="text-purple-600 hover:text-purple-700 font-semibold underline transition-colors"
+                    >
+                      Enter it here
+                    </button>
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Demo Code Popup Modal */}
+      {isDemoCodePopupOpen && (
+        <>
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[150] pointer-events-none"></div>
+          <div className="fixed inset-0 z-[200] flex items-center justify-center">
+            <div className="min-w-[0] max-w-[95vw] w-full sm:w-[400px] bg-white rounded-2xl shadow-2xl pointer-events-auto flex flex-col mx-2 sm:mx-0">
+              {/* Purple header strip above modal */}
+              <div className="flex items-center justify-center bg-purple-500 text-white p-3 sm:p-4 m-0 rounded-t-2xl relative">
+                <div className="flex-1 flex items-center justify-center">
+                  <span className="text-base sm:text-lg font-bold text-center">Enter Demo Code</span>
+                </div>
+                <button
+                  onClick={handleDemoCodeClose}
+                  className="absolute right-4 bg-purple-500 hover:bg-purple-700 text-white transition p-2 rounded-full shadow"
+                  aria-label="Close"
+                >
+                  <span style={{fontWeight: 'bold', fontSize: 20}}>×</span>
+                </button>
+              </div>
+              <div className="w-full bg-white rounded-b-2xl shadow-2xl border border-gray-200 p-4 sm:p-6 flex flex-col items-center gap-3 pointer-events-auto">
+                <form className="space-y-4 w-full" onSubmit={handleDemoCodeSubmit}>
+                  <div>
+                    <label className="text-xs font-semibold text-gray-600 ml-1">Demo Code<span className="text-red-500">*</span><br /></label>
+                    <div className="flex justify-center gap-2 mt-2">
+                      {demoCodeBlocks.map((block, index) => (
+                        <input
+                          key={index}
+                          id={`demo-code-${index}`}
+                          type="text"
+                          className="w-12 h-12 text-center text-lg font-semibold border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none bg-white"
+                          value={block}
+                          onChange={(e) => handleDemoCodeChange(index, e.target.value)}
+                          onKeyDown={(e) => handleDemoCodeKeyDown(index, e)}
+                          maxLength={1}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                  {chatDemoCodeError && <div className="text-red-600 text-xs font-semibold text-center">{chatDemoCodeError}</div>}
+                  <button 
+                    type="submit" 
+                    className="bg-purple-600 hover:bg-purple-700 text-white font-semibold px-4 py-2 rounded-full transition-all w-full"
+                  >
+                    Start Chat
+                  </button>
+                </form>
+                
+                {/* Link to request demo code */}
+                <div className="text-center mt-1 pt-1">
+                  <p className="text-sm text-gray-600">
+                    Don't have a demo code?{' '}
+                    <button
+                      onClick={() => {
+                        setIsDemoCodePopupOpen(false);
+                        setChatDemoCode('');
+                        setChatDemoCodeError('');
+                        setDemoCodeBlocks(['', '', '', '']);
+                        setIsDemoOpen(true);
+                      }}
+                      className="text-purple-600 hover:text-purple-700 font-semibold underline transition-colors"
+                    >
+                      Request one here
+                    </button>
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </section>
   );
 }
