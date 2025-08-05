@@ -682,9 +682,11 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
               className="group bg-white/10 hover:bg-white/20 rounded-lg md:rounded-xl px-3 md:px-4 py-2 md:py-3 transition-all duration-200 flex items-center justify-center backdrop-blur-sm border border-white/10 hover:scale-105 active:scale-95 shadow-lg"
               title="Chat History"
             >
-              <svg className="w-4 h-4 md:w-5 md:h-5 text-white mr-1 md:mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
+                             <img 
+                 src="/icons/chat-notification.png" 
+                 alt="Chat History" 
+                 className="w-5 h-5 md:w-6 md:h-6 mr-1 md:mr-2 filter brightness-0 invert drop-shadow-sm"
+               />
               <span className="text-white text-xs md:text-sm font-medium hidden md:block">History</span>
             </button>
             <button
@@ -841,9 +843,11 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
               <div className="flex items-center justify-between bg-gradient-to-r from-amber-500 to-orange-500 text-white p-6 sm:p-8 m-0">
                 <div className="flex items-center space-x-4">
                   <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm border border-white/20">
-                    <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
+                                         <img 
+                       src="/icons/chat-notification.png" 
+                       alt="Chat History" 
+                       className="w-8 h-8 filter brightness-0 invert drop-shadow-sm"
+                     />
                   </div>
                   <div className="flex-1">
                     <h2 className="text-xl sm:text-2xl font-bold">Chat History</h2>
@@ -878,9 +882,11 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
                 {/* Chat History List */}
                 <div className="space-y-1">
                   <div className="flex items-center space-x-2 mb-4">
-                    <svg className="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
+                                         <img 
+                       src="/icons/chat-notification.png" 
+                       alt="Recent Chats" 
+                       className="w-6 h-6 drop-shadow-sm"
+                     />
                     <h3 className="text-lg font-semibold text-gray-700">Recent Chats</h3>
                   </div>
                   
