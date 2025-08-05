@@ -9,7 +9,6 @@ import { create, getAllMeetings, getMeetingById, updateMeetingController, delete
 import { getUserRoomInfo } from './controllers/userRoomInfoController.js';
 import Upload from './models/upload.js';
 
-// auth routes
 router.route('/register').post(register);
 router.route('/register-resident').post(registerResident);
 router.route('/login').post(login);
@@ -34,7 +33,6 @@ router.route('/user/pagination-settings').get(isAuthenticate, getPaginationSetti
 router.route('/book-demo-meeting').post(bookDemoMeeting);
 router.route('/request-demo').post(requestDemo);
 
-// Chat History routes
 router.route('/chat/sessions').get(isAuthenticate, getChatSessions);
 router.route('/chat/sessions').post(isAuthenticate, saveChatSession);
 router.route('/chat/sessions/:sessionId').get(isAuthenticate, getChatSession);
@@ -42,7 +40,6 @@ router.route('/chat/sessions/:sessionId').delete(isAuthenticate, deleteChatSessi
 router.route('/chat/sessions/:sessionId/title').put(isAuthenticate, updateChatSessionTitle);
 router.route('/chat/sessions/:sessionId/messages/:messageId/feedback').put(isAuthenticate, updateMessageFeedback);
 
-// Folder management routes
 router.route('/folders').get(isAuthenticate, getFolders);
 router.route('/folders').post(isAuthenticate, createFolder);
 router.route('/folders/:folderId').put(isAuthenticate, updateFolder);
@@ -52,7 +49,6 @@ router.route('/folders/:folderId/restore').put(isAuthenticate, restoreFolderFrom
 router.route('/folders/assign-meeting').post(isAuthenticate, assignMeetingToFolder);
 router.route('/folders/meeting-assignments').get(isAuthenticate, getMeetingFolders);
 
-// meeting routes
 router.route('/meetings/create').post(isAuthenticate, create);
 router.route('/meetings/all').get(isAuthenticate, getAllMeetings);
 router.route('/meetings/archived-count').get(isAuthenticate, getArchivedCount);
@@ -68,22 +64,17 @@ router.route('/meetings/by-meeting-id/:id').get(isAuthenticate, getMeetingByMeet
 router.route('/meetings/:meetingId/recordings/:recordingId').delete(isAuthenticate, deleteRecording);
 router.route('/meetings/:meetingId/screenshots/:screenshotId').delete(isAuthenticate, deleteScreenshot);
 
-// Special Notes routes
 router.route('/meetings/:meeting_id/special-notes')
   .get(isAuthenticate, getSpecialNotes)
   .post(isAuthenticate, saveSpecialNotes);
 
-// Structured Special Notes routes
 router.get('/meetings/:meeting_id/structured-special-notes', isAuthenticate, getStructuredSpecialNotes);
 router.patch('/meetings/:meeting_id/structured-special-notes', isAuthenticate, saveStructuredSpecialNotes);
 
-// Public route for sharing meetings (no authentication required)
 router.route('/meetings/share/:id').get(getMeetingForShare);
 
-// New public route for recording visitor access (no authentication required)
 router.route('/meetings/share/:id/access').post(recordMeetingVisitorAccess);
 
-// Add route to get token info for profile data
 router.route('/get-token-info/:token').get((req, res) => {
     try {
         const { token } = req.params;
@@ -91,8 +82,6 @@ router.route('/get-token-info/:token').get((req, res) => {
         
         console.log(`ℹ️ Token info request for: ${token}`);
         
-        // This is a simple implementation - you might want to store token data in a database
-        // For now, we'll extract from URL parameters that were sent with the token
         const tokenInfo = {};
         
         if (landlordName) tokenInfo.landlordName = landlordName;
@@ -119,7 +108,6 @@ router.route('/get-token-info/:token').get((req, res) => {
 });
 
 router.get('/room-user-info', getUserRoomInfo);
-// upload routes
 router.route('/uploads/my').get(isAuthenticate, getMyUploads);
 router.route('/uploads/my-latest').get(isAuthenticate, getMyLatestUpload);
 router.route('/uploads/trash').get(isAuthenticate, getMyTrashedUploads);
@@ -130,20 +118,16 @@ router.route('/uploads/notification/check').get(isAuthenticate, checkNotificatio
 router.route('/uploads/notification/mark-sent/:accessCode').post(markNotificationSent);
 router.route('/uploads/search').post(isAuthenticate, searchUploads);
 
-// Session-based upload routes
 router.route('/upload/session').post(createUploadSession);
 router.route('/upload/file/:sessionId').post(uploadFile);
 router.route('/upload/complete/:sessionId').post(completeUpload);
 router.route('/upload/progress/:sessionId').get(getUploadProgress);
 
-// Legacy upload route (keep for backward compatibility)
 router.route('/upload').post(createUpload);
 router.route('/upload/:accessCode').get(getUploadByAccessCode);
 
-// New public route for recording visitor access to uploads (no authentication required)
 router.route('/upload/:accessCode/access').post(recordVisitorAccess);
 
-// Validate access code, house/flat, and postcode
 router.post('/validate-access-code', async (req, res) => {
   const { code, house, postcode } = req.body;
   console.log('🔍 Validation request received:', { code, house, postcode });

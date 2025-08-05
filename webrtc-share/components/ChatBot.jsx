@@ -730,14 +730,9 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
                <button
                  onClick={handleShowChatHistory}
                  className="group bg-white/10 hover:bg-white/20 rounded-lg md:rounded-xl px-3 md:px-4 py-2 md:py-3 transition-all duration-200 flex items-center justify-center backdrop-blur-sm border border-white/10 hover:scale-105 active:scale-95 shadow-lg"
-                 title="Chat History"
+                 title="Saved Chats"
                >
-                 <img 
-                   src="/icons/chat-notification.png" 
-                   alt="Chat History" 
-                   className="w-5 h-5 md:w-6 md:h-6 mr-1 md:mr-2 filter brightness-0 invert drop-shadow-sm"
-                 />
-                 <span className="text-white text-xs md:text-sm font-medium hidden md:block">History</span>
+                 <span className="text-white text-xs md:text-sm font-medium">Saved Chats</span>
                </button>
              ) : (
                <button
@@ -936,17 +931,10 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
                      <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
              <div className="min-w-[0] max-w-[95vw] w-full sm:w-[400px] lg:w-[450px] bg-white rounded-3xl shadow-2xl pointer-events-auto flex flex-col mx-2 sm:mx-0 overflow-hidden">
               {/* Header */}
-              <div className="flex items-center justify-between bg-gradient-to-r from-amber-500 to-orange-500 text-white p-6 sm:p-8 m-0">
+                            <div className="flex items-center justify-between bg-gradient-to-r from-amber-500 to-orange-500 text-white p-6 sm:p-8 m-0">
                 <div className="flex items-center space-x-4">
-                  <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm border border-white/20">
-                                         <img 
-                       src="/icons/chat-notification.png" 
-                       alt="Chat History" 
-                       className="w-8 h-8 filter brightness-0 invert drop-shadow-sm"
-                     />
-                  </div>
                   <div className="flex-1">
-                    <h2 className="text-xl sm:text-2xl font-bold">Chat History</h2>
+                    <h2 className="text-xl sm:text-2xl font-bold">Saved Chats</h2>
                     <p className="text-sm opacity-90">Select a previous chat or start new conversation</p>
                   </div>
                 </div>
@@ -976,14 +964,9 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
                 </button>
 
                 {/* Chat History List */}
-                <div className="space-y-1">
+                                <div className="space-y-1">
                   <div className="flex items-center space-x-2 mb-4">
-                                         <img 
-                       src="/icons/chat-notification.png" 
-                       alt="Recent Chats" 
-                       className="w-6 h-6 drop-shadow-sm"
-                     />
-                    <h3 className="text-lg font-semibold text-gray-700">Recent Chats</h3>
+                    <h3 className="text-lg font-semibold text-gray-700">Saved Chats</h3>
                   </div>
                   
                   {isLoadingHistory ? (
