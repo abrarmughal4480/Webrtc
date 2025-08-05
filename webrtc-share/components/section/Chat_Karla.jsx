@@ -148,13 +148,13 @@ export default function ChatKarla() {
         <div className="max-w-5xl mx-auto">
           {/* Header Section */}
           <div className="text-center mb-8 sm:mb-10 md:mb-12 lg:mb-16">
-            <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-2 sm:mb-3 text-center text-white leading-tight">
-              Hello, I'm Karla
-            </h2>
-            
-            <p className="text-lg sm:text-xl md:text-2xl lg:text-3xl max-w-xl sm:max-w-2xl mx-auto leading-relaxed font-medium text-white px-2 sm:px-0">
-              I'm a Damp and Mould AI Assistant
-            </p>
+                         <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-2 sm:mb-3 text-center text-white leading-tight">
+               Hello, I'm AI Damp and Mould Assistant
+             </h2>
+             
+             <p className="text-lg sm:text-xl md:text-2xl lg:text-3xl max-w-xl sm:max-w-2xl mx-auto leading-relaxed font-medium text-white px-2 sm:px-0">
+               I'm here to help you <br/> with damp and mould issues
+             </p>
           </div>
           
           {/* Features List */}
@@ -183,9 +183,16 @@ export default function ChatKarla() {
               <div className="space-y-3 sm:space-y-4 text-center px-2 sm:px-0">
                 {landlordFeatures.map((feature, index) => (
                   <div key={index} className="group">
-                    <p className="text-sm sm:text-base md:text-lg text-gray-800 leading-relaxed font-medium group-hover:text-gray-900 transition-colors duration-300">
-                      {feature}
-                    </p>
+                                         {index === 0 ? (
+                       <p className="text-sm sm:text-base md:text-lg text-gray-800 leading-relaxed font-medium group-hover:text-gray-900 transition-colors duration-300">
+                         <span className="block sm:inline">Automate your Damp and Mould </span>
+                         <span className="block sm:inline">reporting processes</span>
+                       </p>
+                     ) : (
+                      <p className="text-sm sm:text-base md:text-lg text-gray-800 leading-relaxed font-medium group-hover:text-gray-900 transition-colors duration-300">
+                        {feature}
+                      </p>
+                    )}
                   </div>
                 ))}
               </div>
@@ -194,12 +201,12 @@ export default function ChatKarla() {
           
                     {/* CTA Section */}
           <div className="text-center px-4 sm:px-0 mb-8 sm:mb-10">
-            <Button 
-              onClick={handleStart}
-              className="bg-white hover:bg-gray-50 text-amber-600 font-medium py-2.5 sm:py-3 px-6 sm:px-8 rounded-full text-base sm:text-lg transition-all transform hover:scale-105 shadow-lg hover:shadow-xl border-2 border-white w-full sm:w-auto max-w-xs sm:max-w-none block mx-auto flex justify-center items-center"
-            >
-              Start Chat with Karla
-            </Button>
+                         <Button 
+               onClick={handleStart}
+               className="bg-white hover:bg-gray-50 text-amber-600 font-medium py-2.5 sm:py-3 px-6 sm:px-8 rounded-full text-base sm:text-lg transition-all transform hover:scale-105 shadow-lg hover:shadow-xl border-2 border-white w-full sm:w-auto max-w-xs sm:max-w-none block mx-auto flex justify-center items-center"
+             >
+               Start Chat
+             </Button>
           </div>
           
 

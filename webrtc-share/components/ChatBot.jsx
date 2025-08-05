@@ -1,21 +1,126 @@
 "use client"
 import React, { useEffect, useRef, useState } from "react";
-import { getChatSessions, saveChatSession, getChatSession, deleteChatSession } from '../http/chatHttp.js';
+import { getChatSessions, saveChatSession, getChatSession, deleteChatSession, updateChatSessionTitle } from '../http/chatHttp.js';
 
-// Simple markdown parser for basic formatting
+// Enhanced markdown parser for comprehensive formatting
 const parseMarkdown = (text) => {
   if (!text) return text;
   
+  // Convert #### headings to <h4>text</h4>
+  text = text.replace(/^####\s+(.+)$/gm, '<h4 class="text-lg font-semibold text-gray-800 mb-2">$1</h4>');
+  
+  // Convert ### headings to <h3>text</h3>
+  text = text.replace(/^###\s+(.+)$/gm, '<h3 class="text-xl font-bold text-gray-900 mb-3">$1</h3>');
+  
+  // Convert ## headings to <h2>text</h2>
+  text = text.replace(/^##\s+(.+)$/gm, '<h2 class="text-2xl font-bold text-gray-900 mb-4">$1</h2>');
+  
+  // Convert # headings to <h1>text</h1>
+  text = text.replace(/^#\s+(.+)$/gm, '<h1 class="text-3xl font-bold text-gray-900 mb-5">$1</h1>');
+  
   // Convert **text** to <strong>text</strong>
-  text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  text = text.replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold">$1</strong>');
   
   // Convert *text* to <em>text</em>
-  text = text.replace(/\*(.*?)\*/g, '<em>$1</em>');
+  text = text.replace(/\*(.*?)\*/g, '<em class="italic">$1</em>');
+  
+  // Convert `code` to <code>code</code>
+  text = text.replace(/`([^`]+)`/g, '<code class="bg-gray-100 px-1 py-0.5 rounded text-sm font-mono">$1</code>');
   
   // Convert \n to <br> for line breaks
   text = text.replace(/\n/g, '<br>');
   
   return text;
+};
+
+// AI Title Generator - Creates smart titles for chat sessions
+const generateAITitle = (message) => {
+  if (!message || typeof message !== 'string') return 'New Chat';
+  
+  const text = message.toLowerCase().trim();
+  
+  // List of greeting words/phrases that should not get titles
+  const greetingWords = [
+    'hello', 'hi', 'hey', 'good morning', 'good afternoon', 'good evening',
+    'how are you', 'how do you do', 'nice to meet you', 'pleasure to meet you',
+    'greetings', 'salutations', 'what\'s up', 'sup', 'yo', 'good day',
+    'morning', 'afternoon', 'evening', 'night', 'good night', 'bye',
+    'goodbye', 'see you', 'take care', 'have a good day', 'have a nice day',
+    'thanks', 'thank you', 'appreciate it', 'thanks a lot', 'thank you so much'
+  ];
+  
+  // Check if message is just a greeting
+  const isGreeting = greetingWords.some(greeting => 
+    text.includes(greeting) || text === greeting
+  );
+  
+  if (isGreeting) {
+    return 'New Chat';
+  }
+  
+  // Extract key words for title generation
+  const words = text.split(' ').filter(word => word.length > 2);
+  
+  if (words.length === 0) return 'New Chat';
+  
+  // Create a smart title based on the message content
+  let title = '';
+  
+  // Check for specific topics
+  if (text.includes('damp') || text.includes('mould') || text.includes('mold')) {
+    title = 'Damp & Mould Discussion';
+  } else if (text.includes('problem') || text.includes('issue') || text.includes('help')) {
+    title = 'Problem Discussion';
+  } else if (text.includes('question') || text.includes('ask') || text.includes('what') || text.includes('how') || text.includes('why')) {
+    title = 'Question & Answer';
+  } else if (text.includes('advice') || text.includes('suggestion') || text.includes('recommend')) {
+    title = 'Advice & Recommendations';
+  } else if (text.includes('treatment') || text.includes('solution') || text.includes('fix')) {
+    title = 'Treatment & Solutions';
+  } else if (text.includes('prevention') || text.includes('prevent') || text.includes('avoid')) {
+    title = 'Prevention Tips';
+  } else if (text.includes('symptom') || text.includes('sign') || text.includes('indicator')) {
+    title = 'Symptoms & Signs';
+  } else if (text.includes('cause') || text.includes('reason') || text.includes('why')) {
+    title = 'Causes & Reasons';
+  } else if (text.includes('test') || text.includes('check') || text.includes('inspect')) {
+    title = 'Testing & Inspection';
+  } else if (text.includes('professional') || text.includes('expert') || text.includes('specialist')) {
+    title = 'Professional Advice';
+  } else {
+    // Generate a generic title from the first few meaningful words
+    const meaningfulWords = words.slice(0, 3).map(word => 
+      word.charAt(0).toUpperCase() + word.slice(1)
+    );
+    title = meaningfulWords.join(' ') + ' Discussion';
+  }
+  
+  // Limit title length
+  if (title.length > 50) {
+    title = title.substring(0, 47) + '...';
+  }
+  
+  return title;
+};
+
+// Check if message is a greeting
+const isGreetingMessage = (message) => {
+  if (!message || typeof message !== 'string') return true;
+  
+  const text = message.toLowerCase().trim();
+  
+  const greetingWords = [
+    'hello', 'hi', 'hey', 'good morning', 'good afternoon', 'good evening',
+    'how are you', 'how do you do', 'nice to meet you', 'pleasure to meet you',
+    'greetings', 'salutations', 'what\'s up', 'sup', 'yo', 'good day',
+    'morning', 'afternoon', 'evening', 'night', 'good night', 'bye',
+    'goodbye', 'see you', 'take care', 'have a good day', 'have a nice day',
+    'thanks', 'thank you', 'appreciate it', 'thanks a lot', 'thank you so much'
+  ];
+  
+  return greetingWords.some(greeting => 
+    text.includes(greeting) || text === greeting
+  );
 };
 
 export default function ChatBot({ isOpen, onClose, selectedChat }) {
@@ -25,7 +130,7 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
     {
       id: 1,
       type: 'bot',
-      text: "Hello! I'm Karla, your Damp and Mould AI Assistant. How can I help you today?",
+      text: "Hello! I'm your D&M AI Assistant. How can I help you with damp and mould issues today?",
       timestamp: new Date()
     }
   ]);
@@ -58,6 +163,10 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
   const [showChatHistory, setShowChatHistory] = useState(false);
   const [chatHistory, setChatHistory] = useState([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  
+  // Edit state
+  const [editingChatId, setEditingChatId] = useState(null);
+  const [editTitle, setEditTitle] = useState('');
 
   useEffect(() => {
     if (!isOpen) return;
@@ -143,7 +252,7 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
         {
           id: 1,
           type: 'bot',
-          text: "Hello! I'm Karla, your Damp and Mould AI Assistant. How can I help you today?",
+          text: "Hello! I'm your D&M AI Assistant. How can I help you with damp and mould issues today?",
           timestamp: new Date()
         }
       ]);
@@ -154,11 +263,20 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
   const saveChatToBackend = async (title, preview) => {
     try {
       console.log('💾 Saving chat session...', { sessionId, title, preview, messageCount: messages.length });
+      
+      // Get current messages state with proper structure
+      const currentMessages = messages.map(msg => ({
+        id: msg.id,
+        type: msg.type,
+        text: msg.text,
+        timestamp: msg.timestamp instanceof Date ? msg.timestamp.toISOString() : msg.timestamp
+      }));
+      
       const response = await saveChatSession({
         sessionId,
         title,
         preview,
-        messages
+        messages: currentMessages
       });
       console.log('✅ Chat session saved successfully:', response);
       
@@ -166,9 +284,26 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
       setTimeout(() => {
         loadChatHistory();
       }, 500);
+      
+      return true;
     } catch (error) {
       console.error('❌ Error saving chat session:', error);
-      // Continue without saving if user is not logged in
+      
+      // Handle specific error cases
+      if (error.response?.status === 401) {
+        console.log('ℹ️ User not authenticated, chat will not be saved');
+        return false;
+      } else if (error.response?.status === 500) {
+        console.error('❌ Server error while saving chat session');
+        console.log('ℹ️ Chat will continue working but may not be saved to history');
+        return false;
+      } else if (error.response?.status === 400) {
+        console.error('❌ Bad request while saving chat session');
+        return false;
+      } else {
+        console.error('❌ Unknown error while saving chat session:', error.message);
+        return false;
+      }
     }
   };
 
@@ -216,7 +351,7 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
       {
         id: 1,
         type: 'bot',
-        text: "Hello! I'm Karla, your Damp and Mould AI Assistant. How can I help you today?",
+        text: "Hello! I'm your D&M AI Assistant. How can I help you with damp and mould issues today?",
         timestamp: new Date()
       }
     ]);
@@ -255,6 +390,65 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
         textareaRef.current.focus();
       }
     }, 100);
+  };
+
+  // Handle edit chat title
+  const handleEditChat = (chat) => {
+    setEditingChatId(chat.id);
+    setEditTitle(chat.title);
+  };
+
+  // Save edited title
+  const handleSaveEdit = async () => {
+    if (!editTitle.trim()) return;
+    
+    try {
+      const chatToEdit = chatHistory.find(chat => chat.id === editingChatId);
+      if (!chatToEdit) return;
+      
+      await updateChatSessionTitle(chatToEdit.sessionId, editTitle.trim());
+      
+      // Update local state
+      setChatHistory(prev => prev.map(chat => 
+        chat.id === editingChatId 
+          ? { ...chat, title: editTitle.trim() }
+          : chat
+      ));
+      
+      setEditingChatId(null);
+      setEditTitle('');
+    } catch (error) {
+      console.error('Error updating chat title:', error);
+      alert('Failed to update chat title. Please try again.');
+    }
+  };
+
+  // Cancel edit
+  const handleCancelEdit = () => {
+    setEditingChatId(null);
+    setEditTitle('');
+  };
+
+  // Handle delete chat
+  const handleDeleteChat = async (chat) => {
+    if (!confirm('Are you sure you want to delete this chat? This action cannot be undone.')) {
+      return;
+    }
+    
+    try {
+      await deleteChatSession(chat.sessionId);
+      
+      // Remove from local state
+      setChatHistory(prev => prev.filter(c => c.id !== chat.id));
+      
+      // If this was the currently selected chat, start a new chat
+      if (sessionId === chat.sessionId) {
+        startNewChat();
+      }
+    } catch (error) {
+      console.error('Error deleting chat:', error);
+      alert('Failed to delete chat. Please try again.');
+    }
   };
 
   const formatDate = (date) => {
@@ -303,13 +497,6 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
     };
 
     setMessages(prev => [...prev, userMessage]);
-
-    // Auto-save chat session after user message
-    if (messages.length === 1) { // First user message
-      const title = currentMessage.length > 50 ? currentMessage.substring(0, 50) + '...' : currentMessage;
-      const preview = currentMessage;
-      saveChatToBackend(title, preview);
-    }
 
     if (textareaRef.current) {
       textareaRef.current.style.height = '24px';
@@ -369,16 +556,60 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
             timestamp: new Date()
           };
           
-          setMessages(prev => [...prev, botMessage]);
+                     setMessages(prev => {
+             const updatedMessages = [...prev, botMessage];
+             
+             // Save chat session only after successful AI response
+             // Find the first non-greeting message to use as title
+             let title = undefined;
+             if (prev.length === 1) {
+               // This is the first user message, check if it's a greeting
+               if (!isGreetingMessage(currentMessage)) {
+                 title = generateAITitle(currentMessage);
+               }
+             } else {
+               // Check if we haven't set a title yet and this message is not a greeting
+               const allUserMessages = updatedMessages.filter(msg => msg.type === 'user');
+               const nonGreetingMessages = allUserMessages.filter(msg => !isGreetingMessage(msg.text));
+               
+               if (nonGreetingMessages.length > 0 && !title) {
+                 // Use the first non-greeting message for title
+                 title = generateAITitle(nonGreetingMessages[0].text);
+               }
+             }
+             
+             const preview = currentMessage;
+             
+             // Save chat immediately after successful response with updated messages
+             setTimeout(() => {
+               // Use the updated messages for saving
+               const messagesToSave = updatedMessages.map(msg => ({
+                 id: msg.id,
+                 type: msg.type,
+                 text: msg.text,
+                 timestamp: msg.timestamp instanceof Date ? msg.timestamp.toISOString() : msg.timestamp
+               }));
+               
+               saveChatSession({
+                 sessionId,
+                 title,
+                 preview,
+                 messages: messagesToSave
+               }).then(response => {
+                 console.log('✅ Chat saved successfully after AI response:', response);
+                 // Reload chat history after saving
+                 setTimeout(() => {
+                   loadChatHistory();
+                 }, 500);
+               }).catch(err => {
+                 console.log('ℹ️ Chat save failed but conversation continues:', err.message);
+               });
+             }, 100);
+             
+             return updatedMessages;
+           });
           setIsLoading(false);
           setIsTyping(false);
-          
-          // Update chat session with new messages
-          if (messages.length > 0) {
-            const title = messages[1]?.text?.length > 50 ? messages[1].text.substring(0, 50) + '...' : messages[1]?.text || 'New Chat';
-            const preview = messages[1]?.text || 'New conversation with Karla';
-            saveChatToBackend(title, preview);
-          }
           
           // Auto focus after receiving response
           setTimeout(() => {
@@ -439,7 +670,7 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
         <div className="relative p-4 md:p-6 flex items-center justify-between">
           <div className="flex items-center space-x-3 md:space-x-4">
             <div>
-              <h1 className="text-lg md:text-2xl font-bold tracking-tight drop-shadow-sm">Karla</h1>
+              <h1 className="text-lg md:text-2xl font-bold tracking-tight drop-shadow-sm">D&M AI</h1>
               <p className="text-amber-100 text-xs md:text-sm font-medium">
                 {selectedChat ? `Continuing: ${selectedChat.title}` : 'Damp & Mould AI Assistant'}
               </p>
@@ -521,7 +752,7 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
                           {formatMessageTime(message.timestamp)}
                         </span>
                         <div className="px-3 py-1 md:px-4 md:py-2 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full flex items-center justify-center">
-                          <span className="text-white text-xs md:text-sm font-bold">Karla</span>
+                                                     <span className="text-white text-xs md:text-sm font-bold">D&M AI</span>
                         </div>
                       </div>
                     </div>
@@ -540,7 +771,7 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
                         <div className="w-2 h-2 md:w-3 md:h-3 bg-gradient-to-r from-amber-400 to-orange-500 rounded-full animate-bounce shadow-sm" style={{ animationDelay: '0.1s' }}></div>
                         <div className="w-2 h-2 md:w-3 md:h-3 bg-gradient-to-r from-amber-400 to-orange-500 rounded-full animate-bounce shadow-sm" style={{ animationDelay: '0.2s' }}></div>
                       </div>
-                      <span className="text-slate-500 text-xs md:text-sm font-medium">Karla is thinking...</span>
+                                             <span className="text-slate-500 text-xs md:text-sm font-medium">D&M AI is thinking...</span>
                     </div>
                   </div>
                 </div>
@@ -566,7 +797,7 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
                     setInputMessage(e.target.value);
                     adjustTextareaHeight();
                   }}
-                  placeholder="Ask Karla anything about damp & mould..."
+                                     placeholder="Ask D&M AI anything about damp & mould..."
                   className="w-full bg-transparent border-none outline-none text-slate-800 placeholder-slate-500 text-sm md:text-base resize-none font-medium leading-relaxed"
                   rows="1"
                   style={{ minHeight: '24px', maxHeight: '120px' }}
@@ -604,8 +835,8 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
       {showChatHistory && (
         <>
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60] pointer-events-none"></div>
-          <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
-            <div className="min-w-[0] max-w-[95vw] w-full sm:w-[700px] lg:w-[800px] bg-white rounded-3xl shadow-2xl pointer-events-auto flex flex-col mx-2 sm:mx-0 overflow-hidden">
+                     <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+             <div className="min-w-[0] max-w-[95vw] w-full sm:w-[400px] lg:w-[450px] bg-white rounded-3xl shadow-2xl pointer-events-auto flex flex-col mx-2 sm:mx-0 overflow-hidden">
               {/* Header */}
               <div className="flex items-center justify-between bg-gradient-to-r from-amber-500 to-orange-500 text-white p-6 sm:p-8 m-0">
                 <div className="flex items-center space-x-4">
@@ -645,7 +876,7 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
                 </button>
 
                 {/* Chat History List */}
-                <div className="space-y-3">
+                <div className="space-y-1">
                   <div className="flex items-center space-x-2 mb-4">
                     <svg className="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -659,30 +890,96 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
                       <p className="text-sm text-gray-500">Loading chat history...</p>
                     </div>
                   ) : (
-                                        chatHistory.map((chat) => (
-                      <button
-                        key={chat.id}
-                        onClick={() => handleSelectChat(chat)}
-                        className="w-full text-left p-4 rounded-xl border border-gray-200 hover:border-amber-300 hover:bg-gradient-to-r hover:from-amber-50 hover:to-orange-50 transition-all group shadow-sm hover:shadow-md"
-                      >
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center space-x-2 mb-2">
-                              <div className="w-2 h-2 bg-amber-500 rounded-full"></div>
-                              <h4 className="font-semibold text-gray-900 group-hover:text-amber-700 transition-colors truncate">
-                                {chat.title}
-                              </h4>
-                            </div>
-                            <p className="text-sm text-gray-600 mt-1 line-clamp-2 leading-relaxed">
-                              {chat.preview}
-                            </p>
+                                         <div className="border border-gray-200 rounded-lg overflow-hidden">
+                                               {chatHistory.map((chat, index) => (
+                          <div
+                            key={chat.id}
+                            className={`w-full p-3 hover:bg-gray-50 transition-colors group ${
+                              index !== chatHistory.length - 1 ? 'border-b border-gray-200' : ''
+                            }`}
+                          >
+                            {editingChatId === chat.id ? (
+                              // Edit mode
+                              <div className="flex items-center space-x-2">
+                                <div className="w-2 h-2 bg-amber-500 rounded-full flex-shrink-0"></div>
+                                <input
+                                  type="text"
+                                  value={editTitle}
+                                  onChange={(e) => setEditTitle(e.target.value)}
+                                  className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:border-amber-500"
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      handleSaveEdit();
+                                    } else if (e.key === 'Escape') {
+                                      handleCancelEdit();
+                                    }
+                                  }}
+                                  autoFocus
+                                />
+                                <div className="flex items-center space-x-1">
+                                  <button
+                                    onClick={handleSaveEdit}
+                                    className="p-1 text-green-500 hover:text-green-600"
+                                    title="Save"
+                                  >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                    </svg>
+                                  </button>
+                                  <button
+                                    onClick={handleCancelEdit}
+                                    className="p-1 text-gray-500 hover:text-gray-600"
+                                    title="Cancel"
+                                  >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              // Normal mode
+                              <div className="flex items-center justify-between">
+                                <button
+                                  onClick={() => handleSelectChat(chat)}
+                                  className="flex-1 text-left flex items-center space-x-3 min-w-0"
+                                >
+                                  <div className="w-2 h-2 bg-amber-500 rounded-full flex-shrink-0"></div>
+                                  <h4 className="font-medium text-gray-900 group-hover:text-amber-700 transition-colors truncate">
+                                    {chat.title}
+                                  </h4>
+                                </button>
+                                <div className="flex items-center space-x-2 ml-3">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleEditChat(chat);
+                                    }}
+                                    className="p-1.5 text-gray-400 hover:text-blue-500 transition-colors rounded"
+                                    title="Edit chat"
+                                  >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                    </svg>
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDeleteChat(chat);
+                                    }}
+                                    className="p-1.5 text-gray-400 hover:text-red-500 transition-colors rounded"
+                                    title="Delete chat"
+                                  >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                  </button>
+                                </div>
+                              </div>
+                            )}
                           </div>
-                          <div className="text-xs text-gray-400 ml-3 flex-shrink-0 bg-gray-100 px-2 py-1 rounded-full">
-                            {formatDate(chat.timestamp)}
-                          </div>
-                        </div>
-                      </button>
-                    ))
+                        ))}
+                     </div>
                   )}
                 </div>
 
@@ -695,7 +992,7 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
                       </svg>
                     </div>
                     <p className="text-xl font-medium text-gray-700 mb-2">No previous chats</p>
-                    <p className="text-sm text-gray-500">Start your first conversation with Karla</p>
+                                         <p className="text-sm text-gray-500">Start your first conversation with D&M AI</p>
                   </div>
                 )}
               </div>
