@@ -2,7 +2,7 @@ import express from 'express';
 const router = express.Router();
 import {changePassword, loadme, login, logout, register, updateUser,forgotPassword,resetPassword, verify, sendFriendLink, resetPasswordFromDashboard, sendFeedback, raiseSupportTicket, updateUserLogo, updateLandlordInfo, bookDemoMeeting, requestCallback, updateMessageSettings, getMessageSettings, createFolder, updateFolder, deleteFolder, moveFolderToTrash, restoreFolderFromTrash, getFolders, assignMeetingToFolder, getMeetingFolders, updatePaginationSettings, getPaginationSettings, registerResident } from './controllers/authController.js';
 import { requestDemo } from './controllers/demoController.js';
-import { saveChatSession, getChatSessions, getChatSession, deleteChatSession, updateChatSessionTitle } from './controllers/chatHistoryController.js';
+import { saveChatSession, getChatSessions, getChatSession, deleteChatSession, updateChatSessionTitle, updateMessageFeedback } from './controllers/chatHistoryController.js';
 import { createUpload, createUploadSession, uploadFile, completeUpload, getUploadProgress, getUploadByAccessCode, getMyUploads, getMyLatestUpload, deleteUpload, restoreUpload, permanentDeleteUpload, getMyTrashedUploads, markNotificationSent, checkNotificationStatus, searchUploads, recordVisitorAccess } from './controllers/uploadController.js';
 import {isAuthenticate} from "./middlewares/auth.js"
 import { create, getAllMeetings, getMeetingById, updateMeetingController, deleteMeeting, getMeetingForShare, getMeetingByMeetingId, deleteRecording, deleteScreenshot, archiveMeeting, unarchiveMeeting, getArchivedCount, recordVisitorAccess as recordMeetingVisitorAccess, restoreMeeting, permanentDeleteMeeting, searchMeetings, getSpecialNotes, saveSpecialNotes, getStructuredSpecialNotes, saveStructuredSpecialNotes } from './controllers/meetingController.js';
@@ -40,6 +40,7 @@ router.route('/chat/sessions').post(isAuthenticate, saveChatSession);
 router.route('/chat/sessions/:sessionId').get(isAuthenticate, getChatSession);
 router.route('/chat/sessions/:sessionId').delete(isAuthenticate, deleteChatSession);
 router.route('/chat/sessions/:sessionId/title').put(isAuthenticate, updateChatSessionTitle);
+router.route('/chat/sessions/:sessionId/messages/:messageId/feedback').put(isAuthenticate, updateMessageFeedback);
 
 // Folder management routes
 router.route('/folders').get(isAuthenticate, getFolders);

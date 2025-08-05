@@ -177,4 +177,53 @@ export const updateChatSessionTitle = catchAsyncError(async (req, res, next) => 
     console.error('Error updating chat session title:', error);
     return sendResponse(res, 500, false, null, 'Failed to update chat session title');
   }
+});
+
+// Update message feedback
+export const updateMessageFeedback = catchAsyncError(async (req, res, next) => {
+  const { sessionId, messageId } = req.params;
+  const { feedback } = req.body;
+
+  if (!req.user) {
+    return sendResponse(res, 401, false, null, 'User not authenticated');
+  }
+
+  if (!sessionId || !messageId) {
+    return sendResponse(res, 400, false, null, 'Session ID and message ID are required');
+  }
+
+  if (!feedback || !['thumbsUp', 'thumbsDown', null].includes(feedback)) {
+    return sendResponse(res, 400, false, null, 'Invalid feedback value');
+  }
+
+  try {
+    const chatSession = await ChatHistory.findOne({ 
+      userId: req.user._id, 
+      sessionId: sessionId 
+    });
+
+    if (!chatSession) {
+      return sendResponse(res, 404, false, null, 'Chat session not found');
+    }
+
+    // Find and update the specific message
+    const messageIndex = chatSession.messages.findIndex(msg => msg.id === parseInt(messageId));
+    
+    if (messageIndex === -1) {
+      return sendResponse(res, 404, false, null, 'Message not found');
+    }
+
+    // Update the feedback for the message
+    chatSession.messages[messageIndex].feedback = feedback;
+    chatSession.updatedAt = new Date();
+    
+    await chatSession.save();
+
+    return sendResponse(res, 200, true, { 
+      message: chatSession.messages[messageIndex] 
+    }, 'Message feedback updated successfully');
+  } catch (error) {
+    console.error('Error updating message feedback:', error);
+    return sendResponse(res, 500, false, null, 'Failed to update message feedback');
+  }
 }); 

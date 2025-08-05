@@ -1,6 +1,7 @@
 "use client"
 import React, { useEffect, useRef, useState } from "react";
-import { getChatSessions, saveChatSession, getChatSession, deleteChatSession, updateChatSessionTitle } from '../http/chatHttp.js';
+import { getChatSessions, saveChatSession, getChatSession, deleteChatSession, updateChatSessionTitle, updateMessageFeedback } from '../http/chatHttp.js';
+import { useUser } from '../provider/UserProvider.js';
 
 // Enhanced markdown parser for comprehensive formatting
 const parseMarkdown = (text) => {
@@ -124,13 +125,14 @@ const isGreetingMessage = (message) => {
 };
 
 export default function ChatBot({ isOpen, onClose, selectedChat }) {
+  const { isAuth } = useUser();
   const textareaRef = useRef(null);
   const messagesEndRef = useRef(null);
   const [messages, setMessages] = useState([
     {
       id: 1,
       type: 'bot',
-      text: "Hello! I'm your D&M AI Assistant. How can I help you with damp and mould issues today?",
+      text: "Ask me anything about damp and mould",
       timestamp: new Date()
     }
   ]);
@@ -189,10 +191,10 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
 
   // Load chat history when component opens
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && isAuth) {
       loadChatHistory();
     }
-  }, [isOpen]);
+  }, [isOpen, isAuth]);
 
   // Handle selected chat changes
   useEffect(() => {
@@ -203,6 +205,13 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
 
   // Load chat history from backend
   const loadChatHistory = async () => {
+    // Don't load chat history if user is not authenticated
+    if (!isAuth) {
+      console.log('ℹ️ User not authenticated, skipping chat history load');
+      setChatHistory([]);
+      return;
+    }
+
     try {
       console.log('🔄 Loading chat history...');
       setIsLoadingHistory(true);
@@ -252,7 +261,7 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
         {
           id: 1,
           type: 'bot',
-          text: "Hello! I'm your D&M AI Assistant. How can I help you with damp and mould issues today?",
+          text: "Ask me anything about damp and mould",
           timestamp: new Date()
         }
       ]);
@@ -327,7 +336,34 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
     navigator.clipboard.writeText(text);
   };
 
-  const startNewChat = () => {
+  const handleFeedback = async (messageId, type) => {
+    console.log(`Feedback for message ${messageId}: ${type}`);
+    
+    // Update the message to show filled state immediately
+    setMessages(prev => prev.map(msg => 
+      msg.id === messageId 
+        ? { ...msg, feedback: type }
+        : msg
+    ));
+    
+    // Save feedback to backend if user is authenticated and session exists
+    if (isAuth && sessionId) {
+      try {
+        await updateMessageFeedback(sessionId, messageId, type);
+        console.log('✅ Feedback saved to backend');
+      } catch (error) {
+        console.error('❌ Error saving feedback to backend:', error);
+        // Revert the feedback state if save failed
+        setMessages(prev => prev.map(msg => 
+          msg.id === messageId 
+            ? { ...msg, feedback: null }
+            : msg
+        ));
+      }
+    }
+  };
+
+   const startNewChat = () => {
     // Generate new session ID with proper UUID v4 format
     const generateUUID = () => {
       const crypto = window.crypto || window.msCrypto;
@@ -351,7 +387,7 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
       {
         id: 1,
         type: 'bot',
-        text: "Hello! I'm your D&M AI Assistant. How can I help you with damp and mould issues today?",
+        text: "Ask me anything about damp and mould",
         timestamp: new Date()
       }
     ]);
@@ -373,11 +409,24 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
     console.log('📋 Opening chat history...');
     setShowChatHistory(true);
     // Reload chat history when opening modal
-    loadChatHistory();
+    if (isAuth) {
+      loadChatHistory();
+    }
   };
 
   const handleCloseChatHistory = () => {
     setShowChatHistory(false);
+  };
+
+  const handleLoginClick = () => {
+    // Trigger login popup by setting localStorage flag
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('openLoginPopup', 'true');
+      // Close the chat bot
+      onClose();
+      // Reload the page to trigger the login popup
+      window.location.reload();
+    }
   };
 
   const handleSelectChat = (chat) => {
@@ -676,19 +725,32 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
               </p>
             </div>
           </div>
-          <div className="flex items-center space-x-2 md:space-x-3">
-            <button
-              onClick={handleShowChatHistory}
-              className="group bg-white/10 hover:bg-white/20 rounded-lg md:rounded-xl px-3 md:px-4 py-2 md:py-3 transition-all duration-200 flex items-center justify-center backdrop-blur-sm border border-white/10 hover:scale-105 active:scale-95 shadow-lg"
-              title="Chat History"
-            >
-                             <img 
-                 src="/icons/chat-notification.png" 
-                 alt="Chat History" 
-                 className="w-5 h-5 md:w-6 md:h-6 mr-1 md:mr-2 filter brightness-0 invert drop-shadow-sm"
-               />
-              <span className="text-white text-xs md:text-sm font-medium hidden md:block">History</span>
-            </button>
+                     <div className="flex items-center space-x-2 md:space-x-3">
+             {isAuth ? (
+               <button
+                 onClick={handleShowChatHistory}
+                 className="group bg-white/10 hover:bg-white/20 rounded-lg md:rounded-xl px-3 md:px-4 py-2 md:py-3 transition-all duration-200 flex items-center justify-center backdrop-blur-sm border border-white/10 hover:scale-105 active:scale-95 shadow-lg"
+                 title="Chat History"
+               >
+                 <img 
+                   src="/icons/chat-notification.png" 
+                   alt="Chat History" 
+                   className="w-5 h-5 md:w-6 md:h-6 mr-1 md:mr-2 filter brightness-0 invert drop-shadow-sm"
+                 />
+                 <span className="text-white text-xs md:text-sm font-medium hidden md:block">History</span>
+               </button>
+             ) : (
+               <button
+                 onClick={handleLoginClick}
+                 className="group bg-white/10 hover:bg-white/20 rounded-lg md:rounded-xl px-3 md:px-4 py-2 md:py-3 transition-all duration-200 flex items-center justify-center backdrop-blur-sm border border-white/10 hover:scale-105 active:scale-95 shadow-lg"
+                 title="Login to Save Chat History"
+               >
+                 <svg className="w-5 h-5 md:w-6 md:h-6 text-white mr-1 md:mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                 </svg>
+                 <span className="text-white text-xs md:text-sm font-medium hidden md:block">Login</span>
+               </button>
+             )}
             <button
               onClick={startNewChat}
               className="group bg-white/10 hover:bg-white/20 rounded-lg md:rounded-xl px-3 md:px-4 py-2 md:py-3 transition-all duration-200 flex items-center justify-center backdrop-blur-sm border border-white/10 hover:scale-105 active:scale-95 shadow-lg"
@@ -719,10 +781,10 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
               <div key={message.id} className={`group animate-in slide-in-from-bottom-2 duration-500 ${message.type === 'user' ? 'flex justify-end' : 'flex justify-start'}`} style={{ animationDelay: `${index * 100}ms` }}>
                 {message.type === 'user' ? (
                   <div className="max-w-[85%] md:max-w-[80%] relative">
-                    <div className="bg-gradient-to-r from-amber-500 to-orange-500 text-white px-4 md:px-6 py-3 md:py-4 rounded-2xl md:rounded-3xl rounded-br-lg shadow-xl shadow-amber-500/25 hover:shadow-2xl hover:shadow-amber-500/30 transition-all duration-300 relative group">
-                      <p className="text-sm md:text-base leading-relaxed font-medium">{message.text}</p>
-                      <div className="absolute inset-0 bg-gradient-to-r from-amber-400/20 to-orange-400/20 rounded-2xl md:rounded-3xl rounded-br-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                    </div>
+                                         <div className="bg-purple-500 text-white px-4 md:px-6 py-3 md:py-4 rounded-2xl md:rounded-3xl rounded-br-lg shadow-xl shadow-purple-500/25 hover:shadow-2xl hover:shadow-purple-500/30 transition-all duration-300 relative group">
+                       <p className="text-sm md:text-base leading-relaxed font-medium">{message.text}</p>
+                       <div className="absolute inset-0 bg-purple-400/20 rounded-2xl md:rounded-3xl rounded-br-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                     </div>
                     <div className="flex justify-end mt-2">
                       <span className="text-xs text-gray-500 px-2">
                         {formatMessageTime(message.timestamp)}
@@ -732,29 +794,63 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
                 ) : (
                   <div className="max-w-[90%] md:max-w-[85%] w-full">
                     <div className="group relative">
-                      <div className="bg-white rounded-2xl md:rounded-3xl rounded-bl-lg p-4 md:p-6 shadow-xl shadow-slate-200/50 border border-slate-200/50 hover:shadow-2xl hover:shadow-slate-200/60 transition-all duration-300 backdrop-blur-sm">
-                        <div className="text-slate-800 text-sm md:text-base leading-relaxed">
-                          <div 
-                            className="whitespace-pre-wrap"
-                            dangerouslySetInnerHTML={{ __html: parseMarkdown(message.text) }}
-                          />
+                                             <div className="bg-white rounded-2xl md:rounded-3xl rounded-bl-lg p-4 md:p-6 shadow-xl shadow-slate-200/50 border border-slate-200/50 hover:shadow-2xl hover:shadow-slate-200/60 transition-all duration-300 backdrop-blur-sm">
+                         <div className="text-slate-800 text-sm md:text-base leading-relaxed">
+                           <div 
+                             className="whitespace-pre-wrap"
+                             dangerouslySetInnerHTML={{ __html: parseMarkdown(message.text) }}
+                           />
+                         </div>
+                         
+                         <button
+                           onClick={() => copyToClipboard(message.text)}
+                           className="absolute top-2 md:top-4 right-2 md:right-4 opacity-0 group-hover:opacity-100 bg-slate-100 hover:bg-slate-200 rounded-lg p-1.5 md:p-2 transition-all duration-200 hover:scale-105"
+                           title="Copy message"
+                         >
+                           <svg className="w-3 h-3 md:w-4 md:h-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                           </svg>
+                         </button>
+                       </div>
+                      
+                      {/* Feedback buttons, time, and AI name all on one line */}
+                      <div className="flex items-center justify-between mt-2">
+                        <div className="flex items-center space-x-2">
+                          <button
+                            onClick={() => handleFeedback(message.id, 'thumbsUp')}
+                            className={`p-2 rounded-lg transition-colors duration-200 ${
+                              message.feedback === 'thumbsUp' 
+                                ? 'text-green-600 bg-green-50' 
+                                : 'text-slate-500 hover:text-green-600 hover:bg-green-50'
+                            }`}
+                            title="Helpful"
+                          >
+                            <svg className="w-5 h-5" fill={message.feedback === 'thumbsUp' ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5" />
+                            </svg>
+                          </button>
+                          <button
+                            onClick={() => handleFeedback(message.id, 'thumbsDown')}
+                            className={`p-2 rounded-lg transition-colors duration-200 ${
+                              message.feedback === 'thumbsDown' 
+                                ? 'text-red-600 bg-red-50' 
+                                : 'text-slate-500 hover:text-red-600 hover:bg-red-50'
+                            }`}
+                            title="Not helpful"
+                          >
+                            <svg className="w-5 h-5" fill={message.feedback === 'thumbsDown' ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24" style={{ transform: 'rotate(180deg)' }}>
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5" />
+                            </svg>
+                          </button>
                         </div>
-                        <button
-                          onClick={() => copyToClipboard(message.text)}
-                          className="absolute top-2 md:top-4 right-2 md:right-4 opacity-0 group-hover:opacity-100 bg-slate-100 hover:bg-slate-200 rounded-lg p-1.5 md:p-2 transition-all duration-200 hover:scale-105"
-                          title="Copy message"
-                        >
-                          <svg className="w-3 h-3 md:w-4 md:h-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                          </svg>
-                        </button>
-                      </div>
-                      <div className="flex items-center justify-end mt-2 space-x-2">
-                        <span className="text-xs text-gray-500">
-                          {formatMessageTime(message.timestamp)}
-                        </span>
-                        <div className="px-3 py-1 md:px-4 md:py-2 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full flex items-center justify-center">
-                                                     <span className="text-white text-xs md:text-sm font-bold">D&M AI</span>
+                        
+                        <div className="flex items-center space-x-2">
+                          <span className="text-xs text-gray-500">
+                            {formatMessageTime(message.timestamp)}
+                          </span>
+                          <div className="px-3 py-1 md:px-4 md:py-2 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full flex items-center justify-center">
+                            <span className="text-white text-xs md:text-sm font-bold">D&M AI</span>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -989,8 +1085,8 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
                   )}
                 </div>
 
-                {/* No chats message */}
-                {chatHistory.length === 0 && (
+                                {/* No chats message */}
+                {chatHistory.length === 0 && !isLoadingHistory && (
                   <div className="text-center py-12 text-gray-500">
                     <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                       <svg className="w-8 h-8 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -998,7 +1094,7 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
                       </svg>
                     </div>
                     <p className="text-xl font-medium text-gray-700 mb-2">No previous chats</p>
-                                         <p className="text-sm text-gray-500">Start your first conversation with D&M AI</p>
+                    <p className="text-sm text-gray-500">Start your first conversation with D&M AI</p>
                   </div>
                 )}
               </div>

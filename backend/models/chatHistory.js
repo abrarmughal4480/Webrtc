@@ -17,6 +17,11 @@ const messageSchema = new mongoose.Schema({
   timestamp: {
     type: Date,
     default: Date.now
+  },
+  feedback: {
+    type: String,
+    enum: ['thumbsUp', 'thumbsDown', null],
+    default: null
   }
 });
 

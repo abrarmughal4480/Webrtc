@@ -125,7 +125,7 @@ export default function ChatKarla() {
   };
 
   const residentFeatures = [
-    "Advice and guidance on Damp and Mould issues",
+    "Advice and guidance on Damp and Mould issues",
     "Referrals to your Landlord's D&M Team",
     "Personalized solutions for your situation",
     "I'm here 24/7 for instant support and advice"
@@ -149,7 +149,7 @@ export default function ChatKarla() {
           {/* Header Section */}
           <div className="text-center mb-8 sm:mb-10 md:mb-12 lg:mb-16">
                          <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-2 sm:mb-3 text-center text-white leading-tight">
-               Hello, I'm AI Damp and Mould Assistant
+                  Hello, I'm a AI Damp and Mould Assistant
              </h2>
              
              <p className="text-lg sm:text-xl md:text-2xl lg:text-3xl max-w-xl sm:max-w-2xl mx-auto leading-relaxed font-medium text-white px-2 sm:px-0">

@@ -34,4 +34,11 @@ export const updateChatSessionTitle = async (sessionId, title) => {
   const response = await api.put(`/chat/sessions/${sessionId}/title`, { title });
   console.log('📥 PUT /chat/sessions/' + sessionId + '/title response:', response);
   return response.data;
+};
+
+export const updateMessageFeedback = async (sessionId, messageId, feedback) => {
+  console.log('🌐 Making PUT request to /chat/sessions/' + sessionId + '/messages/' + messageId + '/feedback');
+  const response = await api.put(`/chat/sessions/${sessionId}/messages/${messageId}/feedback`, { feedback });
+  console.log('📥 PUT /chat/sessions/' + sessionId + '/messages/' + messageId + '/feedback response:', response);
+  return response.data;
 }; 
