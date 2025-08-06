@@ -2,6 +2,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { getChatSessions, saveChatSession, getChatSession, deleteChatSession, updateChatSessionTitle, updateMessageFeedback } from '../http/chatHttp.js';
 import { useUser } from '../provider/UserProvider.js';
+import { toast } from "sonner";
 
 // Enhanced markdown parser for comprehensive formatting
 const parseMarkdown = (text) => {
@@ -140,26 +141,25 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
   const [isLoading, setIsLoading] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const [n8nChatInstance, setN8nChatInstance] = useState(null);
-  const [sessionId, setSessionId] = useState(() => {
-    // Generate proper UUID v4 format session ID
-    const generateUUID = () => {
-      const crypto = window.crypto || window.msCrypto;
-      if (crypto && crypto.getRandomValues) {
-        const array = new Uint8Array(16);
-        crypto.getRandomValues(array);
-        array[6] = (array[6] & 0x0f) | 0x40;
-        array[8] = (array[8] & 0x3f) | 0x80;
-        return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
-      } else {
-        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-          const r = Math.random() * 16 | 0;
-          const v = c == 'x' ? r : (r & 0x3 | 0x8);
-          return v.toString(16);
-        });
-      }
-    };
-    return generateUUID();
-  });
+  // Generate proper UUID v4 format session ID
+  const generateUUID = () => {
+    const crypto = window.crypto || window.msCrypto;
+    if (crypto && crypto.getRandomValues) {
+      const array = new Uint8Array(16);
+      crypto.getRandomValues(array);
+      array[6] = (array[6] & 0x0f) | 0x40;
+      array[8] = (array[8] & 0x3f) | 0x80;
+      return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+    } else {
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        const r = Math.random() * 16 | 0;
+        const v = c == 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+      });
+    }
+  };
+
+  const [sessionId, setSessionId] = useState(generateUUID());
 
   // Chat history state
   const [showChatHistory, setShowChatHistory] = useState(false);
@@ -169,6 +169,130 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
   // Edit state
   const [editingChatId, setEditingChatId] = useState(null);
   const [editTitle, setEditTitle] = useState('');
+  
+  // New chat confirmation dialog state
+  const [showNewChatConfirmation, setShowNewChatConfirmation] = useState(false);
+  
+  // Pending chat save state
+  const [pendingChatSave, setPendingChatSave] = useState(null);
+
+  // Migration state
+  const [isMigrating, setIsMigrating] = useState(false);
+
+  // Manual migration function for debugging
+  const triggerMigration = async () => {
+    console.log('🔧 Manual migration triggered');
+    const localChats = JSON.parse(localStorage.getItem('localChatHistory') || '[]');
+    console.log('📥 Current localStorage chats:', localChats);
+    
+    if (localChats.length === 0) {
+      alert('No chats found in localStorage to migrate');
+      return;
+    }
+    
+    // Test the saveChatSession function first
+    try {
+      console.log('🧪 Testing saveChatSession function...');
+      const testResponse = await saveChatSession({
+        sessionId: generateUUID(),
+        title: 'Test Migration Chat',
+        preview: 'Test preview',
+        messages: [{ id: '1', type: 'user', text: 'Test message', timestamp: new Date() }]
+      });
+      console.log('🧪 Test saveChatSession response:', testResponse);
+      console.log('🧪 Response type:', typeof testResponse);
+      console.log('🧪 Response keys:', Object.keys(testResponse || {}));
+    } catch (error) {
+      console.error('🧪 Test saveChatSession error:', error);
+    }
+    
+    // Call the migration function directly
+    const migrateLocalStorageChats = async () => {
+      if (isAuth && !isMigrating) {
+        try {
+          setIsMigrating(true);
+          console.log('🔄 Checking for localStorage chats to migrate...');
+          
+          // Get localStorage chats
+          const localChats = JSON.parse(localStorage.getItem('localChatHistory') || '[]');
+          console.log('📥 localStorage chats found:', localChats);
+          
+          if (localChats.length === 0) {
+            console.log('ℹ️ No localStorage chats to migrate');
+            setIsMigrating(false);
+            return;
+          }
+          
+          console.log(`📥 Found ${localChats.length} localStorage chats to migrate`);
+          
+          let migratedCount = 0;
+          let failedCount = 0;
+          
+          // Migrate each chat to database
+          for (const localChat of localChats) {
+            try {
+              console.log(`🔄 Migrating chat: ${localChat.title}`);
+              console.log('📤 Chat data to migrate:', localChat);
+              
+              // Generate a new session ID to avoid conflicts
+              const newSessionId = generateUUID();
+              console.log('🆔 New session ID generated:', newSessionId);
+              
+              // Save chat to backend with new session ID
+              const response = await saveChatSession({
+                sessionId: newSessionId,
+                title: localChat.title,
+                preview: localChat.preview,
+                messages: localChat.messages
+              });
+              
+              console.log('📥 saveChatSession response:', response);
+              
+              if (response && response.success) {
+                console.log(`✅ Successfully migrated: ${localChat.title}`);
+                migratedCount++;
+              } else {
+                console.log(`❌ Failed to migrate: ${localChat.title}`, response);
+                failedCount++;
+              }
+            } catch (error) {
+              console.error(`❌ Error migrating chat ${localChat.title}:`, error);
+              failedCount++;
+            }
+          }
+          
+          // Clear localStorage after migration attempt
+          if (migratedCount > 0) {
+            localStorage.removeItem('localChatHistory');
+            console.log(`✅ Migration complete: ${migratedCount} chats migrated, ${failedCount} failed`);
+            
+            // Show success message to user
+            if (migratedCount > 0) {
+              toast.success("you previous chat are saved");
+            }
+            
+            // Reload chat history to show migrated chats
+            setTimeout(() => {
+              loadChatHistory();
+            }, 500);
+          } else if (failedCount > 0) {
+            console.log(`❌ Migration failed for all ${failedCount} chats`);
+            alert('Failed to migrate chats to cloud. They will remain in local storage.');
+          }
+          
+        } catch (error) {
+          console.error('❌ Error during localStorage migration:', error);
+        } finally {
+          setIsMigrating(false);
+        }
+      } else {
+        console.log('❌ Cannot migrate: isAuth =', isAuth, 'isMigrating =', isMigrating);
+        alert('Cannot migrate: User not authenticated or migration already in progress');
+      }
+    };
+    
+    await migrateLocalStorageChats();
+  };
 
   useEffect(() => {
     if (!isOpen) return;
@@ -203,38 +327,197 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
     }
   }, [selectedChat, isOpen]);
 
-  // Load chat history from backend
-  const loadChatHistory = async () => {
-    // Don't load chat history if user is not authenticated
-    if (!isAuth) {
-      console.log('ℹ️ User not authenticated, skipping chat history load');
-      setChatHistory([]);
-      return;
-    }
+  // Handle pending chat save after successful login
+  useEffect(() => {
+    const savePendingChat = async () => {
+      if (isAuth && pendingChatSave && isOpen) {
+        try {
+          console.log('🔄 Saving pending chat after successful login...');
+          
+          // Use the stored chat data instead of current state
+          const response = await saveChatSession({
+            sessionId: pendingChatSave.sessionId,
+            title: pendingChatSave.title,
+            preview: pendingChatSave.preview,
+            messages: pendingChatSave.messages
+          });
+          
+          if (response) {
+            console.log('✅ Pending chat saved successfully after login');
+            
+            // Reload chat history to show the saved chat
+            setTimeout(() => {
+              loadChatHistory();
+            }, 500);
+            
+            // Clear pending save and proceed with new chat
+            setPendingChatSave(null);
+            proceedWithNewChat();
+          } else {
+            console.log('ℹ️ Pending chat save failed');
+            setPendingChatSave(null);
+          }
+        } catch (error) {
+          console.error('❌ Error saving pending chat after login:', error);
+          setPendingChatSave(null);
+        }
+      }
+    };
 
+    // Add a small delay to ensure login process is complete
+    const timeoutId = setTimeout(savePendingChat, 1000);
+    
+    return () => clearTimeout(timeoutId);
+  }, [isAuth]); // Only trigger when authentication state changes
+
+  // Migrate localStorage chats to database when user logs in
+  useEffect(() => {
+    const migrateLocalStorageChats = async () => {
+      console.log('🔄 Migration useEffect triggered - isAuth:', isAuth, 'isOpen:', isOpen, 'isMigrating:', isMigrating);
+      
+      if (isAuth && isOpen && !isMigrating) {
+        try {
+          setIsMigrating(true);
+          console.log('🔄 Checking for localStorage chats to migrate...');
+          
+          // Get localStorage chats
+          const localChats = JSON.parse(localStorage.getItem('localChatHistory') || '[]');
+          console.log('📥 localStorage chats found:', localChats);
+          
+          if (localChats.length === 0) {
+            console.log('ℹ️ No localStorage chats to migrate');
+            setIsMigrating(false);
+            return;
+          }
+          
+          console.log(`📥 Found ${localChats.length} localStorage chats to migrate`);
+          
+          let migratedCount = 0;
+          let failedCount = 0;
+          
+          // Migrate each chat to database
+          for (const localChat of localChats) {
+            try {
+              console.log(`🔄 Migrating chat: ${localChat.title}`);
+              console.log('📤 Chat data to migrate:', localChat);
+              
+              // Generate a new session ID to avoid conflicts
+              const newSessionId = generateUUID();
+              console.log('🆔 New session ID generated:', newSessionId);
+              
+              // Save chat to backend with new session ID
+              const response = await saveChatSession({
+                sessionId: newSessionId,
+                title: localChat.title,
+                preview: localChat.preview,
+                messages: localChat.messages
+              });
+              
+              console.log('📥 saveChatSession response:', response);
+              
+              if (response && response.success) {
+                console.log(`✅ Successfully migrated: ${localChat.title}`);
+                migratedCount++;
+              } else {
+                console.log(`❌ Failed to migrate: ${localChat.title}`, response);
+                failedCount++;
+              }
+            } catch (error) {
+              console.error(`❌ Error migrating chat ${localChat.title}:`, error);
+              failedCount++;
+            }
+          }
+          
+          // Clear localStorage after migration attempt
+          if (migratedCount > 0) {
+            localStorage.removeItem('localChatHistory');
+            console.log(`✅ Migration complete: ${migratedCount} chats migrated, ${failedCount} failed`);
+            
+            // Show success message to user
+            if (migratedCount > 0) {
+                 toast.success("you previous chat are saved");
+            }
+            
+            // Reload chat history to show migrated chats
+            setTimeout(() => {
+              loadChatHistory();
+            }, 500);
+          } else if (failedCount > 0) {
+            console.log(`❌ Migration failed for all ${failedCount} chats`);
+            alert('Failed to migrate chats to cloud. They will remain in local storage.');
+          }
+          
+        } catch (error) {
+          console.error('❌ Error during localStorage migration:', error);
+        } finally {
+          setIsMigrating(false);
+        }
+      }
+    };
+
+    // Add a delay to ensure login process is complete and after pending chat save
+    const timeoutId = setTimeout(migrateLocalStorageChats, 2000);
+    
+    return () => clearTimeout(timeoutId);
+  }, [isAuth, isOpen]); // Trigger when authentication state or chat open state changes
+
+  // Load chat history from backend and localStorage
+  const loadChatHistory = async () => {
     try {
       console.log('🔄 Loading chat history...');
       setIsLoadingHistory(true);
-      const response = await getChatSessions();
-      console.log('📥 Chat history response:', response);
       
-      if (response && response.data && response.data.chatSessions) {
-        console.log('✅ Chat sessions found:', response.data.chatSessions.length);
+      let allChats = [];
+      
+      if (isAuth) {
+        // Load from backend for authenticated users
+        try {
+          const response = await getChatSessions();
+          console.log('📥 Chat history response:', response);
+          
+          if (response && response.data && response.data.chatSessions) {
+            console.log('✅ Chat sessions found:', response.data.chatSessions.length);
+            
+            // Convert timestamp strings to Date objects
+            const backendSessions = response.data.chatSessions.map(session => ({
+              ...session,
+              timestamp: new Date(session.timestamp),
+              isLocalStorage: false
+            }));
+            
+            allChats = [...backendSessions];
+          }
+        } catch (error) {
+          console.error('❌ Error loading backend chat history:', error);
+        }
+      }
+      
+      // Load from localStorage for all users
+      try {
+        const localChats = JSON.parse(localStorage.getItem('localChatHistory') || '[]');
+        console.log('📥 LocalStorage chats found:', localChats.length);
         
         // Convert timestamp strings to Date objects
-        const formattedSessions = response.data.chatSessions.map(session => ({
-          ...session,
-          timestamp: new Date(session.timestamp)
+        const formattedLocalChats = localChats.map(chat => ({
+          ...chat,
+          timestamp: new Date(chat.timestamp),
+          isLocalStorage: true
         }));
         
-        setChatHistory(formattedSessions);
-      } else {
-        console.log('ℹ️ No chat sessions found or invalid response');
-        setChatHistory([]);
+        // Combine backend and localStorage chats, with localStorage chats first
+        allChats = [...formattedLocalChats, ...allChats];
+      } catch (error) {
+        console.error('❌ Error loading localStorage chat history:', error);
       }
+      
+      // Sort by timestamp (newest first)
+      allChats.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+      
+      setChatHistory(allChats);
+      console.log('✅ Total chats loaded:', allChats.length);
+      
     } catch (error) {
       console.error('❌ Error loading chat history:', error);
-      // If user is not logged in, use empty array
       setChatHistory([]);
     } finally {
       setIsLoadingHistory(false);
@@ -244,16 +527,47 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
   // Load specific chat session
   const loadSelectedChat = async (sessionId) => {
     try {
-      const response = await getChatSession(sessionId);
-      if (response.success && response.data.chatSession) {
-        // Convert message timestamps to Date objects
-        const messagesWithDates = response.data.chatSession.messages.map(message => ({
+      // First check if it's a localStorage chat
+      const localChats = JSON.parse(localStorage.getItem('localChatHistory') || '[]');
+      const localChat = localChats.find(chat => chat.sessionId === sessionId);
+      
+      if (localChat) {
+        // Load from localStorage
+        console.log('📥 Loading chat from localStorage:', sessionId);
+        const messagesWithDates = localChat.messages.map(message => ({
           ...message,
           timestamp: new Date(message.timestamp)
         }));
         setMessages(messagesWithDates);
         setSessionId(sessionId);
+        return;
       }
+      
+      // If not found in localStorage, try backend (for authenticated users)
+      if (isAuth) {
+        const response = await getChatSession(sessionId);
+        if (response.success && response.data.chatSession) {
+          // Convert message timestamps to Date objects
+          const messagesWithDates = response.data.chatSession.messages.map(message => ({
+            ...message,
+            timestamp: new Date(message.timestamp)
+          }));
+          setMessages(messagesWithDates);
+          setSessionId(sessionId);
+          return;
+        }
+      }
+      
+      // If not found anywhere, fallback to default message
+      console.error('Chat session not found:', sessionId);
+      setMessages([
+        {
+          id: 1,
+          type: 'bot',
+          text: "Ask me anything about damp and mould",
+          timestamp: new Date()
+        }
+      ]);
     } catch (error) {
       console.error('Error loading chat session:', error);
       // Fallback to default message if session not found
@@ -261,7 +575,7 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
         {
           id: 1,
           type: 'bot',
-          text: "Ask me anything about damp and mould",
+          text: "Ask me anything about damp and mould",
           timestamp: new Date()
         }
       ]);
@@ -363,7 +677,25 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
     }
   };
 
-   const startNewChat = () => {
+  const startNewChat = () => {
+    // Check if there are meaningful messages (more than just the initial bot message)
+    const hasUserMessages = messages.some(msg => msg.type === 'user');
+    
+    if (hasUserMessages) {
+      // If user is logged in, save chat directly and start new chat
+      if (isAuth) {
+        handleSaveCurrentChatDirectly();
+      } else {
+        // If user is not logged in, show confirmation dialog
+        setShowNewChatConfirmation(true);
+      }
+    } else {
+      // No user messages, proceed directly with new chat
+      proceedWithNewChat();
+    }
+  };
+
+  const proceedWithNewChat = () => {
     // Generate new session ID with proper UUID v4 format
     const generateUUID = () => {
       const crypto = window.crypto || window.msCrypto;
@@ -387,7 +719,7 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
       {
         id: 1,
         type: 'bot',
-        text: "Ask me anything about damp and mould",
+        text: "Ask me anything about damp and mould",
         timestamp: new Date()
       }
     ]);
@@ -396,6 +728,7 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
     setIsLoading(false);
     setIsTyping(false);
     setShowChatHistory(false);
+    setShowNewChatConfirmation(false);
     
     // Focus on textarea after reset
     setTimeout(() => {
@@ -408,10 +741,8 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
   const handleShowChatHistory = () => {
     console.log('📋 Opening chat history...');
     setShowChatHistory(true);
-    // Reload chat history when opening modal
-    if (isAuth) {
-      loadChatHistory();
-    }
+    // Reload chat history when opening modal (now works for all users)
+    loadChatHistory();
   };
 
   const handleCloseChatHistory = () => {
@@ -455,7 +786,24 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
       const chatToEdit = chatHistory.find(chat => chat.id === editingChatId);
       if (!chatToEdit) return;
       
-      await updateChatSessionTitle(chatToEdit.sessionId, editTitle.trim());
+      // Check if it's a localStorage chat
+      if (chatToEdit.isLocalStorage) {
+        // Update in localStorage
+        const localChats = JSON.parse(localStorage.getItem('localChatHistory') || '[]');
+        const updatedLocalChats = localChats.map(chat => 
+          chat.sessionId === chatToEdit.sessionId 
+            ? { ...chat, title: editTitle.trim() }
+            : chat
+        );
+        localStorage.setItem('localChatHistory', JSON.stringify(updatedLocalChats));
+        
+        console.log('✏️ Chat title updated in localStorage:', chatToEdit.sessionId);
+      } else {
+        // Update in backend (for authenticated users)
+        if (isAuth) {
+          await updateChatSessionTitle(chatToEdit.sessionId, editTitle.trim());
+        }
+      }
       
       // Update local state
       setChatHistory(prev => prev.map(chat => 
@@ -485,7 +833,20 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
     }
     
     try {
-      await deleteChatSession(chat.sessionId);
+      // Check if it's a localStorage chat
+      if (chat.isLocalStorage) {
+        // Delete from localStorage
+        const localChats = JSON.parse(localStorage.getItem('localChatHistory') || '[]');
+        const updatedLocalChats = localChats.filter(c => c.sessionId !== chat.sessionId);
+        localStorage.setItem('localChatHistory', JSON.stringify(updatedLocalChats));
+        
+        console.log('🗑️ Chat deleted from localStorage:', chat.sessionId);
+      } else {
+        // Delete from backend (for authenticated users)
+        if (isAuth) {
+          await deleteChatSession(chat.sessionId);
+        }
+      }
       
       // Remove from local state
       setChatHistory(prev => prev.filter(c => c.id !== chat.id));
@@ -498,6 +859,107 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
       console.error('Error deleting chat:', error);
       alert('Failed to delete chat. Please try again.');
     }
+  };
+
+  // Handle saving current chat from confirmation dialog
+  const handleSaveCurrentChat = async () => {
+    // Generate title and preview from first user message
+    const firstUserMessage = messages.find(msg => msg.type === 'user');
+    const title = firstUserMessage ? generateAITitle(firstUserMessage.text) : 'New Chat';
+    const preview = firstUserMessage ? firstUserMessage.text : '';
+    
+    // Check if user is authenticated
+    if (!isAuth) {
+      // Save chat to localStorage for logged-out users
+      try {
+        const chatData = {
+          id: Date.now(),
+          sessionId,
+          title,
+          preview,
+          messages: messages.map(msg => ({
+            id: msg.id,
+            type: msg.type,
+            text: msg.text,
+            timestamp: msg.timestamp instanceof Date ? msg.timestamp.toISOString() : msg.timestamp
+          })),
+          timestamp: new Date().toISOString(),
+          isLocalStorage: true // Flag to identify localStorage chats
+        };
+        
+        // Get existing localStorage chats
+        const existingChats = JSON.parse(localStorage.getItem('localChatHistory') || '[]');
+        
+        // Add new chat to localStorage
+        const updatedChats = [chatData, ...existingChats];
+        localStorage.setItem('localChatHistory', JSON.stringify(updatedChats));
+        
+        console.log('💾 Chat saved to localStorage successfully');
+        
+        // Show success message
+        alert('Chat saved successfully! You can access it after logging in.');
+        
+        // Close the confirmation dialog
+        setShowNewChatConfirmation(false);
+        
+        // Proceed with new chat
+        proceedWithNewChat();
+        
+        return;
+      } catch (error) {
+        console.error('Error saving chat to localStorage:', error);
+        alert('Failed to save chat to local storage. Please try again.');
+        return;
+      }
+    }
+
+    // User is already authenticated, save immediately
+    try {
+      const success = await saveChatToBackend(title, preview);
+      if (success) {
+        // Show success message or just proceed with new chat
+        proceedWithNewChat();
+      } else {
+        // If save failed, still allow user to proceed or cancel
+        alert('Failed to save chat. You can still proceed with new chat or cancel to continue current chat.');
+      }
+    } catch (error) {
+      console.error('Error saving current chat:', error);
+      alert('Failed to save chat. You can still proceed with new chat or cancel to continue current chat.');
+    }
+  };
+
+  // Handle saving current chat directly for logged-in users
+  const handleSaveCurrentChatDirectly = async () => {
+    try {
+      // Generate title from first user message
+      const firstUserMessage = messages.find(msg => msg.type === 'user');
+      const title = firstUserMessage ? generateAITitle(firstUserMessage.text) : 'New Chat';
+      const preview = firstUserMessage ? firstUserMessage.text : '';
+      
+      const success = await saveChatToBackend(title, preview);
+      if (success) {
+        // Proceed with new chat after successful save
+        proceedWithNewChat();
+      } else {
+        // If save failed, ask user what to do
+        const shouldContinue = confirm('Failed to save chat. Do you want to continue with new chat anyway?');
+        if (shouldContinue) {
+          proceedWithNewChat();
+        }
+      }
+    } catch (error) {
+      console.error('Error saving current chat:', error);
+      const shouldContinue = confirm('Failed to save chat. Do you want to continue with new chat anyway?');
+      if (shouldContinue) {
+        proceedWithNewChat();
+      }
+    }
+  };
+
+  // Handle closing new chat confirmation dialog
+  const handleCloseNewChatConfirmation = () => {
+    setShowNewChatConfirmation(false);
   };
 
   const formatDate = (date) => {
@@ -726,7 +1188,8 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
             </div>
           </div>
                      <div className="flex items-center space-x-2 md:space-x-3">
-             {isAuth ? (
+             {/* Saved Chats button - shown only for authenticated users */}
+             {isAuth && (
                <button
                  onClick={handleShowChatHistory}
                  className="group bg-white/10 hover:bg-white/20 rounded-lg md:rounded-xl px-3 md:px-4 py-2 md:py-3 transition-all duration-200 flex items-center justify-center backdrop-blur-sm border border-white/10 hover:scale-105 active:scale-95 shadow-lg"
@@ -734,11 +1197,14 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
                >
                  <span className="text-white text-xs md:text-sm font-medium">Saved Chats</span>
                </button>
-             ) : (
+             )}
+             
+             {/* Login button - shown only for non-authenticated users */}
+             {!isAuth && (
                <button
                  onClick={handleLoginClick}
                  className="group bg-white/10 hover:bg-white/20 rounded-lg md:rounded-xl px-3 md:px-4 py-2 md:py-3 transition-all duration-200 flex items-center justify-center backdrop-blur-sm border border-white/10 hover:scale-105 active:scale-95 shadow-lg"
-                 title="Login to Save Chat History"
+                 title="Login to Sync with Cloud"
                >
                  <svg className="w-5 h-5 md:w-6 md:h-6 text-white mr-1 md:mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
@@ -746,36 +1212,37 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
                  <span className="text-white text-xs md:text-sm font-medium hidden md:block">Login</span>
                </button>
              )}
-            <button
-              onClick={startNewChat}
-              className="group bg-white/10 hover:bg-white/20 rounded-lg md:rounded-xl px-3 md:px-4 py-2 md:py-3 transition-all duration-200 flex items-center justify-center backdrop-blur-sm border border-white/10 hover:scale-105 active:scale-95 shadow-lg"
-              title="Start New Chat"
-            >
-              <svg className="w-4 h-4 md:w-5 md:h-5 text-white mr-1 md:mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              <span className="text-white text-xs md:text-sm font-medium hidden md:block">New Chat</span>
-            </button>
-            <button
-              onClick={onClose}
-              className="group bg-white/10 hover:bg-white/20 rounded-lg md:rounded-xl w-10 h-10 md:w-12 md:h-12 transition-all duration-200 flex items-center justify-center backdrop-blur-sm border border-white/10 hover:scale-105 active:scale-95 shadow-lg"
-            >
-              <svg className="w-5 h-5 md:w-6 md:h-6 text-white transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-        </div>
-      </div>
-      
-      {/* Enhanced Chat Container */}
-      <div className="flex-1 relative overflow-y-auto pb-24 md:pb-32">
-        <div className="max-w-4xl mx-auto px-4 md:px-6 py-4 md:py-8">
-          <div className="space-y-4 md:space-y-6">
-            {messages.map((message, index) => (
-              <div key={message.id} className={`group animate-in slide-in-from-bottom-2 duration-500 ${message.type === 'user' ? 'flex justify-end' : 'flex justify-start'}`} style={{ animationDelay: `${index * 100}ms` }}>
-                {message.type === 'user' ? (
-                  <div className="max-w-[85%] md:max-w-[80%] relative">
+             
+             <button
+               onClick={startNewChat}
+               className="group bg-white/10 hover:bg-white/20 rounded-lg md:rounded-xl px-3 md:px-4 py-2 md:py-3 transition-all duration-200 flex items-center justify-center backdrop-blur-sm border border-white/10 hover:scale-105 active:scale-95 shadow-lg"
+               title="Start New Chat"
+             >
+               <svg className="w-4 h-4 md:w-5 md:h-5 text-white mr-1 md:mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+               </svg>
+               <span className="text-white text-xs md:text-sm font-medium hidden md:block">New Chat</span>
+             </button>
+             <button
+               onClick={onClose}
+               className="group bg-white/10 hover:bg-white/20 rounded-lg md:rounded-xl w-10 h-10 md:w-12 md:h-12 transition-all duration-200 flex items-center justify-center backdrop-blur-sm border border-white/10 hover:scale-105 active:scale-95 shadow-lg"
+             >
+               <svg className="w-5 h-5 md:w-6 md:h-6 text-white transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+               </svg>
+             </button>
+           </div>
+         </div>
+       </div>
+       
+       {/* Enhanced Chat Container */}
+       <div className="flex-1 relative overflow-y-auto pb-24 md:pb-32">
+         <div className="max-w-4xl mx-auto px-4 md:px-6 py-4 md:py-8">
+           <div className="space-y-4 md:space-y-6">
+             {messages.map((message, index) => (
+               <div key={message.id} className={`group animate-in slide-in-from-bottom-2 duration-500 ${message.type === 'user' ? 'flex justify-end' : 'flex justify-start'}`} style={{ animationDelay: `${index * 100}ms` }}>
+                 {message.type === 'user' ? (
+                   <div className="max-w-[85%] md:max-w-[80%] relative">
                                          <div className="bg-purple-500 text-white px-4 md:px-6 py-3 md:py-4 rounded-2xl md:rounded-3xl rounded-br-lg shadow-xl shadow-purple-500/25 hover:shadow-2xl hover:shadow-purple-500/30 transition-all duration-300 relative group">
                        <p className="text-sm md:text-base leading-relaxed font-medium">{message.text}</p>
                        <div className="absolute inset-0 bg-purple-400/20 rounded-2xl md:rounded-3xl rounded-br-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
@@ -931,11 +1398,22 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
                      <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
              <div className="min-w-[0] max-w-[95vw] w-full sm:w-[400px] lg:w-[450px] bg-white rounded-3xl shadow-2xl pointer-events-auto flex flex-col mx-2 sm:mx-0 overflow-hidden">
               {/* Header */}
-                            <div className="flex items-center justify-between bg-gradient-to-r from-amber-500 to-orange-500 text-white p-6 sm:p-8 m-0">
+              <div className="flex items-center justify-between bg-gradient-to-r from-amber-500 to-orange-500 text-white p-6 sm:p-8 m-0">
                 <div className="flex items-center space-x-4">
                   <div className="flex-1">
                     <h2 className="text-xl sm:text-2xl font-bold">Saved Chats</h2>
-                    <p className="text-sm opacity-90">Select a previous chat or start new conversation</p>
+                    <p className="text-sm opacity-90">
+                      {isAuth 
+                        ? 'Select a previous chat or start new conversation' 
+                        : 'Your local chats (login to sync with cloud)'
+                      }
+                    </p>
+                    {isMigrating && (
+                      <div className="flex items-center space-x-2 mt-2">
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        <span className="text-xs opacity-90">Migrating chats to cloud...</span>
+                      </div>
+                    )}
                   </div>
                 </div>
                 <button
@@ -1029,10 +1507,17 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
                                   onClick={() => handleSelectChat(chat)}
                                   className="flex-1 text-left flex items-center space-x-3 min-w-0"
                                 >
-                                  <div className="w-2 h-2 bg-amber-500 rounded-full flex-shrink-0"></div>
-                                  <h4 className="font-medium text-gray-900 group-hover:text-amber-700 transition-colors truncate">
-                                    {chat.title}
-                                  </h4>
+                                  <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                                    chat.isLocalStorage ? 'bg-blue-500' : 'bg-amber-500'
+                                  }`}></div>
+                                  <div className="flex-1 min-w-0">
+                                    <h4 className="font-medium text-gray-900 group-hover:text-amber-700 transition-colors truncate">
+                                      {chat.title}
+                                    </h4>
+                                    {chat.isLocalStorage && (
+                                      <p className="text-xs text-blue-600 font-medium">Local Storage</p>
+                                    )}
+                                  </div>
                                 </button>
                                 <div className="flex items-center space-x-2 ml-3">
                                   <button
@@ -1077,9 +1562,76 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
                       </svg>
                     </div>
                     <p className="text-xl font-medium text-gray-700 mb-2">No previous chats</p>
-                    <p className="text-sm text-gray-500">Start your first conversation with D&M AI</p>
+                    <p className="text-sm text-gray-500">
+                      {isAuth 
+                        ? 'Start your first conversation with D&M AI' 
+                        : 'Start a conversation and save it locally'
+                      }
+                    </p>
                   </div>
                 )}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* New Chat Confirmation Modal */}
+      {showNewChatConfirmation && (
+        <>
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60] pointer-events-none"></div>
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+            <div className="min-w-[0] max-w-[95vw] w-full sm:w-[400px] lg:w-[450px] bg-white rounded-3xl shadow-2xl pointer-events-auto flex flex-col mx-2 sm:mx-0 overflow-hidden">
+              {/* Header */}
+              <div className="flex items-center justify-between bg-gradient-to-r from-orange-500 to-red-500 text-white p-6 sm:p-8 m-0">
+                <div className="flex items-center space-x-4">
+                  <div className="flex-1">
+                    <h2 className="text-xl sm:text-2xl font-bold">Start New Chat?</h2>
+                    <p className="text-sm opacity-90">This action will clear your current conversation</p>
+                  </div>
+                </div>
+                <button
+                  onClick={handleCloseNewChatConfirmation}
+                  className="bg-white/10 hover:bg-white/20 text-white transition-all p-3 rounded-full shadow-lg hover:scale-105 active:scale-95"
+                  aria-label="Close"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              
+              {/* Content */}
+              <div className="w-full bg-white p-6 sm:p-8 flex flex-col gap-6 pointer-events-auto">
+                <div className="text-center">
+                  <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg className="w-8 h-8 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                    </svg>
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Are you sure you want to leave <br />your existing chat?</h3>
+                  <p className="text-sm text-gray-600 mb-6">
+                    Starting a new chat will clear your current conversation. If you haven't saved this chat, it will be lost.
+                  </p>
+                </div>
+
+                <div className="space-y-3">
+                  {/* Save Chat Button - shown for both authenticated and non-authenticated users */}
+                  <button
+                    onClick={handleSaveCurrentChat}
+                    className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-semibold py-4 px-6 rounded-xl transition-all flex items-center justify-center shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98]"
+                  >
+                    <span>{isAuth ? 'Save Chat' : 'Save Chat'}</span>
+                  </button>
+
+                  {/* Continue Without Saving Button */}
+                  <button
+                    onClick={proceedWithNewChat}
+                    className="w-full bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white font-semibold py-4 px-6 rounded-xl transition-all flex items-center justify-center shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98]"
+                  >
+                    <span>Continue Without Saving</span>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
