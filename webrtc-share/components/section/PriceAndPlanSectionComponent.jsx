@@ -19,12 +19,11 @@ export default function PriceAndPlan() {
   const plans = [
     {
       black: "Standard",
-      name: "Free",
       price: "",
-      description: "For getting started",
+      description: "",
       subtitle: "No payment card needed",
       highlight: [],
-      buttonText: "Sign up for free",
+      buttonText: "For getting started",
       buttonVariant: "default",
       features: [
         "Up to 15 free video links per user",
@@ -47,10 +46,10 @@ export default function PriceAndPlan() {
     {
       name: "Plus Account",
       price: "",
-      description: "For small teams",
+      description: "",
       subtitle: "Everything in Basic, and:",
       highlight: ["Basic,"],
-      buttonText: "Email: PlusAccount@Videodesk.co.uk",
+      buttonText: "For small teams",
       buttonVariant: "default",
       features: [
         "Up to 60 free video links per user",
@@ -73,10 +72,10 @@ export default function PriceAndPlan() {
     {
       name: "Professional",
       price: "",
-      description: "For large teams",
+      description: "",
       subtitle: "Everything in Plus, and:",
       highlight: ["Plus,"],
-      buttonText: "Try free for 14 days",
+      buttonText: "For large teams",
       buttonVariant: "default",
       features: [
         "Unlimited links to send by text or email",
@@ -97,10 +96,10 @@ export default function PriceAndPlan() {
     {
       name: "Enterprise",
       price: "",
-      description: "For large businesses",
+      description: "",
       subtitle: "Everything in Professional, and:",
       highlight: ["Professional,"],
-      buttonText: "Contact us",
+      buttonText: "For large businesses",
       buttonVariant: "default",
       features: [
         "Dedicated Account Manager",
@@ -283,25 +282,8 @@ export default function PriceAndPlan() {
                     <CardTitle className="text-2xl md:text-3xl font-bold text-black">{plan.black}</CardTitle>
                   }
                   <CardTitle className="text-2xl md:text-3xl font-bold text-amber-400">
-                    {plan.name != "Free" && `${plan.name}`}
-                    {plan.name == "Free" && <TypeAnimation
-                      sequence={[
-                        'Free',
-                        15000,
-                        '',
-                        500
-                      ]}
-                      wrapper="span"
-                      speed={400}
-                      style={{ fontSize: '28px', display: 'inline-block' }}
-                      className="md:text-3xl"
-                      repeat={Infinity}
-                    />}
-                  </CardTitle>
-                  {
-                    plan.price &&
-                    <div className="text-2xl md:text-3xl font-bold text-amber-400">{plan.price}</div>
-                  }
+                    {plan.name}
+                  </CardTitle>           
                 </div>
                 <p className="text-sm md:text-md font-semibold text-black mb-2">{plan.description}</p>
                 {plan.subtitle && <p className="text-xs md:text-sm text-gray-600 font-normal">{plan.subtitle?.split(" ").map((word, wordIndex) => (

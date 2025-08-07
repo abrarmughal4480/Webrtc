@@ -2,17 +2,37 @@ import { api } from './index.js';
 
 // Chat History API calls
 export const getChatSessions = async () => {
-  console.log('🌐 Making GET request to /chat/sessions');
-  const response = await api.get("/chat/sessions");
-  console.log('📥 GET /chat/sessions response:', response);
-  return response.data;
+  console.log('🌐 [getChatSessions] Making GET request to /chat/sessions');
+  try {
+    const response = await api.get("/chat/sessions");
+    console.log('📥 [getChatSessions] Response received:', response);
+    console.log('📥 [getChatSessions] Response data:', response.data);
+    console.log('📥 [getChatSessions] Response status:', response.status);
+    return response.data;
+  } catch (error) {
+    console.error('❌ [getChatSessions] Error:', error);
+    console.error('❌ [getChatSessions] Error response:', error.response);
+    console.error('❌ [getChatSessions] Error status:', error.response?.status);
+    console.error('❌ [getChatSessions] Error data:', error.response?.data);
+    throw error;
+  }
 };
 
 export const saveChatSession = async (formData) => {
-  console.log('🌐 Making POST request to /chat/sessions with data:', formData);
-  const response = await api.post("/chat/sessions", formData);
-  console.log('📥 POST /chat/sessions response:', response);
-  return response.data;
+  console.log('🌐 [saveChatSession] Making POST request to /chat/sessions with data:', formData);
+  try {
+    const response = await api.post("/chat/sessions", formData);
+    console.log('📥 [saveChatSession] Response received:', response);
+    console.log('📥 [saveChatSession] Response data:', response.data);
+    console.log('📥 [saveChatSession] Response status:', response.status);
+    return response.data;
+  } catch (error) {
+    console.error('❌ [saveChatSession] Error:', error);
+    console.error('❌ [saveChatSession] Error response:', error.response);
+    console.error('❌ [saveChatSession] Error status:', error.response?.status);
+    console.error('❌ [saveChatSession] Error data:', error.response?.data);
+    throw error;
+  }
 };
 
 export const getChatSession = async (sessionId) => {

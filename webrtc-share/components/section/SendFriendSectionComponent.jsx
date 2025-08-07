@@ -22,6 +22,14 @@ const SendFriendSectionComponent = () => {
             return;
         }
 
+        // Check if user has resident role
+        if (user?.role === 'resident') {
+            toast("Access Restricted", {
+                description: "Resident users cannot send links to friends"
+            });
+            return;
+        }
+
         if (!fromName || !friendEmail || !message) {
             toast("All fields required", {
                 description: "Please fill in all fields"
@@ -68,10 +76,11 @@ const SendFriendSectionComponent = () => {
                         <input
                             type="text"
                             placeholder="From: Enter your name"
-                            className="w-full px-3 md:px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white border-none text-sm md:text-base"
+                            className={`w-full px-3 md:px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white border-none text-sm md:text-base${user?.role === 'resident' ? ' cursor-not-allowed opacity-50' : ''}`}
                             value={fromName}
                             onChange={(e) => setFromName(e.target.value)}
                             required
+                            disabled={user?.role === 'resident'}
                             suppressHydrationWarning={true}
                         />
                     </div>
@@ -80,10 +89,11 @@ const SendFriendSectionComponent = () => {
                         <input
                             type="email"
                             placeholder="Enter email for friend or co-worker..."
-                            className="w-full px-3 md:px-4 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white border-none text-sm md:text-base"
+                            className={`w-full px-3 md:px-4 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white border-none text-sm md:text-base${user?.role === 'resident' ? ' cursor-not-allowed opacity-50' : ''}`}
                             value={friendEmail}
                             onChange={(e) => setFriendEmail(e.target.value)}
                             required
+                            disabled={user?.role === 'resident'}
                             suppressHydrationWarning={true}
                         />
                     </div>
@@ -91,19 +101,20 @@ const SendFriendSectionComponent = () => {
                     <div className="flex-1 w-full rounded-md focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white border-none flex items-center">
                         <textarea
                             placeholder="Enter your message..."
-                            className="w-full px-3 md:px-4 py-2 border-none outline-none flex-1 bg-white rounded-md resize-none text-sm md:text-base"
+                            className={`w-full px-3 md:px-4 py-2 border-none outline-none flex-1 bg-white rounded-md resize-none text-sm md:text-base${user?.role === 'resident' ? ' cursor-not-allowed opacity-50' : ''}`}
                             value={message}
                             onChange={(e) => setMessage(e.target.value)}
                             rows={2}
                             required
+                            disabled={user?.role === 'resident'}
                             suppressHydrationWarning={true}
                         />
                     </div>
 
                     <button 
                         type="submit"
-                        disabled={isLoading}
-                        className="bg-green-500 hover:bg-green-600 disabled:bg-gray-400 text-white rounded-md h-[auto] w-full md:w-[auto] p-2 md:p-[0.30rem] md:mr-1 text-sm md:text-lg cursor-pointer flex items-center gap-1 md:gap-1 justify-center transition-colors"
+                        disabled={isLoading || user?.role === 'resident'}
+                        className={`bg-green-500 hover:bg-green-600 disabled:bg-gray-400 text-white rounded-md h-[auto] w-full md:w-[auto] p-2 md:p-[0.30rem] md:mr-1 text-sm md:text-lg cursor-pointer flex items-center gap-1 md:gap-1 justify-center transition-colors${user?.role === 'resident' ? ' cursor-not-allowed' : ''}`}
                     >
                         {isLoading ? (
                             <>

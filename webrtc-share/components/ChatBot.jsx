@@ -3,6 +3,9 @@ import React, { useEffect, useRef, useState } from "react";
 import { getChatSessions, saveChatSession, getChatSession, deleteChatSession, updateChatSessionTitle, updateMessageFeedback } from '../http/chatHttp.js';
 import { useUser } from '../provider/UserProvider.js';
 import { toast } from "sonner";
+import { createPortal } from 'react-dom';
+import { registerResidentRequest, loginRequest, verifyRequest } from '../http/authHttp.js';
+import { X, Loader2 } from 'lucide-react';
 
 // Enhanced markdown parser for comprehensive formatting
 const parseMarkdown = (text) => {
@@ -37,7 +40,11 @@ const parseMarkdown = (text) => {
 
 // AI Title Generator - Creates smart titles for chat sessions
 const generateAITitle = (message) => {
-  if (!message || typeof message !== 'string') return 'New Chat';
+  console.log('🎯 [generateAITitle] Input message:', message);
+  if (!message || typeof message !== 'string') {
+    console.log('🎯 [generateAITitle] Invalid message, returning default');
+    return 'New Chat';
+  }
   
   const text = message.toLowerCase().trim();
   
@@ -102,6 +109,7 @@ const generateAITitle = (message) => {
     title = title.substring(0, 47) + '...';
   }
   
+  console.log('🎯 [generateAITitle] Generated title:', title);
   return title;
 };
 
@@ -126,14 +134,17 @@ const isGreetingMessage = (message) => {
 };
 
 export default function ChatBot({ isOpen, onClose, selectedChat }) {
-  const { isAuth } = useUser();
+  const { isAuth, loadMe, user } = useUser();
+  console.log('🔍 [ChatBot] Component rendered with:', { isAuth, user });
+  
   const textareaRef = useRef(null);
+  const saveInProgressRef = useRef(false);
   const messagesEndRef = useRef(null);
   const [messages, setMessages] = useState([
     {
       id: 1,
       type: 'bot',
-      text: "Ask me anything about damp and mould",
+      text: "Ask me anything about damp and mould",
       timestamp: new Date()
     }
   ]);
@@ -178,6 +189,21 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
 
   // Migration state
   const [isMigrating, setIsMigrating] = useState(false);
+
+  // Save Chat popup state
+  const [showSaveChatPopup, setShowSaveChatPopup] = useState(false);
+  const [isSignupMode, setIsSignupMode] = useState(true);
+  const [signupEmail, setSignupEmail] = useState('');
+  const [signupPassword, setSignupPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [isSignupLoading, setIsSignupLoading] = useState(false);
+  const [isLoginLoading, setIsLoginLoading] = useState(false);
+  const [isAuthInProgress, setIsAuthInProgress] = useState(false);
+  const [showOTPInput, setShowOTPInput] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
+  const [isOtpLoading, setIsOtpLoading] = useState(false);
+  const [otpBlocks, setOtpBlocks] = useState(['', '', '', '']);
+  const otpInputRefs = useRef([]);
 
   // Manual migration function for debugging
   const triggerMigration = async () => {
@@ -315,8 +341,12 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
 
   // Load chat history when component opens
   useEffect(() => {
+    console.log('🔄 [ChatBot] useEffect triggered for chat history load:', { isOpen, isAuth });
     if (isOpen && isAuth) {
+      console.log('🔄 [ChatBot] Loading chat history...');
       loadChatHistory();
+    } else {
+      console.log('🔄 [ChatBot] Skipping chat history load:', { isOpen, isAuth });
     }
   }, [isOpen, isAuth]);
 
@@ -464,7 +494,8 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
   // Load chat history from backend and localStorage
   const loadChatHistory = async () => {
     try {
-      console.log('🔄 Loading chat history...');
+      console.log('🔄 [loadChatHistory] Loading chat history...');
+      console.log('🔄 [loadChatHistory] isAuth:', isAuth);
       setIsLoadingHistory(true);
       
       let allChats = [];
@@ -472,11 +503,12 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
       if (isAuth) {
         // Load from backend for authenticated users
         try {
+          console.log('🌐 [loadChatHistory] Making backend request for chat sessions...');
           const response = await getChatSessions();
-          console.log('📥 Chat history response:', response);
+          console.log('📥 [loadChatHistory] Chat history response:', response);
           
           if (response && response.data && response.data.chatSessions) {
-            console.log('✅ Chat sessions found:', response.data.chatSessions.length);
+            console.log('✅ [loadChatHistory] Chat sessions found:', response.data.chatSessions.length);
             
             // Convert timestamp strings to Date objects
             const backendSessions = response.data.chatSessions.map(session => ({
@@ -486,16 +518,26 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
             }));
             
             allChats = [...backendSessions];
+            console.log('✅ [loadChatHistory] Backend sessions processed:', backendSessions.length);
+          } else {
+            console.log('ℹ️ [loadChatHistory] No chat sessions in response or empty data');
           }
         } catch (error) {
-          console.error('❌ Error loading backend chat history:', error);
+          console.error('❌ [loadChatHistory] Error loading backend chat history:', error);
+          console.error('❌ [loadChatHistory] Error details:', {
+            message: error.message,
+            status: error.response?.status,
+            data: error.response?.data
+          });
         }
+      } else {
+        console.log('ℹ️ [loadChatHistory] User not authenticated, skipping backend request');
       }
       
       // Load from localStorage for all users
       try {
         const localChats = JSON.parse(localStorage.getItem('localChatHistory') || '[]');
-        console.log('📥 LocalStorage chats found:', localChats.length);
+        console.log('📥 [loadChatHistory] LocalStorage chats found:', localChats.length);
         
         // Convert timestamp strings to Date objects
         const formattedLocalChats = localChats.map(chat => ({
@@ -506,18 +548,19 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
         
         // Combine backend and localStorage chats, with localStorage chats first
         allChats = [...formattedLocalChats, ...allChats];
+        console.log('✅ [loadChatHistory] Combined chats:', allChats.length);
       } catch (error) {
-        console.error('❌ Error loading localStorage chat history:', error);
+        console.error('❌ [loadChatHistory] Error loading localStorage chat history:', error);
       }
       
       // Sort by timestamp (newest first)
       allChats.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
       
       setChatHistory(allChats);
-      console.log('✅ Total chats loaded:', allChats.length);
+      console.log('✅ [loadChatHistory] Total chats loaded:', allChats.length);
       
     } catch (error) {
-      console.error('❌ Error loading chat history:', error);
+      console.error('❌ [loadChatHistory] Error loading chat history:', error);
       setChatHistory([]);
     } finally {
       setIsLoadingHistory(false);
@@ -527,6 +570,9 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
   // Load specific chat session
   const loadSelectedChat = async (sessionId) => {
     try {
+      // Reset save flag when loading a chat
+      saveInProgressRef.current = false;
+      
       // First check if it's a localStorage chat
       const localChats = JSON.parse(localStorage.getItem('localChatHistory') || '[]');
       const localChat = localChats.find(chat => chat.sessionId === sessionId);
@@ -585,7 +631,14 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
   // Save chat session to backend
   const saveChatToBackend = async (title, preview) => {
     try {
-      console.log('💾 Saving chat session...', { sessionId, title, preview, messageCount: messages.length });
+      console.log('💾 [saveChatToBackend] Saving chat session...', { sessionId, title, preview, messageCount: messages.length });
+      console.log('💾 [saveChatToBackend] User authenticated:', isAuth);
+      
+      // Check if user is authenticated before attempting to save
+      if (!isAuth) {
+        console.log('ℹ️ [saveChatToBackend] User not authenticated, cannot save chat session');
+        return false;
+      }
       
       // Get current messages state with proper structure
       const currentMessages = messages.map(msg => ({
@@ -595,13 +648,23 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
         timestamp: msg.timestamp instanceof Date ? msg.timestamp.toISOString() : msg.timestamp
       }));
       
+      console.log('💾 [saveChatToBackend] Sending data to backend:', {
+        sessionId,
+        title,
+        preview,
+        messageCount: currentMessages.length
+      });
+      
       const response = await saveChatSession({
         sessionId,
         title,
         preview,
         messages: currentMessages
       });
-      console.log('✅ Chat session saved successfully:', response);
+      console.log('✅ [saveChatToBackend] Chat session saved successfully:', response);
+      
+      // Show success message
+      toast.success('Chat saved successfully!');
       
       // Reload chat history after saving
       setTimeout(() => {
@@ -610,21 +673,25 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
       
       return true;
     } catch (error) {
-      console.error('❌ Error saving chat session:', error);
+      console.error('❌ [saveChatToBackend] Error saving chat session:', error);
       
       // Handle specific error cases
       if (error.response?.status === 401) {
-        console.log('ℹ️ User not authenticated, chat will not be saved');
+        console.log('ℹ️ [saveChatToBackend] User not authenticated, chat will not be saved');
+        toast.error('Please log in to save your chat');
         return false;
       } else if (error.response?.status === 500) {
-        console.error('❌ Server error while saving chat session');
-        console.log('ℹ️ Chat will continue working but may not be saved to history');
+        console.error('❌ [saveChatToBackend] Server error while saving chat session');
+        console.log('ℹ️ [saveChatToBackend] Chat will continue working but may not be saved to history');
+        toast.error('Server error while saving chat. Please try again later.');
         return false;
       } else if (error.response?.status === 400) {
-        console.error('❌ Bad request while saving chat session');
+        console.error('❌ [saveChatToBackend] Bad request while saving chat session');
+        toast.error('Invalid request. Please try again.');
         return false;
       } else {
-        console.error('❌ Unknown error while saving chat session:', error.message);
+        console.error('❌ [saveChatToBackend] Unknown error while saving chat session:', error.message);
+        toast.error('Failed to save chat. Please try again.');
         return false;
       }
     }
@@ -729,6 +796,7 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
     setIsTyping(false);
     setShowChatHistory(false);
     setShowNewChatConfirmation(false);
+    saveInProgressRef.current = false; // Reset save flag for new chat
     
     // Focus on textarea after reset
     setTimeout(() => {
@@ -750,13 +818,146 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
   };
 
   const handleLoginClick = () => {
-    // Trigger login popup by setting localStorage flag
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('openLoginPopup', 'true');
-      // Close the chat bot
-      onClose();
-      // Reload the page to trigger the login popup
-      window.location.reload();
+    // Show the save chat popup
+    setShowSaveChatPopup(true);
+    setIsSignupMode(true);
+    setSignupEmail('');
+    setSignupPassword('');
+    setConfirmPassword('');
+  };
+
+  const handleSignup = async () => {
+    if (!signupEmail || !signupPassword || !confirmPassword) {
+      toast.error('Please fill in all fields.');
+      return;
+    }
+    if (signupPassword !== confirmPassword) {
+      toast.error('Passwords do not match.');
+      return;
+    }
+    
+    setIsSignupLoading(true);
+    setIsAuthInProgress(true);
+    try {
+      await registerResidentRequest({ email: signupEmail, password: signupPassword });
+      toast.success('Account created successfully! Your chat will be saved.');
+      setShowSaveChatPopup(false);
+      
+      // Reload user data to update authentication state
+      await loadMe();
+      
+      // Wait a bit to ensure authentication state is updated
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Save the current chat after successful signup
+      await handleSaveCurrentChatDirectly(true);
+      
+      // Open chat history popup after successful signup
+      setTimeout(() => {
+        setShowChatHistory(true);
+      }, 1000);
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Signup failed. Please try again.');
+    } finally {
+      setIsSignupLoading(false);
+      setIsAuthInProgress(false);
+    }
+  };
+
+  const handleLogin = async () => {
+    if (!signupEmail || !signupPassword) {
+      toast.error('Please fill in all fields.');
+      return;
+    }
+    
+    setIsLoginLoading(true);
+    try {
+      await loginRequest({ email: signupEmail, password: signupPassword });
+      toast.success('OTP sent to your email. Please check and enter the code.');
+      setShowOTPInput(true);
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Login failed. Please try again.');
+    } finally {
+      setIsLoginLoading(false);
+    }
+  };
+
+  const handleOTPVerification = async () => {
+    if (!otpCode) {
+      toast.error('Please enter the OTP code.');
+      return;
+    }
+    
+    setIsOtpLoading(true);
+    setIsAuthInProgress(true);
+    try {
+      await verifyRequest({ OTP: otpCode });
+                toast.success('Login successful! Your chat will be saved.');
+          setShowSaveChatPopup(false);
+          setShowOTPInput(false);
+          setOtpCode('');
+          setOtpBlocks(['', '', '', '']);
+      
+      // Reload user data to update authentication state
+      await loadMe();
+      
+      // Wait a bit to ensure authentication state is updated
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Save the current chat after successful login
+      await handleSaveCurrentChatDirectly(true);
+      
+      // Open chat history popup after successful login
+      setTimeout(() => {
+        setShowChatHistory(true);
+      }, 1000);
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'OTP verification failed. Please try again.');
+    } finally {
+      setIsOtpLoading(false);
+      setIsAuthInProgress(false);
+    }
+  };
+
+  const closeSaveChatPopup = () => {
+    setShowSaveChatPopup(false);
+    setShowOTPInput(false);
+    setSignupEmail('');
+    setSignupPassword('');
+    setConfirmPassword('');
+    setOtpCode('');
+    setOtpBlocks(['', '', '', '']);
+  };
+
+  const handleOtpBlockChange = (index, value) => {
+    if (value.length > 1) return; // Only allow single digit
+    
+    const newBlocks = [...otpBlocks];
+    newBlocks[index] = value;
+    setOtpBlocks(newBlocks);
+    
+    // Update the combined OTP code
+    const combinedOtp = newBlocks.join('');
+    setOtpCode(combinedOtp);
+    
+    // Auto-focus next input if value is entered
+    if (value && index < 3) {
+      otpInputRefs.current[index + 1]?.focus();
+    }
+  };
+
+  const handleOtpKeyDown = (index, e) => {
+    // Handle backspace
+    if (e.key === 'Backspace' && !otpBlocks[index] && index > 0) {
+      otpInputRefs.current[index - 1]?.focus();
+    }
+    
+    // Handle Enter key
+    if (e.key === 'Enter') {
+      const combinedOtp = otpBlocks.join('');
+      if (combinedOtp.length === 4) {
+        handleOTPVerification();
+      }
     }
   };
 
@@ -930,8 +1131,24 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
   };
 
   // Handle saving current chat directly for logged-in users
-  const handleSaveCurrentChatDirectly = async () => {
+  const handleSaveCurrentChatDirectly = async (preventPopup = false) => {
     try {
+      // Check if user is authenticated
+      if (!isAuth) {
+        if (preventPopup) {
+          console.log('ℹ️ User not authenticated, but popup prevented - skipping save');
+          return;
+        }
+        console.log('ℹ️ User not authenticated, showing save chat popup');
+        // Show the save chat popup instead of trying to save directly
+        setShowSaveChatPopup(true);
+        setIsSignupMode(true);
+        setSignupEmail('');
+        setSignupPassword('');
+        setConfirmPassword('');
+        return;
+      }
+
       // Generate title from first user message
       const firstUserMessage = messages.find(msg => msg.type === 'user');
       const title = firstUserMessage ? generateAITitle(firstUserMessage.text) : 'New Chat';
@@ -1070,52 +1287,96 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
                      setMessages(prev => {
              const updatedMessages = [...prev, botMessage];
              
-             // Save chat session only after successful AI response
-             // Find the first non-greeting message to use as title
-             let title = undefined;
-             if (prev.length === 1) {
-               // This is the first user message, check if it's a greeting
-               if (!isGreetingMessage(currentMessage)) {
-                 title = generateAITitle(currentMessage);
-               }
-             } else {
-               // Check if we haven't set a title yet and this message is not a greeting
-               const allUserMessages = updatedMessages.filter(msg => msg.type === 'user');
-               const nonGreetingMessages = allUserMessages.filter(msg => !isGreetingMessage(msg.text));
+             // Save chat session only after successful AI response AND if user is authenticated
+             if (isAuth && !saveInProgressRef.current && !isAuthInProgress) {
+               saveInProgressRef.current = true;
                
-               if (nonGreetingMessages.length > 0 && !title) {
-                 // Use the first non-greeting message for title
-                 title = generateAITitle(nonGreetingMessages[0].text);
+               // Find the first non-greeting message to use as title
+               let title = 'New Chat'; // Default title
+               if (prev.length === 1) {
+                 // This is the first user message, check if it's a greeting
+                 if (!isGreetingMessage(currentMessage)) {
+                   title = generateAITitle(currentMessage);
+                 }
+               } else {
+                 // Check if we haven't set a title yet and this message is not a greeting
+                 const allUserMessages = updatedMessages.filter(msg => msg.type === 'user');
+                 const nonGreetingMessages = allUserMessages.filter(msg => !isGreetingMessage(msg.text));
+                 
+                 if (nonGreetingMessages.length > 0) {
+                   // Use the first non-greeting message for title
+                   title = generateAITitle(nonGreetingMessages[0].text);
+                 }
+               }
+               
+               const preview = currentMessage;
+               
+               console.log('💾 [sendMessage] Saving chat with title:', title);
+               
+               // Save chat immediately after successful response with updated messages
+               setTimeout(() => {
+                 // Use the updated messages for saving
+                 const messagesToSave = updatedMessages.map(msg => ({
+                   id: msg.id,
+                   type: msg.type,
+                   text: msg.text,
+                   timestamp: msg.timestamp instanceof Date ? msg.timestamp.toISOString() : msg.timestamp
+                 }));
+                 
+                 saveChatSession({
+                   sessionId,
+                   title,
+                   preview,
+                   messages: messagesToSave
+                 }).then(response => {
+                   console.log('✅ Chat saved successfully after AI response:', response);
+                   saveInProgressRef.current = false;
+                   // Reload chat history after saving
+                   setTimeout(() => {
+                     loadChatHistory();
+                   }, 500);
+                 }).catch(err => {
+                   console.log('ℹ️ Chat save failed but conversation continues:', err.message);
+                   saveInProgressRef.current = false;
+                 });
+               }, 100);
+             } else {
+               // User is not authenticated, save to localStorage instead
+               try {
+                 const firstUserMessage = updatedMessages.find(msg => msg.type === 'user');
+                 const title = firstUserMessage ? generateAITitle(firstUserMessage.text) : 'New Chat';
+                 const preview = firstUserMessage ? firstUserMessage.text : '';
+                 
+                 const chatData = {
+                   id: Date.now(),
+                   sessionId,
+                   title,
+                   preview,
+                   messages: updatedMessages.map(msg => ({
+                     id: msg.id,
+                     type: msg.type,
+                     text: msg.text,
+                     timestamp: msg.timestamp instanceof Date ? msg.timestamp.toISOString() : msg.timestamp
+                   })),
+                   timestamp: new Date().toISOString(),
+                   isLocalStorage: true
+                 };
+                 
+                 // Get existing localStorage chats
+                 const existingChats = JSON.parse(localStorage.getItem('localChatHistory') || '[]');
+                 
+                 // Remove any existing chat with the same sessionId
+                 const filteredChats = existingChats.filter(chat => chat.sessionId !== sessionId);
+                 
+                 // Add updated chat to localStorage
+                 const updatedChats = [chatData, ...filteredChats];
+                 localStorage.setItem('localChatHistory', JSON.stringify(updatedChats));
+                 
+                 console.log('💾 Chat saved to localStorage successfully');
+               } catch (error) {
+                 console.error('Error saving chat to localStorage:', error);
                }
              }
-             
-             const preview = currentMessage;
-             
-             // Save chat immediately after successful response with updated messages
-             setTimeout(() => {
-               // Use the updated messages for saving
-               const messagesToSave = updatedMessages.map(msg => ({
-                 id: msg.id,
-                 type: msg.type,
-                 text: msg.text,
-                 timestamp: msg.timestamp instanceof Date ? msg.timestamp.toISOString() : msg.timestamp
-               }));
-               
-               saveChatSession({
-                 sessionId,
-                 title,
-                 preview,
-                 messages: messagesToSave
-               }).then(response => {
-                 console.log('✅ Chat saved successfully after AI response:', response);
-                 // Reload chat history after saving
-                 setTimeout(() => {
-                   loadChatHistory();
-                 }, 500);
-               }).catch(err => {
-                 console.log('ℹ️ Chat save failed but conversation continues:', err.message);
-               });
-             }, 100);
              
              return updatedMessages;
            });
@@ -1199,17 +1460,17 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
                </button>
              )}
              
-             {/* Login button - shown only for non-authenticated users */}
+             {/* Save Chat button - shown only for non-authenticated users */}
              {!isAuth && (
                <button
                  onClick={handleLoginClick}
                  className="group bg-white/10 hover:bg-white/20 rounded-lg md:rounded-xl px-3 md:px-4 py-2 md:py-3 transition-all duration-200 flex items-center justify-center backdrop-blur-sm border border-white/10 hover:scale-105 active:scale-95 shadow-lg"
-                 title="Login to Sync with Cloud"
+                 title="Save Chat to Cloud"
                >
                  <svg className="w-5 h-5 md:w-6 md:h-6 text-white mr-1 md:mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
                  </svg>
-                 <span className="text-white text-xs md:text-sm font-medium hidden md:block">Login</span>
+                 <span className="text-white text-xs md:text-sm font-medium hidden md:block">Save Chat</span>
                </button>
              )}
              
@@ -1636,6 +1897,161 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
             </div>
           </div>
         </>
+      )}
+
+      {/* Save Chat Popup Modal */}
+      {showSaveChatPopup && typeof window !== 'undefined' && createPortal(
+        <>
+          {/* Overlay */}
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[150] pointer-events-auto"></div>
+          {/* Centered signup modal */}
+          <div className="fixed inset-0 z-[200] flex items-center justify-center">
+            <div className="min-w-[0] max-w-[95vw] w-full sm:w-[400px] bg-white rounded-2xl shadow-2xl pointer-events-auto flex flex-col mx-2 sm:mx-0">
+              {/* Purple header strip above modal */}
+                                                <div className="flex items-center justify-center bg-purple-500 text-white p-3 sm:p-4 m-0 rounded-t-2xl relative">
+                     <div className="flex-1 flex items-center justify-center">
+                       <div className="text-base sm:text-lg font-bold text-center leading-snug px-2">
+                         {isSignupMode ? (
+                           <>
+                             Enter your email and a password<br />
+                             to Save Chat
+                           </>
+                         ) : (
+                           <>
+                             Already got an account?<br />
+                             Log in
+                           </>
+                         )}
+                       </div>
+                     </div>
+                <button
+                  onClick={closeSaveChatPopup}
+                  className="absolute top-2 right-2 p-1.5 bg-white/20 hover:bg-white/30 rounded-full transition-all duration-200"
+                >
+                  <X className="w-4 h-4 text-white" />
+                </button>
+              </div>
+              <div className="w-full bg-white rounded-b-2xl shadow-2xl border border-gray-200 p-4 sm:p-6 flex flex-col items-center gap-3 pointer-events-auto">
+                {!showOTPInput ? (
+                  <>
+                    <div className="text-gray-500 text-xs sm:text-sm text-center mb-2">
+                      {isSignupMode ? 'Create an account to save your chat to the cloud.' : 'Log in to save your chat to the cloud.'}
+                    </div>
+                    <div className="w-full flex flex-col gap-2">
+                      <label className="text-xs font-semibold text-gray-600 ml-1">Email</label>
+                      <input
+                        type="email"
+                        value={signupEmail}
+                        onChange={e => setSignupEmail(e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg border border-gray-300 bg-white text-gray-900 text-sm"
+                        placeholder="Enter your email"
+                      />
+                      <label className="text-xs font-semibold text-gray-600 ml-1 mt-2">Password</label>
+                      <input
+                        type="password"
+                        value={signupPassword}
+                        onChange={e => setSignupPassword(e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg border border-gray-300 bg-white text-sm"
+                        placeholder="Enter password"
+                      />
+                      {isSignupMode && (
+                        <>
+                          <label className="text-xs font-semibold text-gray-600 ml-1 mt-2">Confirm Password</label>
+                          <input
+                            type="password"
+                            value={confirmPassword}
+                            onChange={e => setConfirmPassword(e.target.value)}
+                            className="w-full px-3 py-2 rounded-lg border border-gray-300 bg-white text-sm"
+                            placeholder="Confirm password"
+                          />
+                        </>
+                      )}
+                    </div>
+                    <div className="flex gap-2 w-full justify-center mt-2">
+                      <button
+                        className="bg-purple-600 hover:bg-purple-700 text-white font-semibold px-4 py-2 rounded-full transition-all w-full flex items-center justify-center"
+                        onClick={isSignupMode ? handleSignup : handleLogin}
+                        disabled={isSignupLoading || isLoginLoading}
+                      >
+                        {isSignupLoading || isLoginLoading ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            {isSignupMode ? 'Creating Account...' : 'Sending OTP...'}
+                          </>
+                        ) : (
+                          isSignupMode ? 'Create Account' : 'Send OTP'
+                        )}
+                      </button>
+                    </div>
+                    <div className="text-center mt-2">
+                      <button
+                        onClick={() => setIsSignupMode(!isSignupMode)}
+                        className="text-purple-600 hover:text-purple-700 text-sm underline"
+                      >
+                        {isSignupMode ? 'Already got an account? Log in' : 'Need an account? Sign up'}
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="text-gray-500 text-xs sm:text-sm text-center mb-2">
+                      Enter the OTP code sent to your email to complete login.
+                    </div>
+                    <div className="w-full flex flex-col gap-2">
+                      <label className="text-xs font-semibold text-gray-600 ml-1">OTP Code</label>
+                      <div className="flex gap-2 justify-center">
+                        {otpBlocks.map((block, index) => (
+                          <input
+                            key={index}
+                            ref={el => otpInputRefs.current[index] = el}
+                            type="text"
+                            value={block}
+                            onChange={e => handleOtpBlockChange(index, e.target.value)}
+                            onKeyDown={e => handleOtpKeyDown(index, e)}
+                            className="w-12 h-12 text-center text-lg font-mono border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none bg-white"
+                            placeholder=""
+                            maxLength="1"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                          />
+                        ))}
+                      </div>
+                    </div>
+                    <div className="flex gap-2 w-full justify-center mt-2">
+                      <button
+                        className="bg-purple-600 hover:bg-purple-700 text-white font-semibold px-4 py-2 rounded-full transition-all w-full flex items-center justify-center"
+                        onClick={handleOTPVerification}
+                        disabled={isOtpLoading}
+                      >
+                        {isOtpLoading ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Verifying...
+                          </>
+                        ) : (
+                          'Verify OTP'
+                        )}
+                      </button>
+                    </div>
+                    <div className="text-center mt-2">
+                      <button
+                        onClick={() => {
+                          setShowOTPInput(false);
+                          setOtpCode('');
+                          setOtpBlocks(['', '', '', '']);
+                        }}
+                        className="text-purple-600 hover:text-purple-700 text-sm underline"
+                      >
+                        Back to login
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        </>,
+        document.body
       )}
     </div>
   );

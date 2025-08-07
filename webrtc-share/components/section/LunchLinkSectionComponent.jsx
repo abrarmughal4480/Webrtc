@@ -82,6 +82,14 @@ export const LaunchLinkSection = () => {
       return;
     }
 
+    // Check if user has resident role
+    if (user?.role === 'resident') {
+      toast("Access Restricted", {
+        description: "Resident users cannot create video links"
+      });
+      return;
+    }
+
     if (!user?._id || user._id.length !== 24) {
       toast.error("User ID is invalid. Please re-login or contact support.");
       return;
@@ -262,13 +270,13 @@ export const LaunchLinkSection = () => {
                 <input
                   type="text"
                   placeholder="Enter customer mobile number"
-                  className={`w-full px-3 md:px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-400 text-sm md:text-base pr-10${!isAuth ? ' cursor-not-allowed' : ''}`}
+                  className={`w-full px-3 md:px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-400 text-sm md:text-base pr-10${!isAuth || user?.role === 'resident' ? ' cursor-not-allowed opacity-50' : ''}`}
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   onKeyPress={handleKeyPress}
-                  disabled={!isAuth}
+                  disabled={!isAuth || user?.role === 'resident'}
                 />
-                {!isAuth && (
+                {(!isAuth || user?.role === 'resident') && (
                   <span className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center">
                     <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
                       <circle cx="9" cy="9" r="7" stroke="#EF4444" strokeWidth="2" fill="none" />
@@ -286,13 +294,13 @@ export const LaunchLinkSection = () => {
                 <input
                   type="email"
                   placeholder="Enter customer email address"
-                  className={`w-full px-3 md:px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-400 text-sm md:text-base pr-10${!isAuth ? ' cursor-not-allowed' : ''}`}
+                  className={`w-full px-3 md:px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-400 text-sm md:text-base pr-10${!isAuth || user?.role === 'resident' ? ' cursor-not-allowed opacity-50' : ''}`}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   onKeyPress={handleKeyPress}
-                  disabled={!isAuth}
+                  disabled={!isAuth || user?.role === 'resident'}
                 />
-                {!isAuth && (
+                {(!isAuth || user?.role === 'resident') && (
                   <span className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center">
                     <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
                       <circle cx="9" cy="9" r="7" stroke="#EF4444" strokeWidth="2" fill="none" />
@@ -304,8 +312,8 @@ export const LaunchLinkSection = () => {
 
               <button
                 onClick={launchVideoLink}
-                disabled={isLoading}
-                className="bg-green-500 hover:bg-green-600 disabled:bg-gray-400 text-white font-medium py-2 px-3 md:px-4 rounded-md transition-colors w-full md:w-auto text-sm md:text-base"
+                disabled={isLoading || user?.role === 'resident'}
+                className={`bg-green-500 hover:bg-green-600 disabled:bg-gray-400 text-white font-medium py-2 px-3 md:px-4 rounded-md transition-colors w-full md:w-auto text-sm md:text-base${user?.role === 'resident' ? ' cursor-not-allowed' : ''}`}
               >
                 {isLoading ? (
                   <Loader2 className="w-4 h-4 animate-spin mx-auto" />
