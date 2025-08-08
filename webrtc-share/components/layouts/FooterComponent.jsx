@@ -488,6 +488,13 @@ export function Footer() {
             >
               {callbackLoading ? 'Sending Request...' : 'Send Request'}
             </button>
+            
+            {/* Required field indicator */}
+            <div className="text-center mt-4">
+              <p className="text-xs text-gray-500">
+                <span className="text-red-500">*</span>required
+              </p>
+            </div>
           </form>
         </div>
       </CustomDialog>
@@ -600,6 +607,13 @@ export function Footer() {
             >
               {isLoading ? 'Booking Meeting...' : 'Book Meeting'}
             </button>
+            
+            {/* Required field indicator */}
+            <div className="text-center mt-4">
+              <p className="text-xs text-gray-500">
+                <span className="text-red-500">*</span>required
+              </p>
+            </div>
           </form>
         </div>
       </CustomDialog>

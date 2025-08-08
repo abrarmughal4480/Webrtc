@@ -290,6 +290,13 @@ export default function ChatKarla() {
                     </button>
                   </p>
                 </div>
+                
+                {/* Required field indicator */}
+                <div className="text-center mt-2">
+                  <p className="text-xs text-gray-500">
+                    <span className="text-red-500">*</span>required
+                  </p>
+                </div>
               </div>
             </div>
           </div>
@@ -318,7 +325,7 @@ export default function ChatKarla() {
               <div className="w-full bg-white rounded-b-2xl shadow-2xl border border-gray-200 p-4 sm:p-6 flex flex-col items-center gap-3 pointer-events-auto">
                 <form className="space-y-4 w-full" onSubmit={handleDemoCodeSubmit}>
                   <div>
-                    <label className="text-xs font-semibold text-gray-600 ml-1">Demo Code<span className="text-red-500">*</span><br /></label>
+                    <label className="text-xs font-semibold text-gray-600 ml-1">Demo Code<br /></label>
                     <div className="flex justify-center gap-2 mt-2">
                       {demoCodeBlocks.map((block, index) => (
                         <input

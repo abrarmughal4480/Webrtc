@@ -471,48 +471,53 @@ function UploadPageContent() {
           </div>
           <form onSubmit={handleSubmit}>
             <div className="bg-white rounded-3xl shadow-xl p-6 sm:p-8 mb-6 md:mb-8 border-2 border-gray-200 relative">
-              {/* Top-right icons */}
-              <div className="absolute top-4 right-4 flex gap-2 z-10">
-                <button
-                  type="button"
-                  onClick={() => window.print()}
-                  className="inline-flex items-center justify-center p-2 bg-blue-600 hover:bg-blue-700 text-white rounded-full border border-blue-500 transition-all duration-200 hover:scale-105 shadow-md"
-                  title="Print"
-                >
-                  <Printer className="w-5 h-5" />
-                </button>
-                {user && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => router.push('/dashboard')}
-                      className="inline-flex items-center justify-center p-2 bg-green-600 hover:bg-green-700 text-white rounded-full border border-green-500 transition-all duration-200 hover:scale-105 shadow-md"
-                      title="Go to Dashboard"
-                    >
-                      <Monitor className="w-5 h-5" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleLogout}
-                      className="inline-flex items-center justify-center p-2 bg-orange-600 hover:bg-orange-700 text-white rounded-full border border-orange-500 transition-all duration-200 hover:scale-105 shadow-md"
-                      title="Logout"
-                    >
-                      <LogOut className="w-5 h-5" />
-                    </button>
-                  </>
-                )}
-                <button
-                  type="button"
-                  onClick={() => router.back()}
-                  className="inline-flex items-center justify-center p-2 bg-red-600 hover:bg-red-700 text-white rounded-full border border-red-600 transition-all duration-200 hover:scale-105 shadow-md"
-                  title="Close"
-                >
-                  <X className="w-5 h-5" />
-                </button>
+              {/* Header with title and icons - mobile responsive layout */}
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-6">
+                {/* Title - positioned on left, below icons on mobile */}
+                <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 order-2 sm:order-1 mt-4 sm:mt-0">
+                  Your Details
+                </h1>
+                
+                {/* Top-right icons */}
+                <div className="flex gap-2 z-10 order-1 sm:order-2 self-end sm:self-start">
+                  <button
+                    type="button"
+                    onClick={() => window.print()}
+                    className="inline-flex items-center justify-center p-2 bg-blue-600 hover:bg-blue-700 text-white rounded-full border border-blue-500 transition-all duration-200 hover:scale-105 shadow-md"
+                    title="Print"
+                  >
+                    <Printer className="w-5 h-5" />
+                  </button>
+                  {user && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => router.push('/dashboard')}
+                        className="inline-flex items-center justify-center p-2 bg-green-600 hover:bg-green-700 text-white rounded-full border border-green-500 transition-all duration-200 hover:scale-105 shadow-md"
+                        title="Go to Resident Portal"
+                      >
+                        <Monitor className="w-5 h-5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleLogout}
+                        className="inline-flex items-center justify-center p-2 bg-orange-600 hover:bg-orange-700 text-white rounded-full border border-orange-500 transition-all duration-200 hover:scale-105 shadow-md"
+                        title="Logout"
+                      >
+                        <LogOut className="w-5 h-5" />
+                      </button>
+                    </>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => router.back()}
+                    className="inline-flex items-center justify-center p-2 bg-red-600 hover:bg-red-700 text-white rounded-full border border-red-600 transition-all duration-200 hover:scale-105 shadow-md"
+                    title="Close"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
               </div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-6">
-                Your Details
-              </h1>
               {!user && (
                 <div className="text-center text-sm text-gray-700 font-semibold mb-4">
                   Already registered? <a href="#" className="text-blue-700 underline hover:text-blue-900" onClick={e => { e.preventDefault(); localStorage.setItem('loginRedirect', window.location.pathname); localStorage.setItem('openLoginPopup', 'true'); window.location.href = '/'; }}>Log in</a> or <a href="#" className="text-blue-700 underline hover:text-blue-900" onClick={e => { e.preventDefault(); setShowSignupPrompt(true); setSignupEmailEditable(true); }}>Sign up</a>
@@ -562,6 +567,13 @@ function UploadPageContent() {
                   </div>
                 </div>
 
+              </div>
+              
+              {/* Required field indicator */}
+              <div className="text-center mt-4">
+                <p className="text-xs text-gray-500">
+                  <span className="text-red-500">*</span>required
+                </p>
               </div>
             </div>
 

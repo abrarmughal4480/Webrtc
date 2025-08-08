@@ -4217,6 +4217,13 @@ ${senderName}`;
             <button type="submit" disabled={callbackLoading} className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 w-full shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed">
               {callbackLoading ? 'Sending Request...' : 'Send Request'}
             </button>
+            
+            {/* Required field indicator */}
+            <div className="text-center mt-4">
+              <p className="text-xs text-gray-500">
+                <span className="text-red-500">*</span>required
+              </p>
+            </div>
           </form>
         </div>
       </CustomDialog>
@@ -4275,6 +4282,13 @@ ${senderName}`;
             <button type="submit" disabled={isLoading} className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 w-full shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed">
               {isLoading ? 'Booking Meeting...' : 'Book Meeting'}
             </button>
+            
+            {/* Required field indicator */}
+            <div className="text-center mt-4">
+              <p className="text-xs text-gray-500">
+                <span className="text-red-500">*</span>required
+              </p>
+            </div>
           </form>
         </div>
       </CustomDialog>

@@ -150,6 +150,13 @@ export default function EnterShareCodeDialog({ open, setOpen, onSubmit, prefille
                 {loading ? 'Checking...' : 'Submit'}
               </button>
             </form>
+            
+            {/* Required field indicator */}
+            <div className="text-center mt-2">
+              <p className="text-xs text-gray-500">
+                <span className="text-red-500">*</span>required
+              </p>
+            </div>
           </div>
         </div>
       </div>

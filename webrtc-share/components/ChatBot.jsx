@@ -823,15 +823,15 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
     setIsSignupMode(true);
     setSignupEmail('');
     setSignupPassword('');
-    setConfirmPassword('');
   };
 
   const handleSignup = async () => {
-    if (!signupEmail || !signupPassword || !confirmPassword) {
+    if (!signupEmail || !signupPassword) {
       toast.error('Please fill in all fields.');
       return;
     }
-    if (signupPassword !== confirmPassword) {
+    
+    if (signupPassword && signupPassword !== confirmPassword) {
       toast.error('Passwords do not match.');
       return;
     }
@@ -1097,14 +1097,15 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
         
         console.log('💾 Chat saved to localStorage successfully');
         
-        // Show success message
-        alert('Chat saved successfully! You can access it after logging in.');
-        
         // Close the confirmation dialog
         setShowNewChatConfirmation(false);
         
-        // Proceed with new chat
-        proceedWithNewChat();
+        // Show sign-in popup instead of alert
+        setShowSaveChatPopup(true);
+        setIsSignupMode(false);
+        setSignupEmail('');
+        setSignupPassword('');
+        setConfirmPassword('');
         
         return;
       } catch (error) {
@@ -1146,6 +1147,17 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
         setSignupEmail('');
         setSignupPassword('');
         setConfirmPassword('');
+        return;
+      }
+
+      // Check if this chat has already been saved to localStorage
+      const existingChats = JSON.parse(localStorage.getItem('localChatHistory') || '[]');
+      const chatAlreadySaved = existingChats.some(chat => chat.sessionId === sessionId);
+      
+      if (chatAlreadySaved) {
+        console.log('ℹ️ Chat already saved to localStorage, skipping duplicate save');
+        // Proceed with new chat since the chat is already saved
+        proceedWithNewChat();
         return;
       }
 
@@ -1913,12 +1925,10 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
                        <div className="text-base sm:text-lg font-bold text-center leading-snug px-2">
                          {isSignupMode ? (
                            <>
-                             Enter your email and a password<br />
-                             to Save Chat
+                             Save Chat
                            </>
                          ) : (
                            <>
-                             Already got an account?<br />
                              Log in
                            </>
                          )}
@@ -1935,34 +1945,37 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
                 {!showOTPInput ? (
                   <>
                     <div className="text-gray-500 text-xs sm:text-sm text-center mb-2">
-                      {isSignupMode ? 'Create an account to save your chat to the cloud.' : 'Log in to save your chat to the cloud.'}
+                      {isSignupMode ? 'Enter your email and a password to save your chat.' : 'Log in to save your chat.'}
                     </div>
                     <div className="w-full flex flex-col gap-2">
-                      <label className="text-xs font-semibold text-gray-600 ml-1">Email</label>
+                      <label className="text-xs font-semibold text-gray-600 ml-1">Email<span className="text-red-500">*</span></label>
                       <input
                         type="email"
                         value={signupEmail}
                         onChange={e => setSignupEmail(e.target.value)}
                         className="w-full px-3 py-2 rounded-lg border border-gray-300 bg-white text-gray-900 text-sm"
                         placeholder="Enter your email"
+                        required
                       />
-                      <label className="text-xs font-semibold text-gray-600 ml-1 mt-2">Password</label>
+                      <label className="text-xs font-semibold text-gray-600 ml-1 mt-2">Password<span className="text-red-500">*</span></label>
                       <input
                         type="password"
                         value={signupPassword}
                         onChange={e => setSignupPassword(e.target.value)}
                         className="w-full px-3 py-2 rounded-lg border border-gray-300 bg-white text-sm"
                         placeholder="Enter password"
+                        required
                       />
-                      {isSignupMode && (
+                      {isSignupMode && signupPassword && (
                         <>
-                          <label className="text-xs font-semibold text-gray-600 ml-1 mt-2">Confirm Password</label>
+                          <label className="text-xs font-semibold text-gray-600 ml-1 mt-2">Confirm Password<span className="text-red-500">*</span></label>
                           <input
                             type="password"
                             value={confirmPassword}
                             onChange={e => setConfirmPassword(e.target.value)}
                             className="w-full px-3 py-2 rounded-lg border border-gray-300 bg-white text-sm"
                             placeholder="Confirm password"
+                            required
                           />
                         </>
                       )}
@@ -1983,13 +1996,21 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
                         )}
                       </button>
                     </div>
+                    
+                   
                     <div className="text-center mt-2">
                       <button
                         onClick={() => setIsSignupMode(!isSignupMode)}
                         className="text-purple-600 hover:text-purple-700 text-sm underline"
                       >
-                        {isSignupMode ? 'Already got an account? Log in' : 'Need an account? Sign up'}
+                        {isSignupMode ? 'Already got an account? Log in' : 'Not got an account? Sign up'}
                       </button>
+                      {/* Required field indicator */}
+                      <div className="text-center mt-1">
+                        <p className="text-xs text-gray-500">
+                          <span className="text-red-500">*</span>required
+                        </p>
+                      </div>
                     </div>
                   </>
                 ) : (
