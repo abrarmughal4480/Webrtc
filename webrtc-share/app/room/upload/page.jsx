@@ -4,7 +4,7 @@ import Image from 'next/image';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Trash2, VideoIcon, PlayIcon, Minimize2, Expand, ZoomIn, X, Info, Loader2, Printer, LogOut, Monitor } from 'lucide-react';
+import { Plus, Trash2, VideoIcon, PlayIcon, Minimize2, Expand, ZoomIn, X, Info, Loader2, Printer, LogOut, Monitor, Home } from 'lucide-react';
 import { toast } from "sonner";
 import AccessCodeDialog from '@/components/dialogs/AccessCodeDialog';
 import { publicApi } from '@/http';
@@ -488,7 +488,7 @@ function UploadPageContent() {
                   >
                     <Printer className="w-5 h-5" />
                   </button>
-                  {user && (
+                  {user ? (
                     <>
                       <button
                         type="button"
@@ -507,6 +507,15 @@ function UploadPageContent() {
                         <LogOut className="w-5 h-5" />
                       </button>
                     </>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => router.push('/')}
+                      className="inline-flex items-center justify-center p-2 bg-purple-600 hover:bg-purple-700 text-white rounded-full border border-purple-500 transition-all duration-200 hover:scale-105 shadow-md"
+                      title="Back to Main Page"
+                    >
+                      <Home className="w-5 h-5" />
+                    </button>
                   )}
                   <button
                     type="button"
