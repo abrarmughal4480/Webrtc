@@ -13,7 +13,7 @@ import { createFolderRequest, updateFolderRequest, deleteFolderRequest, moveFold
 import { getAllMeetings, deleteMeeting, archiveMeeting, unarchiveMeeting, getArchivedCount, restoreMeeting, permanentDeleteMeeting, searchMeetings } from "@/http/meetingHttp"
 import { getPaginationSettings, updatePaginationSettings } from "@/http/authHttp"
 import { useUser } from "@/provider/UserProvider"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, useMemo } from "react"
 import { toast } from "sonner"
 
 import { useRouter } from "next/navigation"
@@ -1271,6 +1271,35 @@ export default function Page() {
     return "Search";
   };
 
+  // Resident upload stats (active view)
+  const displayedResidentUploads = residentViewMode === 'trash' ? residentTrashedUploads : residentUploads;
+  const residentUploadStats = useMemo(() => {
+    const uploadsArray = Array.isArray(displayedResidentUploads) ? displayedResidentUploads : [];
+    const now = new Date();
+    const startOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+
+    let thisMonth = 0;
+    let lastMonth = 0;
+    let older = 0;
+
+    for (const upload of uploadsArray) {
+      const createdAtString = upload?.createdAt || upload?.created_at;
+      const createdAtDate = createdAtString ? new Date(createdAtString) : null;
+
+      if (!createdAtDate || isNaN(createdAtDate.getTime())) {
+        older++;
+        continue;
+      }
+
+      if (createdAtDate >= startOfCurrentMonth) thisMonth++;
+      else if (createdAtDate >= startOfLastMonth && createdAtDate < startOfCurrentMonth) lastMonth++;
+      else older++;
+    }
+
+    return { total: uploadsArray.length, thisMonth, lastMonth, older };
+  }, [displayedResidentUploads]);
+
   return (
     <>
       <div className="min-h-screen bg-white p-2">
@@ -2239,8 +2268,32 @@ export default function Page() {
             {user?.role === "resident" && (
               <>
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-3 sm:gap-0">
-                  <h2 className="text-lg sm:text-xl font-bold text-blue-700">
-                    {residentViewMode === 'trash' ? 'Trashed Uploads' : 'Your Share Code Uploads'}
+                  <h2 className="text-lg sm:text-xl font-bold text-blue-700 flex flex-col sm:flex-row sm:items-center">
+                    <span>{residentViewMode === 'trash' ? 'Trashed Uploads' : 'Your Share Code Uploads'}</span>
+                    {residentViewMode === 'active' && residentUploadStats.total > 0 && (
+                      <>
+                        {/* Desktop/Tablet: inline */}
+                        <span className="hidden sm:inline ml-2 text-sm font-normal text-gray-600">
+                          {residentUploadStats.total} in total
+                          <span className="mx-2 text-gray-400">|</span>
+                          {residentUploadStats.thisMonth} this month
+                          <span className="mx-2 text-gray-400">|</span>
+                          {residentUploadStats.lastMonth} last month
+                          <span className="mx-2 text-gray-400">|</span>
+                          {residentUploadStats.older} older
+                        </span>
+                         {/* Mobile: show full stats in a single line below title */}
+                         <div className="sm:hidden mt-1 text-xs font-normal text-gray-600">
+                           {residentUploadStats.total} in total
+                           <span className="mx-1 text-gray-400">|</span>
+                           {residentUploadStats.thisMonth} this month
+                           <span className="mx-1 text-gray-400">|</span>
+                           {residentUploadStats.lastMonth} last month
+                           <span className="mx-1 text-gray-400">|</span>
+                           {residentUploadStats.older} older
+                         </div>
+                      </>
+                    )}
                   </h2>
                   <div className="flex items-center gap-3">
                     <Button
