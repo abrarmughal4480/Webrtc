@@ -3598,39 +3598,39 @@ ${senderName}`;
                 </div>
 
                 {/* Access Statistics Skeleton */}
-                <div className="bg-blue-50 p-4 rounded-lg">
-                  <div className="h-5 bg-gray-300 rounded w-32 mb-2"></div>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
+                <div className="bg-blue-50 p-3 sm:p-4 rounded-lg">
+                  <div className="h-5 bg-gray-300 rounded w-28 sm:w-32 mb-2"></div>
+                  <div className="grid grid-cols-3 gap-2 sm:gap-4 text-center">
                     <div>
-                      <div className="h-8 bg-gray-300 rounded w-16 mx-auto mb-1"></div>
-                      <div className="h-3 bg-gray-200 rounded w-20 mx-auto"></div>
+                      <div className="h-7 sm:h-8 bg-gray-300 rounded w-12 sm:w-16 mx-auto mb-1"></div>
+                      <div className="h-3 bg-gray-200 rounded w-16 sm:w-20 mx-auto"></div>
                     </div>
                     <div>
-                      <div className="h-8 bg-gray-300 rounded w-16 mx-auto mb-1"></div>
-                      <div className="h-3 bg-gray-200 rounded w-24 mx-auto"></div>
+                      <div className="h-7 sm:h-8 bg-gray-300 rounded w-12 sm:w-16 mx-auto mb-1"></div>
+                      <div className="h-3 bg-gray-200 rounded w-16 sm:w-24 mx-auto"></div>
                     </div>
                     <div>
-                      <div className="h-8 bg-gray-300 rounded w-16 mx-auto mb-1"></div>
-                      <div className="h-3 bg-gray-200 rounded w-20 mx-auto"></div>
+                      <div className="h-7 sm:h-8 bg-gray-300 rounded w-12 sm:w-16 mx-auto mb-1"></div>
+                      <div className="h-3 bg-gray-2 00 rounded w-14 sm:w-20 mx-auto"></div>
                     </div>
                   </div>
                 </div>
 
                 {/* Access History List Skeleton */}
                 <div>
-                  <div className="h-5 bg-gray-300 rounded w-48 mb-3"></div>
-                  <div className="space-y-3 max-h-60 overflow-y-auto">
+                  <div className="h-5 bg-gray-300 rounded w-36 sm:w-48 mb-2 sm:mb-3"></div>
+                  <div className="space-y-2 sm:space-y-3 max-h-56 sm:max-h-60 overflow-y-auto">
                     {[1, 2, 3].map((index) => (
-                      <div key={index} className="border border-gray-200 rounded-lg p-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-gray-300 rounded-full"></div>
-                          <div className="flex-1">
-                            <div className="h-4 bg-gray-300 rounded w-32 mb-1"></div>
-                            <div className="h-3 bg-gray-200 rounded w-40"></div>
+                      <div key={index} className="border border-gray-200 rounded-lg p-3 sm:p-4">
+                        <div className="flex items-center gap-2 sm:gap-3">
+                          <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gray-300 rounded-full"></div>
+                          <div className="flex-1 min-w-0">
+                            <div className="h-4 bg-gray-300 rounded w-24 sm:w-32 mb-1"></div>
+                            <div className="h-3 bg-gray-200 rounded w-28 sm:w-40"></div>
                           </div>
-                          <div className="text-right">
-                            <div className="h-3 bg-gray-200 rounded w-6 mb-1 ml-auto"></div>
-                            <div className="h-3 bg-gray-200 rounded w-20"></div>
+                          <div className="text-right shrink-0">
+                            <div className="h-3 bg-gray-200 rounded w-5 sm:w-6 mb-1 ml-auto"></div>
+                            <div className="h-3 bg-gray-200 rounded w-16 sm:w-20 ml-auto"></div>
                           </div>
                         </div>
                       </div>
@@ -3639,19 +3639,19 @@ ${senderName}`;
                 </div>
 
                 {/* Content Summary Skeleton */}
-                <div className="border-t pt-4">
-                  <div className="h-5 bg-gray-300 rounded w-32 mb-3"></div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="bg-green-50 p-3 rounded">
+                <div className="border-t pt-3 sm:pt-4">
+                  <div className="h-4 bg-gray-300 rounded w-28 sm:w-32 mb-2 sm:mb-3"></div>
+                  <div className="grid grid-cols-2 gap-2 sm:gap-4">
+                    <div className="bg-green-50 p-2 sm:p-3 rounded">
                       <div className="flex items-center justify-between">
-                        <div className="h-4 bg-gray-300 rounded w-24"></div>
-                        <div className="h-6 bg-gray-300 rounded w-8"></div>
+                        <div className="h-4 bg-gray-300 rounded w-20 sm:w-24"></div>
+                        <div className="h-5 sm:h-6 bg-gray-300 rounded w-7 sm:w-8"></div>
                       </div>
                     </div>
-                    <div className="bg-blue-50 p-3 rounded">
+                    <div className="bg-blue-50 p-2 sm:p-3 rounded">
                       <div className="flex items-center justify-between">
-                        <div className="h-4 bg-gray-300 rounded w-20"></div>
-                        <div className="h-6 bg-gray-300 rounded w-8"></div>
+                        <div className="h-4 bg-gray-300 rounded w-20 sm:w-24"></div>
+                        <div className="h-5 sm:h-6 bg-gray-300 rounded w-7 sm:w-8"></div>
                       </div>
                     </div>
                   </div>
@@ -3764,36 +3764,36 @@ ${senderName}`;
                 </div>
 
                 {/* Access Statistics */}
-                <div className="bg-blue-50 p-4 rounded-lg">
-                  <h4 className="font-semibold mb-2">Access Statistics</h4>
-                  <div className="grid grid-cols-3 gap-4 text-center">
+                <div className="bg-blue-50 p-3 sm:p-4 rounded-lg">
+                  <h4 className="font-semibold text-sm sm:text-base mb-2">Access Statistics</h4>
+                  <div className="grid grid-cols-3 gap-2 sm:gap-4 text-center">
                     <div>
-                      <div className="text-2xl font-bold text-blue-600">
+                      <div className="text-lg sm:text-2xl font-bold text-blue-600 leading-tight">
                         {selectedItemForHistory.total_access_count || selectedItemForHistory.access_history?.length || 0}
                       </div>
-                      <div className="text-xs text-gray-600">Total Accesses</div>
+                      <div className="text-[10px] sm:text-xs text-gray-600 whitespace-nowrap">Total Accesses</div>
                     </div>
                     <div>
-                      <div className="text-2xl font-bold text-green-600">
+                      <div className="text-lg sm:text-2xl font-bold text-green-600 leading-tight">
                         {getUniqueVisitors(selectedItemForHistory.access_history).length}
                       </div>
-                      <div className="text-xs text-gray-600">Unique Visitors</div>
+                      <div className="text-[10px] sm:text-xs text-gray-600 whitespace-nowrap">Unique Visitors</div>
                     </div>
                     <div>
-                      <div className="text-2xl font-bold text-purple-600">
+                      <div className="text-base sm:text-2xl font-bold text-purple-600 leading-tight whitespace-nowrap">
                         {selectedItemForHistory.access_history?.length > 0 ?
                           formatHistoryDate(selectedItemForHistory.access_history[selectedItemForHistory.access_history.length - 1].access_time).split(' ')[0] :
                           'N/A'
                         }
                       </div>
-                      <div className="text-xs text-gray-600">Last Access</div>
+                      <div className="text-[10px] sm:text-xs text-gray-600 whitespace-nowrap">Last Access</div>
                     </div>
                   </div>
                 </div>
 
                 {/* Access History List - Show ALL accesses, not just unique */}
                 <div>
-                  <h4 className="font-semibold mb-3">Visitor Access Log</h4>
+                  <h4 className="font-semibold text-sm sm:text-base mb-2 sm:mb-3">Visitor Access Log</h4>
                   {(() => {
                     const allAccesses = (selectedItemForHistory.access_history || []).slice().sort((a, b) =>
                       new Date(a.access_time) - new Date(b.access_time)
@@ -3809,28 +3809,28 @@ ${senderName}`;
 
                     if (allAccesses.length > 0) {
                       return (
-                        <div className="space-y-3 max-h-60 overflow-y-auto">
+                        <div className="space-y-2 sm:space-y-3 max-h-56 sm:max-h-60 overflow-y-auto">
                           {allAccesses.map((access, index) => (
-                            <div key={index} className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50">
-                                                              <div className="flex items-center gap-3">
-                                  <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                                    <span className="text-blue-600 font-semibold text-lg">
+                            <div key={index} className="border border-gray-200 rounded-lg p-3 sm:p-4 hover:bg-gray-50">
+                                                              <div className="flex items-center gap-2 sm:gap-3">
+                                  <div className="w-8 h-8 sm:w-10 sm:h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                                    <span className="text-blue-600 font-semibold text-sm sm:text-lg">
                                       {access.visitor_email ? access.visitor_email.charAt(0).toUpperCase() : 'A'}
                                     </span>
                                   </div>
-                                  <div className="flex-1">
-                                    <p className="font-semibold text-base text-gray-900">
+                                  <div className="flex-1 min-w-0">
+                                    <p className="font-semibold text-sm sm:text-base text-gray-900 truncate">
                                       {access.visitor_email === 'anonymous@visitor' ? 'Anonymous Visitor' : access.visitor_email}
                                     </p>
-                                    <p className="text-sm text-gray-600">
+                                    <p className="text-xs sm:text-sm text-gray-600">
                                       {access.creator ? 'Creator Access' : 'Visitor Access'}
                                     </p>
                                   </div>
-                                <div className="text-right">
-                                  <div className="text-xs text-gray-400 mb-1">
+                                <div className="text-right shrink-0">
+                                  <div className="text-[10px] sm:text-xs text-gray-400 mb-1">
                                     #{index + 1}
                                   </div>
-                                  <div className="text-xs text-gray-500">
+                                  <div className="text-[10px] sm:text-xs text-gray-500 whitespace-nowrap">
                                     {formatHistoryDate(access.access_time)}
                                   </div>
                                 </div>
@@ -3852,21 +3852,21 @@ ${senderName}`;
                 </div>
 
                 {/* Content Summary */}
-                <div className="border-t pt-4">
-                  <h4 className="font-semibold mb-3">Content Summary</h4>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-green-50 p-3 rounded">
+                <div className="border-t pt-3 sm:pt-4">
+                  <h4 className="font-semibold text-sm sm:text-base mb-2 sm:mb-3">Content Summary</h4>
+                  <div className="grid grid-cols-2 gap-2 sm:gap-4">
+                    <div className="bg-green-50 p-2 sm:p-3 rounded">
                       <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium">Video Recordings</span>
-                        <span className="text-lg font-bold text-green-600">
+                        <span className="text-xs sm:text-sm font-medium whitespace-nowrap">Video Recordings</span>
+                        <span className="text-base sm:text-lg font-bold text-green-600">
                           {selectedItemForHistory.recordings?.length || selectedItemForHistory.videos?.length || 0}
                         </span>
                       </div>
                     </div>
-                    <div className="bg-blue-50 p-3 rounded">
+                    <div className="bg-blue-50 p-2 sm:p-3 rounded">
                       <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium">Screenshots</span>
-                        <span className="text-lg font-bold text-blue-600">
+                        <span className="text-xs sm:text-sm font-medium whitespace-nowrap">Screenshots</span>
+                        <span className="text-base sm:text-lg font-bold text-blue-600">
                           {selectedItemForHistory.screenshots?.length || selectedItemForHistory.images?.length || 0}
                         </span>
                       </div>

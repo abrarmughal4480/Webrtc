@@ -77,7 +77,9 @@ export default function ViewUploadPage() {
             }
           })
           .catch(err => {
-            setError(err.response?.data?.message || "Not found");
+            const msg = err.response?.data?.message || 'Not found';
+            toast.error(msg);
+            setError(msg);
             setLoading(false);
           });
       }
@@ -123,12 +125,12 @@ export default function ViewUploadPage() {
   // Search for another share code from same customer
   const handleShareCodeSearch = async () => {
     if (!shareCodeInput.trim()) {
-      setSearchError('Please enter a share code');
+      toast.error('Please enter a share code');
       return;
     }
 
     if (!upload) {
-      setSearchError('No current upload data available');
+      toast.error('No current upload data available');
       return;
     }
 
@@ -140,27 +142,45 @@ export default function ViewUploadPage() {
       const newUpload = res.data?.data?.upload;
       
       if (!newUpload) {
-        setSearchError('Share code not found');
+        toast.error('Share code not found');
         return;
       }
 
-      // Check if it's the same customer
-      if (newUpload.email === upload.email) {
-        console.log('✅ Same customer found, switching to new upload');
+      // Matching logic: same customer email AND (same house OR same flat) AND same postcode
+      const normalize = (v) => (v || '').toString().trim().toUpperCase();
+      const normalizePost = (v) => normalize(v).replace(/\s+/g, '');
+
+      const emailMatch = normalize(newUpload.email) === normalize(upload.email);
+
+      const curHouse = normalize(upload.house_name_number);
+      const curFlat = normalize(upload.flat_apartment_room);
+      const curPost = normalizePost(upload.actualPostCode || upload.postCode || upload.post_code);
+
+      const newHouse = normalize(newUpload.house_name_number);
+      const newFlat = normalize(newUpload.flat_apartment_room);
+      const newPost = normalizePost(newUpload.actualPostCode || newUpload.postCode || newUpload.post_code);
+
+      const houseMatch = curHouse && newHouse && curHouse === newHouse;
+      const flatMatch = curFlat && newFlat && curFlat === newFlat;
+      const postMatch = curPost && newPost && curPost === newPost;
+
+      if (emailMatch && postMatch && (houseMatch || flatMatch)) {
+        console.log('✅ Same customer and address verified, switching to new upload');
         setUpload(newUpload);
-        setImageErrors({}); // Reset image errors for new upload
-        setSelectedMedia(null); // Close any open modal
-        setShareCodeInput(''); // Clear input
-        setSearchError('');
-        
-        // Update URL without page reload
+        setImageErrors({});
+        setSelectedMedia(null);
+        setShareCodeInput('');
         window.history.pushState({}, '', `/room/upload/${shareCodeInput.trim()}`);
+      } else if (!emailMatch) {
+        toast.error('This share code belongs to a different customer');
+      } else if (!postMatch) {
+        toast.error('Postcode does not match this customer');
       } else {
-        setSearchError('This share code belongs to a different customer');
+        toast.error('House/Flat number does not match this customer');
       }
     } catch (err) {
       console.error('Search error:', err);
-      setSearchError(err.response?.data?.message || 'Failed to find upload');
+      toast.error(err.response?.data?.message || 'Failed to find upload');
     } finally {
       setIsSearching(false);
     }
@@ -180,13 +200,13 @@ export default function ViewUploadPage() {
           {/* Actions Section */}
           <div className="flex items-center gap-2 order-2 sm:order-2 w-full sm:w-auto justify-center sm:justify-end">
             {/* Share Code Search Input */}
-            <div className="flex items-center gap-2 bg-white rounded-full shadow-md border border-gray-200 px-2 sm:px-3 py-1 flex-1 sm:flex-none max-w-[200px] sm:max-w-none">
+            <div className="flex items-center gap-2 bg-white rounded-full shadow-md border border-gray-200 px-2 sm:px-3 py-1 flex-1 sm:flex-none  max-w-[200px] sm:max-w-none">
               <input
                 type="text"
                 value={shareCodeInput}
                 onChange={(e) => {
                   setShareCodeInput(e.target.value);
-                  if (searchError) setSearchError(''); // Clear error when typing
+                  if (searchError) setSearchError('');
                 }}
                 placeholder="Share code..."
                 className="w-full sm:w-32 md:w-40 text-xs sm:text-sm border-none outline-none bg-transparent"
@@ -228,12 +248,7 @@ export default function ViewUploadPage() {
             </button>
           </div>
           
-          {/* Error Message - Positioned below on mobile */}
-          {searchError && (
-            <div className="w-full sm:absolute sm:top-16 sm:right-0 bg-red-50 border border-red-200 rounded-lg p-2 z-50 order-3 sm:order-3">
-              <p className="text-red-600 text-xs text-center sm:text-left">{searchError}</p>
-            </div>
-          )}
+          {/* Errors are shown via toast notifications */}
         </div>
 
 

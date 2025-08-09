@@ -460,8 +460,8 @@ function UploadPageContent() {
                 <Info className="h-7 w-7 sm:h-8 sm:w-8 text-indigo-400" />
               </div>
               <div className="mt-2 sm:mt-4">
-                <p className="text-base sm:text-lg font-semibold text-indigo-800">
-                  You can upload images/photos or videos on this page and share them by generating a Share Code below <br/> and giving this to your LandLord/Councillor or anyone else.
+                <p className="text-base sm:text-lg font-semibold text-indigo-800 text-balance">
+                  You can upload images/photos or videos on this page and share them by generating a Share Code below <br className="hidden sm:block" /> and giving this to your LandLord/Councillor or anyone else.
                 </p>
                 <p className="text-base sm:text-lg font-semibold text-indigo-800 mt-1 sm:mt-2">
                   Happy Sharing!
@@ -876,8 +876,8 @@ function UploadPageContent() {
               {/* Purple header strip above modal */}
               <div className="flex items-center justify-center bg-purple-500 text-white p-3 sm:p-4 m-0 rounded-t-2xl relative">
                 <div className="flex-1 flex items-center justify-center">
-                  <span className="text-base sm:text-lg font-bold text-center break-words whitespace-pre-line leading-snug w-full">
-                    Sign up for an easier and faster <br/> experience next time!
+                  <span className="text-base sm:text-lg font-bold text-center break-words whitespace-pre-line leading-snug w-full text-balance">
+                    Sign up for an easier and faster <br className="hidden sm:block" /> experience next time!
                   </span>
                 </div>
                 <button
