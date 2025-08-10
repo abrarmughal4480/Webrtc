@@ -461,7 +461,7 @@ function UploadPageContent() {
               </div>
               <div className="mt-2 sm:mt-4">
                 <p className="text-base sm:text-lg font-semibold text-indigo-800 text-balance">
-                  You can upload images/photos or videos on this page and share them by generating a Share Code below <br className="hidden sm:block" /> and giving this to your LandLord/Councillor or anyone else.
+                  You can upload images/photos or videos on this page and share them by generating a Share Code below <br className="hidden sm:block" /> and giving this to your landLord/Councillor or anyone else.
                 </p>
                 <p className="text-base sm:text-lg font-semibold text-indigo-800 mt-1 sm:mt-2">
                   Happy Sharing!
