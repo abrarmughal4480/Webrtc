@@ -308,7 +308,7 @@ export default function ChatKarla() {
           <div className="max-w-4xl mx-auto mb-6 sm:mb-8 md:mb-10 lg:mb-12">
             {/* For Residents Section */}
             <div className="mb-8 sm:mb-10">
-              <h3 className="text-base sm:text-lg md:text-xl font-semibold text-purple-200 mb-4 sm:mb-6 text-center">
+              <h3 className="text-base sm:text-lg md:text-xl font-semibold text-purple-200 mb-4 sm:mb-6 text-center underline decoration-purple-300 decoration-2">
                 For residents, I can offer:
               </h3>
               <div className="space-y-3 sm:space-y-4 text-center px-2 sm:px-0">
@@ -324,7 +324,7 @@ export default function ChatKarla() {
 
             {/* For Social Landlords Section */}
             <div>
-              <h3 className="text-base sm:text-lg md:text-xl font-semibold text-purple-200 mb-4 sm:mb-6 text-center">
+              <h3 className="text-base sm:text-lg md:text-xl font-semibold text-purple-200 mb-4 sm:mb-6 text-center underline decoration-purple-300 decoration-2">
                 For Social Landlords, I can:
               </h3>
               <div className="space-y-3 sm:space-y-4 text-center px-2 sm:px-0">
