@@ -4,7 +4,7 @@ import { useParams } from "next/navigation";
 import { publicApi } from '@/http';
 import { toast } from "sonner";
 import Image from "next/image";
-import { AlertTriangle, FileQuestion, Key, User, ImageIcon, Video, X, Printer } from "lucide-react";
+import { AlertTriangle, FileQuestion, Key, User, ImageIcon, Video, X, Printer, Clock, XCircle } from "lucide-react";
 import moment from "moment";
 import { useRouter } from "next/navigation";
 import { useUser } from '@/provider/UserProvider';
@@ -28,6 +28,10 @@ export default function ViewUploadPage() {
   const [shareCodeInput, setShareCodeInput] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState('');
+
+  // Timeout functionality for guest users
+  const [timeLeft, setTimeLeft] = useState(15 * 60); // 15 minutes in seconds
+  const [showTimeoutWarning, setShowTimeoutWarning] = useState(false);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -85,6 +89,76 @@ export default function ViewUploadPage() {
       }
     }
   }, [accessCode, router, notificationSent]);
+
+  // Initialize timeout from localStorage for guest users
+  useEffect(() => {
+    if (!user && allowed && accessCode) {
+      const timeoutKey = `timeout_${accessCode}`;
+      const startTimeKey = `startTime_${accessCode}`;
+      
+      // Check if timeout already exists for this access code
+      const existingTimeout = localStorage.getItem(timeoutKey);
+      const startTime = localStorage.getItem(startTimeKey);
+      
+      if (existingTimeout && startTime) {
+        // Calculate remaining time based on start time
+        const elapsed = Math.floor((Date.now() - parseInt(startTime)) / 1000);
+        const remaining = Math.max(0, (15 * 60) - elapsed);
+        
+        if (remaining <= 0) {
+          // Time has expired, clear session and redirect
+          sessionStorage.removeItem(`accessCodeValidated:${accessCode}`);
+          localStorage.removeItem(timeoutKey);
+          localStorage.removeItem(startTimeKey);
+          router.replace('/');
+          return;
+        }
+        
+        setTimeLeft(remaining);
+        
+        // Show warning if less than 5 minutes remaining
+        if (remaining <= 5 * 60) {
+          setShowTimeoutWarning(true);
+        }
+      } else {
+        // First time accessing this share code, set initial timeout
+        localStorage.setItem(timeoutKey, 'active');
+        localStorage.setItem(startTimeKey, Date.now().toString());
+        setTimeLeft(15 * 60);
+      }
+    }
+  }, [user, allowed, accessCode, router]);
+
+  // Timeout countdown for guest users only
+  useEffect(() => {
+    // Only start timer if user is not logged in (guest user)
+    if (!user && allowed && !loading && timeLeft > 0) {
+      const timer = setInterval(() => {
+        setTimeLeft(prev => {
+          if (prev <= 1) {
+            // Session expired - redirect to home
+            sessionStorage.removeItem(`accessCodeValidated:${accessCode}`);
+            localStorage.removeItem(`timeout_${accessCode}`);
+            localStorage.removeItem(`startTime_${accessCode}`);
+            toast.error('Session expired! Please enter the share code again to continue.');
+            router.replace('/');
+            return 0;
+          }
+                    
+          return prev - 1;
+        });
+      }, 1000);
+
+      return () => clearInterval(timer);
+    }
+  }, [user, allowed, loading, timeLeft, accessCode, router]);
+
+  // Format time for display
+  const formatTime = (seconds) => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+  };
 
   // Early returns after all hooks
   if (!checked) return null;
@@ -188,13 +262,28 @@ export default function ViewUploadPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
-      <div className="max-w-4xl mx-auto p-6 relative">
+
+
+      <div className="max-w-4xl mx-auto p-6 pb-20 sm:pb-6 relative">
         {/* Header with Close Button */}
         <div className="flex flex-col sm:flex-row items-center justify-between mb-6 sm:mb-8 gap-4">
-          {/* Title Section */}
+          {/* Title Section with Share Code */}
           <div className="text-center sm:text-left flex-1 order-1 sm:order-1">
-            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-800 mb-2">Upload Details</h1>
-            <div className="w-16 sm:w-20 md:w-24 h-1 bg-gradient-to-r from-blue-500 to-indigo-600 mx-auto sm:mx-0 rounded-full"></div>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-2">
+              <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-800">Upload Details</h1>
+                             <div className="hidden sm:block">
+                 <span className="bg-gradient-to-r from-purple-500 via-purple-600 to-pink-500 text-white font-normal text-sm px-3 py-1.5 rounded-full shadow-xl font-mono tracking-wide hover:shadow-2xl hover:scale-105 transition-all duration-300">
+                   Share Code: {accessCode}
+                 </span>
+               </div>
+            </div>
+            <div className="w-16 sm:w-20 md:w-24 h-1 bg-gradient-to-r from-blue-500 to-indigo-600 mx-auto sm:mx-0 rounded-full mb-3 sm:mb-0"></div>
+            {/* Mobile Share Code Display */}
+            <div className="sm:hidden flex justify-center mb-4">
+              <span className="bg-gradient-to-r from-purple-500 via-purple-600 to-pink-500 text-white font-normal text-base px-4 py-2.5 rounded-full shadow-xl font-mono tracking-wide">
+                Share Code: {accessCode}
+              </span>
+            </div>
           </div>
           
           {/* Actions Section */}
@@ -238,14 +327,14 @@ export default function ViewUploadPage() {
               <Printer className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
             
-            {/* Close Button */}
+            {/* Enhanced Close Button */}
             <button
               onClick={() => router.back()}
-              className="bg-red-500 hover:bg-red-600 text-white rounded-full w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center shadow-lg transition-all duration-200 z-20 border-2 border-white focus:outline-none focus:ring-2 focus:ring-red-400 flex-shrink-0"
-              aria-label="Close details"
+              className="bg-red-500 hover:bg-red-600 text-white rounded-full w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center shadow-lg transition-all duration-200 z-20 border-2 border-white focus:outline-none focus:ring-2 focus:ring-red-400 flex-shrink-0"              aria-label="Close details"
+              title="Close details"
             >
-              <X className="w-4 h-4 sm:w-6 sm:h-6" />
-            </button>
+              <XCircle className="w-4 h-4 sm:w-6 sm:h-6" />
+            </button>          
           </div>
           
           {/* Errors are shown via toast notifications */}
@@ -255,11 +344,29 @@ export default function ViewUploadPage() {
 
         {/* Personal Information Card */}
         <div className="bg-white rounded-2xl shadow-xl p-6 mb-8 border border-gray-100">
-          <div className="flex items-center mb-4">
-            <div className="w-10 h-10 bg-gradient-to-r from-green-400 to-blue-500 rounded-full flex items-center justify-center text-white mr-3">
-              <User className="w-5 h-5" />
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0 mb-4">
+            <div className="flex items-center">
+              <div className="w-10 h-10 bg-gradient-to-r from-green-400 to-blue-500 rounded-full flex items-center justify-center text-white mr-3">
+                <User className="w-5 h-5" />
+              </div>
+              <h2 className="text-2xl font-bold text-gray-800">Customer Information</h2>
             </div>
-            <h2 className="text-2xl font-bold text-gray-800">Customer Information</h2>
+            
+            {!user && (
+              <div className="flex flex-col gap-2 items-center sm:items-end">
+                <div className="bg-gradient-to-r from-amber-500 to-orange-600 text-white px-3 py-2 rounded-full shadow-lg border border-white w-[280px] sm:w-fit">
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-amber-200" />
+                    <span className="text-sm font-medium">
+                      Session window expires in <span className="font-mono tabular-nums">{formatTime(timeLeft)}</span>
+                    </span>
+                  </div>
+                </div>
+                <div className="text-xs text-gray-600 text-center sm:text-left sm:ml-0 sm:mr-auto pl-2">
+                  Press <span className="inline-flex items-center justify-center w-5 h-5 bg-red-500 text-white rounded-full shadow-lg border border-white translate-y-0.5"><XCircle className="w-4 h-4" /></span> above to close window now
+                </div>
+              </div>
+            )}
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-3">
@@ -280,8 +387,11 @@ export default function ViewUploadPage() {
                 <span className="text-gray-500 font-medium w-full sm:w-20 text-sm sm:text-base">Created:</span>
                 <span className="text-gray-800 text-sm sm:text-base">{upload.createdAt ? moment(upload.createdAt).format('D MMMM YYYY, h:mm a') : '-'}</span>
               </div>
+              
+
             </div>
             <div>
+              
               <div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-0 mb-3">
                 <span className="text-gray-500 font-medium w-full sm:w-20 text-sm sm:text-base">Address:</span>
                 <div className="text-gray-800 leading-relaxed text-sm sm:text-base">
@@ -299,31 +409,33 @@ export default function ViewUploadPage() {
         </div>
 
         {/* Images Section */}
-        <div className="bg-white rounded-2xl shadow-xl p-6 mb-8 border border-gray-100">
-          <div className="flex items-center mb-6">
-            <div className="w-10 h-10 bg-gradient-to-r from-purple-400 to-pink-500 rounded-full flex items-center justify-center text-white mr-3">
-              <ImageIcon className="w-5 h-5" />
+        <div className="bg-white rounded-2xl shadow-xl p-3 sm:p-4 md:p-6 mb-6 sm:mb-8 border border-gray-100">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-0 mb-4 sm:mb-6">
+            <div className="flex items-center">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-r from-purple-400 to-pink-500 rounded-full flex items-center justify-center text-white mr-2 sm:mr-3">
+                <ImageIcon className="w-4 h-4 sm:w-5 sm:h-5" />
+              </div>
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-800">Images/Photos</h2>
             </div>
-            <h2 className="text-2xl font-bold text-gray-800">Images/Photos</h2>
             {upload.images?.length > 0 && (
-              <span className="ml-auto bg-purple-100 text-purple-800 text-sm font-medium px-3 py-1 rounded-full">
+              <span className="sm:ml-auto bg-purple-100 text-purple-800 text-xs sm:text-sm font-medium px-2 sm:px-3 py-1 rounded-full w-fit">
                 {upload.images.length} image{upload.images.length !== 1 ? 's' : ''}
               </span>
             )}
           </div>
           
           {upload.images && upload.images.length > 0 ? (
-            <div className="flex gap-3 md:gap-4 overflow-x-auto pb-2 md:pb-4 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 sm:gap-3 md:gap-4">
               {upload.images.map((img, index) => (
-                <div key={img.url} className="w-[140px] sm:w-[180px] md:w-[200px] flex-shrink-0">
-                  <div className="w-full h-[100px] sm:h-[140px] md:h-[200px] bg-gradient-to-br from-gray-200 to-gray-300 rounded-3xl overflow-hidden relative shadow-lg hover:shadow-xl transition-all duration-300 group">
+                <div key={img.url} className="group">
+                  <div className="aspect-square bg-gradient-to-br from-gray-200 to-gray-300 rounded-xl sm:rounded-2xl overflow-hidden relative shadow-md hover:shadow-lg transition-all duration-300">
                     {!imageErrors[img.url] ? (
                       <Image
                         src={img.url}
                         alt={img.label || 'Upload image'}
                         width={200}
                         height={200}
-                        className="w-full h-full object-cover rounded-3xl cursor-pointer transition-transform duration-300 hover:scale-105"
+                        className="w-full h-full object-cover cursor-pointer transition-transform duration-300 hover:scale-105"
                         onClick={() => setSelectedMedia({type: 'image', ...img})}
                         onError={() => setImageErrors(prev => ({ ...prev, [img.url]: true }))}
                         onLoad={(e) => {
@@ -339,62 +451,64 @@ export default function ViewUploadPage() {
                         unoptimized
                       />
                     ) : (
-                      <div className="w-full h-full bg-gray-100 flex items-center justify-center text-gray-400 rounded-3xl">
-                        <ImageIcon className="w-8 h-8" />
+                      <div className="w-full h-full bg-gray-100 flex items-center justify-center text-gray-400">
+                        <ImageIcon className="w-6 h-6 sm:w-8 sm:h-8" />
                       </div>
                     )}
-                    <div className="absolute top-2 md:top-3 left-2 md:left-3 bg-white/90 backdrop-blur-sm rounded-full px-2 md:px-3 py-0.5 md:py-1">
-                      <span className="text-xs font-semibold text-gray-700">#{index + 1}</span>
+                    <div className="absolute top-1 sm:top-2 left-1 sm:left-2 bg-white/90 backdrop-blur-sm rounded-full px-1.5 sm:px-2 py-0.5 text-xs font-semibold text-gray-700">
+                      #{index + 1}
                     </div>
-                    <div className="absolute top-2 md:top-3 right-2 md:right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                    <div className="absolute top-1 sm:top-2 right-1 sm:right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                       <button 
                         type="button"
                         onClick={() => setSelectedMedia({type: 'image', ...img})}
-                        className="p-1.5 md:p-2 bg-black/20 backdrop-blur-sm hover:bg-black/40 rounded-full text-white transition-all duration-200 hover:scale-110"
+                        className="p-1 sm:p-1.5 bg-black/20 backdrop-blur-sm hover:bg-black/40 rounded-full text-white transition-all duration-200 hover:scale-110"
                       >
-                        <svg className="w-3.5 h-3.5 md:w-4 md:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
                         </svg>
                       </button>
                     </div>
                   </div>
-                  <div className="mt-2 md:mt-3 text-center px-2">
-                    <div className="text-sm font-semibold text-gray-700 bg-gray-100 px-2 py-1 rounded-md">{img.label}</div>
+                  <div className="mt-1 sm:mt-2 text-center px-1">
+                    <div className="text-xs sm:text-sm font-semibold text-gray-700 bg-gray-100 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded text-center truncate">{img.label}</div>
                   </div>
                 </div>
               ))}
             </div>
           ) : (
-            <div className="text-center py-8 md:py-12 text-gray-400">
-              <ImageIcon className="w-16 h-16 mx-auto mb-4" />
-              <p className="text-lg">No images uploaded</p>
+            <div className="text-center py-6 sm:py-8 md:py-12 text-gray-400">
+              <ImageIcon className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-3 sm:mb-4" />
+              <p className="text-base sm:text-lg">No images uploaded</p>
             </div>
           )}
         </div>
 
         {/* Videos Section */}
-        <div className="bg-white rounded-2xl shadow-xl p-6 border border-gray-100">
-          <div className="flex items-center mb-6">
-            <div className="w-10 h-10 bg-gradient-to-r from-red-400 to-orange-500 rounded-full flex items-center justify-center text-white mr-3">
-              <Video className="w-5 h-5" />
+        <div className="bg-white rounded-2xl shadow-xl p-3 sm:p-4 md:p-6 border border-gray-100">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-0 mb-4 sm:mb-6">
+            <div className="flex items-center">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-r from-red-400 to-orange-500 rounded-full flex items-center justify-center text-white mr-2 sm:mr-3">
+                <Video className="w-4 h-4 sm:w-5 sm:h-5" />
+              </div>
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-800">Videos</h2>
             </div>
-            <h2 className="text-2xl font-bold text-gray-800">Videos</h2>
             {upload.videos?.length > 0 && (
-              <span className="ml-auto bg-red-100 text-red-800 text-sm font-medium px-3 py-1 rounded-full">
+              <span className="sm:ml-auto bg-red-100 text-red-800 text-xs sm:text-sm font-medium px-2 sm:px-3 py-1 rounded-full w-fit">
                 {upload.videos.length} video{upload.videos.length !== 1 ? 's' : ''}
               </span>
             )}
           </div>
           
           {upload.videos && upload.videos.length > 0 ? (
-            <div className="flex gap-3 md:gap-4 overflow-x-auto pb-2 md:pb-4 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
               {upload.videos.map((vid, index) => (
-                <div key={vid.url} className="w-[180px] sm:w-[200px] md:w-[280px] flex-shrink-0">
-                  <div className="w-full h-[140px] sm:h-[200px] bg-gradient-to-br from-gray-200 to-gray-300 rounded-3xl overflow-hidden relative shadow-lg hover:shadow-xl transition-all duration-300 group">
+                <div key={vid.url} className="group">
+                  <div className="aspect-video bg-gradient-to-br from-gray-200 to-gray-300 rounded-xl sm:rounded-2xl overflow-hidden relative shadow-md hover:shadow-lg transition-all duration-300">
                     <video
                       src={vid.url}
                       controls
-                      className="w-full h-full object-cover rounded-3xl"
+                      className="w-full h-full object-cover"
                       preload="metadata"
                       playsInline
                       onError={(e) => {
@@ -410,32 +524,32 @@ export default function ViewUploadPage() {
                         console.log('Video can play:', vid.url);
                       }}
                     />
-                    <div className="fallback-video absolute inset-0 bg-gray-100 flex items-center justify-center text-gray-400 hidden rounded-3xl">
-                      <Video className="w-12 h-12" />
-                      <p className="text-sm text-gray-500 mt-2">Video unavailable</p>
+                    <div className="fallback-video absolute inset-0 bg-gray-100 flex items-center justify-center text-gray-400 hidden rounded-xl sm:rounded-2xl">
+                      <Video className="w-8 h-8 sm:w-12 sm:h-12" />
+                      <p className="text-xs sm:text-sm text-gray-500 mt-1 sm:mt-2">Video unavailable</p>
                     </div>
-                    <div className="absolute top-2 md:top-3 right-2 md:right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                    <div className="absolute top-1 sm:top-2 right-1 sm:right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                       <button 
                         type="button"
                         onClick={() => setSelectedMedia({type: 'video', ...vid})}
-                        className="p-1.5 md:p-2 bg-black/20 backdrop-blur-sm hover:bg-black/40 rounded-full text-white transition-all duration-200 hover:scale-110"
+                        className="p-1 sm:p-1.5 bg-black/20 backdrop-blur-sm hover:bg-black/40 rounded-full text-white transition-all duration-200 hover:scale-110"
                       >
-                        <svg className="w-3.5 h-3.5 md:w-4 md:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
                         </svg>
                       </button>
                     </div>
                   </div>
-                  <div className="mt-2 md:mt-3 text-center px-2">
-                    <div className="text-sm font-semibold text-gray-700 bg-gray-100 px-2 py-1 rounded-md">{vid.label}</div>
+                  <div className="mt-1 sm:mt-2 text-center px-1">
+                    <div className="text-xs sm:text-sm font-semibold text-gray-700 bg-gray-100 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded text-center truncate">{vid.label}</div>
                   </div>
                 </div>
               ))}
             </div>
           ) : (
-            <div className="text-center py-8 md:py-12 text-gray-400">
-              <Video className="w-16 h-16 mx-auto mb-4" />
-              <p className="text-lg">No videos uploaded</p>
+            <div className="text-center py-6 sm:py-8 md:py-12 text-gray-400">
+              <Video className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-3 sm:mb-4" />
+              <p className="text-base sm:text-lg">No videos uploaded</p>
             </div>
           )}
         </div>

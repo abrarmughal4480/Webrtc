@@ -1,5 +1,5 @@
 "use client"
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { requestDemoRequest } from '@/http/authHttp';
 
@@ -17,9 +17,153 @@ export default function ChatKarla() {
   const [chatDemoCode, setChatDemoCode] = useState('');
   const [chatDemoCodeError, setChatDemoCodeError] = useState('');
   const [demoCodeBlocks, setDemoCodeBlocks] = useState(['', '', '', '']);
+  const canvasRef = useRef(null);
 
   // Valid demo codes - you can modify this array as needed
   const validDemoCodes = ['7002'];
+
+  // Neural Network Animation
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    let animationId;
+
+    // Set canvas size
+    const resizeCanvas = () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    };
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+
+    // Node class for neural network
+    class Node {
+      constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.vx = (Math.random() - 0.5) * 0.8;
+        this.vy = (Math.random() - 0.5) * 0.8;
+        this.radius = Math.random() * 2 + 1;
+        this.connections = [];
+        this.pulse = Math.random() * Math.PI * 2;
+      }
+
+      update() {
+        this.x += this.vx;
+        this.y += this.vy;
+        this.pulse += 0.08;
+
+        // Bounce off edges
+        if (this.x <= 0 || this.x >= canvas.width) this.vx *= -1;
+        if (this.y <= 0 || this.y >= canvas.height) this.vy *= -1;
+
+        // Keep within bounds
+        this.x = Math.max(0, Math.min(canvas.width, this.x));
+        this.y = Math.max(0, Math.min(canvas.height, this.y));
+      }
+
+      draw() {
+        const alpha = 0.7 + 0.3 * Math.sin(this.pulse);
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+        ctx.fill();
+        
+        // Enhanced glow effect
+        ctx.shadowColor = 'rgba(255, 255, 255, 0.8)';
+        ctx.shadowBlur = 15;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        
+        // Add inner glow
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius * 0.6, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255, 255, 255, ${alpha * 0.3})`;
+        ctx.fill();
+      }
+    }
+
+    // Create nodes
+    const nodes = [];
+    const nodeCount = Math.min(80, Math.floor((canvas.width * canvas.height) / 15000));
+    
+    for (let i = 0; i < nodeCount; i++) {
+      nodes.push(new Node(
+        Math.random() * canvas.width,
+        Math.random() * canvas.height
+      ));
+    }
+
+    // Animation loop
+    const animate = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      // Update and draw nodes
+      nodes.forEach(node => {
+        node.update();
+        node.draw();
+      });
+
+      // Draw connections with enhanced linking
+      nodes.forEach((node, i) => {
+        nodes.slice(i + 1).forEach(otherNode => {
+          const distance = Math.sqrt(
+            Math.pow(node.x - otherNode.x, 2) + 
+            Math.pow(node.y - otherNode.y, 2)
+          );
+          
+          if (distance < 180) {
+            const alpha = Math.max(0, 1 - distance / 180);
+            const pulseEffect = Math.sin(Date.now() * 0.003 + i * 0.1) * 0.2 + 0.8;
+            
+            // Main connection line
+            ctx.beginPath();
+            ctx.moveTo(node.x, node.y);
+            ctx.lineTo(otherNode.x, otherNode.y);
+            ctx.strokeStyle = `rgba(255, 255, 255, ${alpha * 0.4 * pulseEffect})`;
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+            
+            // Enhanced glow to connections
+            ctx.shadowColor = 'rgba(255, 255, 255, 0.6)';
+            ctx.shadowBlur = 8;
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+            
+            // Add pulsing dots along the connection
+            if (distance < 120) {
+              const steps = 3;
+              for (let step = 1; step < steps; step++) {
+                const t = step / steps;
+                const x = node.x + (otherNode.x - node.x) * t;
+                const y = node.y + (otherNode.y - node.y) * t;
+                const dotPulse = Math.sin(Date.now() * 0.005 + step * 0.5) * 0.3 + 0.7;
+                
+                ctx.beginPath();
+                ctx.arc(x, y, 1, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(255, 255, 255, ${alpha * 0.6 * dotPulse})`;
+                ctx.fill();
+              }
+            }
+          }
+        });
+      });
+
+      animationId = requestAnimationFrame(animate);
+    };
+
+    animate();
+
+    // Cleanup
+    return () => {
+      window.removeEventListener('resize', resizeCanvas);
+      if (animationId) {
+        cancelAnimationFrame(animationId);
+      }
+    };
+  }, []);
 
   const handleStart = () => {
     setIsDemoCodePopupOpen(true);
@@ -139,10 +283,13 @@ export default function ChatKarla() {
   ];
 
   return (
-    <section className="py-8 sm:py-10 md:py-12 lg:py-16 bg-amber-400 relative overflow-hidden">
-      {/* Background decorative elements */}
-      <div className="absolute top-0 left-0 w-16 sm:w-24 md:w-32 h-16 sm:h-24 md:h-32 bg-white rounded-full opacity-10 -translate-x-8 sm:-translate-x-12 md:-translate-x-16 -translate-y-8 sm:-translate-y-12 md:-translate-y-16"></div>
-      <div className="absolute bottom-0 right-0 w-12 sm:w-16 md:w-24 h-12 sm:h-16 md:h-24 bg-white rounded-full opacity-15 translate-x-6 sm:translate-x-8 md:translate-x-12 translate-y-6 sm:translate-y-8 md:translate-y-12"></div>
+    <section className="py-8 sm:py-10 md:py-12 lg:py-16 bg-gradient-to-br from-[#9452FF] via-[#8a42fc] to-[#7c3aed] relative overflow-hidden">
+      {/* Neural Network Canvas Background */}
+      <canvas
+        ref={canvasRef}
+        className="absolute inset-0 w-full h-full opacity-40"
+        style={{ zIndex: 1 }}
+      />
       
       <div className="container mx-auto px-4 sm:px-6 md:px-8 relative z-10">
         <div className="max-w-5xl mx-auto">
@@ -152,7 +299,7 @@ export default function ChatKarla() {
                   Hello, I'm an AI Damp and Mould Assistant
              </h2>
              
-             <p className="text-lg sm:text-xl md:text-2xl lg:text-3xl max-w-xl sm:max-w-2xl mx-auto leading-relaxed font-medium text-white px-2 sm:px-0">
+             <p className="text-lg sm:text-xl md:text-2xl lg:text-3xl max-w-xl sm:max-w-2xl mx-auto leading-relaxed font-medium text-purple-100 px-2 sm:px-0">
                I'm here to help you <br/> with damp and mould issues
              </p>
           </div>
@@ -161,13 +308,13 @@ export default function ChatKarla() {
           <div className="max-w-4xl mx-auto mb-6 sm:mb-8 md:mb-10 lg:mb-12">
             {/* For Residents Section */}
             <div className="mb-8 sm:mb-10">
-              <h3 className="text-base sm:text-lg md:text-xl font-semibold text-gray-800 mb-4 sm:mb-6 text-center">
+              <h3 className="text-base sm:text-lg md:text-xl font-semibold text-purple-200 mb-4 sm:mb-6 text-center">
                 For residents, I can offer:
               </h3>
               <div className="space-y-3 sm:space-y-4 text-center px-2 sm:px-0">
                 {residentFeatures.map((feature, index) => (
                   <div key={index} className="group">
-                    <p className="text-sm sm:text-base md:text-lg text-gray-800 leading-relaxed font-medium group-hover:text-gray-900 transition-colors duration-300">
+                    <p className="text-sm sm:text-base md:text-lg text-purple-100 leading-relaxed font-medium group-hover:text-purple-50 transition-colors duration-300">
                       {feature}
                     </p>
                   </div>
@@ -177,21 +324,21 @@ export default function ChatKarla() {
 
             {/* For Social Landlords Section */}
             <div>
-              <h3 className="text-base sm:text-lg md:text-xl font-semibold text-gray-800 mb-4 sm:mb-6 text-center">
+              <h3 className="text-base sm:text-lg md:text-xl font-semibold text-purple-200 mb-4 sm:mb-6 text-center">
                 For Social Landlords, I can:
               </h3>
               <div className="space-y-3 sm:space-y-4 text-center px-2 sm:px-0">
                 {landlordFeatures.map((feature, index) => (
                   <div key={index} className="group">
                                          {index === 0 ? (
-                       <p className="text-sm sm:text-base md:text-lg text-gray-800 leading-relaxed font-medium group-hover:text-gray-900 transition-colors duration-300">
+                       <p className="text-sm sm:text-base md:text-lg text-purple-100 leading-relaxed font-medium group-hover:text-purple-50 transition-colors duration-300">
                          <span className="block sm:inline">Automate your Damp and Mould </span>
                          <span className="block sm:inline">reporting processes</span>
                        </p>
                      ) : (
-                      <p className="text-sm sm:text-base md:text-lg text-gray-800 leading-relaxed font-medium group-hover:text-gray-900 transition-colors duration-300">
+                      <p className="text-sm sm:text-base md:text-lg text-purple-100 leading-relaxed font-medium group-hover:text-purple-50 transition-colors duration-300">
                         {feature}
-                      </p>
+                    </p>
                     )}
                   </div>
                 ))}
@@ -203,7 +350,7 @@ export default function ChatKarla() {
           <div className="text-center px-4 sm:px-0 mb-8 sm:mb-10">
                          <Button 
                onClick={handleStart}
-               className="bg-white hover:bg-gray-50 text-amber-600 font-medium py-2.5 sm:py-3 px-6 sm:px-8 rounded-full text-base sm:text-lg transition-all transform hover:scale-105 shadow-lg hover:shadow-xl border-2 border-white w-full sm:w-auto max-w-xs sm:max-w-none block mx-auto flex justify-center items-center"
+               className="bg-white text-[#9452FF] font-medium py-2.5 sm:py-3 px-6 sm:px-8 rounded-full text-base sm:text-lg transition-all transform hover:scale-105 shadow-lg hover:shadow-xl border-2 border-[#9452FF] hover:bg-purple-50 w-full sm:w-auto max-w-xs sm:max-w-none block mx-auto flex justify-center items-center"
              >
                Start Chat
              </Button>
