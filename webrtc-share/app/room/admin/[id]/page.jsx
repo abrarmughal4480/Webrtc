@@ -1,6 +1,6 @@
 "use client"
 import { useState, useRef, use, useEffect, useCallback } from "react"
-import { Trash2, Plus, Maximize2, VideoIcon, PlayIcon, Save, Edit, Minimize2, Expand, ZoomIn, ZoomOut, Pencil, X, Play, ChevronDown, Eraser, Palette, RotateCcw, Loader2, Copy, Link as LinkIcon, ExternalLink, Check } from "lucide-react"
+import { Trash2, Plus, Maximize2, VideoIcon, PlayIcon, Save, Edit, Minimize2, Expand, ZoomIn, ZoomOut, Pencil, X, Play, ChevronDown, Eraser, Palette, RotateCcw, Loader2, Copy, Link as LinkIcon, ExternalLink, Check, Zap } from "lucide-react"
 import useWebRTC from "@/hooks/useWebRTC"
 import useDrawingTools from "@/hooks/useDrawingTools"
 import { createRequest, getMeetingByMeetingId, deleteRecordingRequest, deleteScreenshotRequest, getSpecialNotes, getStructuredSpecialNotes, saveStructuredSpecialNotes } from "@/http/meetingHttp"
@@ -89,7 +89,8 @@ export default function Page({ params }) {
     isLoadingTokenInfo: true,
     zoomLevel: 1,
     videoPanX: 0,
-    videoPanY: 0
+    videoPanY: 0,
+    torchEnabled: false
   });
 
   const [structuredSpecialNotes, setStructuredSpecialNotes] = useState({});
@@ -110,7 +111,8 @@ export default function Page({ params }) {
 
   const {
     handleDisconnect, isConnected, screenshots, takeScreenshot, startPeerConnection, deleteScreenshot, handleVideoPlay, showVideoPlayError, isCapturingScreenshot, updateScreenshotProperties,
-    handleMouseDown, handleMouseMove, handleMouseUp, handleMouseLeave, mousePosition, isMouseDown
+    handleMouseDown, handleMouseMove, handleMouseUp, handleMouseLeave, mousePosition, isMouseDown,
+    handleCameraZoom, handleCameraTorch
   } = useWebRTC(true, id, videoRef);
   const { setResetOpen, setMessageOpen, setLandlordDialogOpen, setTickerOpen, setFeedbackOpen, setFaqOpen, setShareLinkOpen, setInviteOpen } = useDialog();
   const { user, isAuth, setIsAuth, setUser } = useUser();
@@ -2581,6 +2583,15 @@ export default function Page({ params }) {
                     )}
                   </div>
                 )}
+
+
+
+                {/* Play button positioned over the entire video area */}
+                {showVideoPlayError && (
+                  <button className="w-[3rem] h-[3rem] bg-amber-500 text-white rounded-full absolute top-[50%] left-[50%] -translate-x-[50%] -translate-y-[50%] flex items-center justify-center cursor-pointer" title="Play Video" onClick={handleVideoPlay} style={{ zIndex: 25, display: isMouseDown ? 'none' : 'block' }}>
+                    <Play className="w-6 h-6" />
+                  </button>
+                )}
               </div>
 
               {/* Video controls positioned outside the video container */}
@@ -2605,19 +2616,26 @@ export default function Page({ params }) {
                 </div>
               )}
 
-              {showVideoPlayError && (
-                <button className="w-[3rem] h-[3rem] bg-amber-500 text-white rounded-full absolute top-[50%] left-[50%] -translate-x-[50%] -translate-y-[50%] flex items-center justify-center cursor-pointer" title="Play Video" onClick={handleVideoPlay} style={{ zIndex: 30, display: isMouseDown ? 'none' : 'block' }}>
-                  <Play />
-                </button>
-              )}
-
               <div className="absolute bottom-2 left-[50%] -translate-x-[50%] text-white px-3 py-1 text-sm font-medium flex items-center gap-3" style={{ display: media.isRecording ? 'none' : (isMouseDown ? 'none' : 'flex'), zIndex: 30 }}>
                 <span className="w-4 h-4 rounded-full bg-red-600 block"></span>
                 <span className="text-white text-lg">{isConnected ? formatTime(app.callDuration) : "0:00"}</span>
               </div>
 
               <div className="absolute bottom-2 right-0 text-white px-3 py-1 text-sm font-medium flex items-center gap-3 flex-col" style={{ display: media.isRecording ? 'none' : (isMouseDown ? 'none' : 'flex'), zIndex: 30 }}>
-                <button className="p-1 rounded text-white cursor-pointer hover:bg-black/20 transition-colors" onClick={() => handleZoom('in')} disabled={app.zoomLevel >= 3} title={`Zoom In (${Math.round(app.zoomLevel * 100)}%)`}>
+                {/* Torch Button */}
+                <button 
+                  className="p-1 rounded text-white cursor-pointer hover:bg-black/20 transition-colors" 
+                  onClick={() => {
+                    const newTorchState = !app.torchEnabled;
+                    setApp(prev => ({ ...prev, torchEnabled: newTorchState }));
+                    handleCameraTorch(newTorchState);
+                  }}
+                  title={`Turn ${app.torchEnabled ? 'OFF' : 'ON'} torch`}
+                >
+                  <Zap className={`w-4 h-4 ${app.torchEnabled ? 'text-yellow-300' : ''}`} />
+                </button>
+
+                <button className="p-1 rounded text-white cursor-pointer hover:bg-black/20 transition-colors" onClick={() => handleCameraZoom('in')} disabled={app.zoomLevel >= 3} title="Zoom In User Camera">
                   <ZoomIn className={`w-4 h-4 ${app.zoomLevel >= 3 ? 'opacity-50' : ''}`} />
                 </button>
 
@@ -2625,7 +2643,7 @@ export default function Page({ params }) {
                   {Math.round(app.zoomLevel * 100)}%
                 </button>
 
-                <button className="p-1 rounded text-white cursor-pointer hover:bg-black/20 transition-colors" onClick={() => handleZoom('out')} disabled={app.zoomLevel <= 0.5} title={`Zoom Out (${Math.round(app.zoomLevel * 100)}%)`}>
+                <button className="p-1 rounded text-white cursor-pointer hover:bg-black/20 transition-colors" onClick={() => handleCameraZoom('out')} disabled={app.zoomLevel <= 0.5} title="Zoom Out User Camera">
                   <ZoomOut className={`w-4 h-4 ${app.zoomLevel <= 0.5 ? 'opacity-50' : ''}`} />
                 </button>
               </div>

@@ -650,6 +650,8 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
         socketConnection.current.on('ice-candidate', handleIceCandidate);
         socketConnection.current.on('user-disconnected', handleUserDisconnected);
         socketConnection.current.on('mouse-event', handleIncomingMouseEvent);
+        socketConnection.current.on('camera-zoom', handleIncomingCameraZoom);
+        socketConnection.current.on('camera-torch', handleIncomingCameraTorch);
 
         return () => {
             if (socketConnection.current) {
@@ -658,6 +660,8 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
                 socketConnection.current.off('ice-candidate', handleIceCandidate);
                 socketConnection.current.off('user-disconnected', handleUserDisconnected);
                 socketConnection.current.off('mouse-event', handleIncomingMouseEvent);
+                socketConnection.current.off('camera-zoom', handleIncomingCameraZoom);
+                socketConnection.current.off('camera-torch', handleIncomingCameraTorch);
             }
         }
     }, [isAdmin, roomId]);    // 3. Enhanced takeScreenshot function with duplicate prevention
@@ -1157,6 +1161,97 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
         }
     };
 
+    // Camera zoom control functions
+    const handleCameraZoom = async (direction) => {
+        if (!isAdmin || !socketConnection.current) return;
+        
+        try {
+            // Send zoom command to user
+            socketConnection.current.emit('camera-zoom', {
+                direction: direction, // 'in' or 'out'
+                timestamp: Date.now()
+            }, roomId);
+            
+            console.log(`Camera zoom ${direction} command sent`);
+        } catch (error) {
+            console.error('Error sending camera zoom command:', error);
+        }
+    };
+
+    // Camera torch control function
+    const handleCameraTorch = async (enabled) => {
+        if (!isAdmin || !socketConnection.current) return;
+        
+        try {
+            // Send torch command to user
+            socketConnection.current.emit('camera-torch', {
+                enabled: enabled, // true or false
+                timestamp: Date.now()
+            }, roomId);
+            
+            console.log(`Camera torch ${enabled ? 'ON' : 'OFF'} command sent`);
+        } catch (error) {
+            console.error('Error sending camera torch command:', error);
+        }
+    };
+
+    // Handle incoming camera commands (for users)
+    const handleIncomingCameraZoom = async (data) => {
+        if (isAdmin) return; // Only users should handle camera commands
+        
+        try {
+            const { direction } = data;
+            
+            if (localStream && localStream.getVideoTracks().length > 0) {
+                const videoTrack = localStream.getVideoTracks()[0];
+                const capabilities = videoTrack.getCapabilities();
+                
+                if (capabilities.zoom) {
+                    const settings = videoTrack.getSettings();
+                    const currentZoom = settings.zoom || 1;
+                    
+                    let newZoom;
+                    if (direction === 'in') {
+                        newZoom = Math.min(currentZoom * 1.2, capabilities.zoom.max);
+                    } else {
+                        newZoom = Math.max(currentZoom / 1.2, capabilities.zoom.min);
+                    }
+                    
+                    await videoTrack.applyConstraints({
+                        advanced: [{ zoom: newZoom }]
+                    });
+                    
+                    console.log(`Camera zoom ${direction}: ${currentZoom} -> ${newZoom}`);
+                }
+            }
+        } catch (error) {
+            console.error('Error applying camera zoom:', error);
+        }
+    };
+
+    const handleIncomingCameraTorch = async (data) => {
+        if (isAdmin) return; // Only users should handle camera commands
+        
+        try {
+            const { enabled } = data;
+            
+            if (localStream && localStream.getVideoTracks().length > 0) {
+                const videoTrack = localStream.getVideoTracks()[0];
+                const capabilities = videoTrack.getCapabilities();
+                
+                if (capabilities.torch) {
+                    await videoTrack.applyConstraints({
+                        advanced: [{ torch: enabled }]
+                    });
+                    
+                    console.log(`Camera torch ${enabled ? 'ON' : 'OFF'}`);
+                }
+            }
+        } catch (error) {
+            console.error('Error applying camera torch:', error);
+        }
+    };
+
     return {
         localStream,
         remoteStream,
@@ -1192,7 +1287,13 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
         handleIncomingMouseEvent,
         // Add mouse tracking state to exports
         mousePosition,
-        isMouseDown
+        isMouseDown,
+        // Add camera control functions to exports
+        handleCameraZoom,
+        handleCameraTorch,
+        // Add incoming camera control handlers for users
+        handleIncomingCameraZoom,
+        handleIncomingCameraTorch
     }
 }
 

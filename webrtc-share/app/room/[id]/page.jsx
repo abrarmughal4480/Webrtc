@@ -23,7 +23,8 @@ const page = ({params}) => {
   const [pageLoading, setPageLoading] = useState(true);
   const videoRef = useRef(null);
   const notificationSocketRef = useRef(null);  const {localStream, remoteStream, socket, socketConnection, handleDisconnect, startPeerConnection, endCallWithRedirect,
-    handleMouseDown, handleMouseMove, handleMouseUp, handleMouseLeave, mousePosition, isMouseDown} = useWebRTC(false, id, videoRef);
+    handleMouseDown, handleMouseMove, handleMouseUp, handleMouseLeave, mousePosition, isMouseDown,
+    handleCameraZoom, handleCameraTorch} = useWebRTC(false, id, videoRef);
   const [roomUserInfo, setRoomUserInfo] = useState(null);
   const [minSkeletonTimePassed, setMinSkeletonTimePassed] = useState(false);
   const [isDefaultRedirectUrlFromUser, setIsDefaultRedirectUrlFromUser] = useState(true);
