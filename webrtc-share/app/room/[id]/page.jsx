@@ -357,10 +357,187 @@ const page = ({params}) => {
           </div>
         )}
 
+        {/* Camera Control Buttons */}
+        {!open && (
+          <div 
+            style={{ 
+              position: 'absolute', 
+              bottom: '120px', 
+              right: '20px', 
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '10px',
+              zIndex: 30
+            }}
+          >
+            {/* Torch Button */}
+            <button 
+              className="w-12 h-12 bg-black/50 hover:bg-black/70 text-white rounded-full flex items-center justify-center cursor-pointer transition-all duration-200 shadow-lg"
+              onClick={async () => {
+                try {
+                  if (localStream && localStream.getVideoTracks().length > 0) {
+                    const videoTrack = localStream.getVideoTracks()[0];
+                    
+                    // Check if torch is supported
+                    if (videoTrack.getCapabilities && videoTrack.getCapabilities().torch) {
+                      const currentSettings = videoTrack.getSettings();
+                      const currentTorch = currentSettings.torch || false;
+                      const newTorchState = !currentTorch;
+                      
+                      await videoTrack.applyConstraints({
+                        advanced: [{ torch: newTorchState }]
+                      });
+                      
+                      console.log(`✅ Torch ${newTorchState ? 'ON' : 'OFF'} successfully`);
+                      
+                      // Visual feedback
+                      const button = event.target;
+                      if (newTorchState) {
+                        button.style.backgroundColor = 'rgba(255, 193, 7, 0.8)'; // Yellow when ON
+                        button.style.color = '#000';
+                      } else {
+                        button.style.backgroundColor = 'rgba(0, 0, 0, 0.5)'; // Black when OFF
+                        button.style.color = '#fff';
+                      }
+                    } else {
+                      console.log('⚠️ Torch not supported on this device');
+                      alert('Torch not supported on this device');
+                    }
+                  } else {
+                    console.log('⚠️ No video stream available');
+                  }
+                } catch (error) {
+                  console.error('❌ Error toggling torch:', error);
+                  alert('Failed to toggle torch. Please try again.');
+                }
+              }}
+              title="Toggle Torch"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+            </button>
+
+            {/* Zoom In Button */}
+            <button 
+              className="w-12 h-12 bg-black/50 hover:bg-black/70 text-white rounded-full flex items-center justify-center cursor-pointer transition-all duration-200 shadow-lg"
+              onClick={async () => {
+                try {
+                  if (localStream && localStream.getVideoTracks().length > 0) {
+                    const videoTrack = localStream.getVideoTracks()[0];
+                    
+                    // Check if zoom is supported
+                    if (videoTrack.getCapabilities && videoTrack.getCapabilities().zoom) {
+                      const capabilities = videoTrack.getCapabilities();
+                      const currentSettings = videoTrack.getSettings();
+                      const currentZoom = currentSettings.zoom || 1;
+                      const newZoom = Math.min(currentZoom * 1.2, capabilities.zoom.max);
+                      
+                      if (newZoom > currentZoom) {
+                        await videoTrack.applyConstraints({
+                          advanced: [{ zoom: newZoom }]
+                        });
+                        
+                        console.log(`✅ Zoom increased: ${currentZoom.toFixed(2)}x → ${newZoom.toFixed(2)}x`);
+                        
+                        // Visual feedback
+                        const button = event.target;
+                        button.style.backgroundColor = 'rgba(34, 197, 94, 0.8)'; // Green when zoomed
+                        setTimeout(() => {
+                          button.style.backgroundColor = 'rgba(0, 0, 0, 0.5)'; // Reset to black
+                        }, 500);
+                      } else {
+                        console.log('⚠️ Already at maximum zoom level');
+                        alert('Already at maximum zoom level');
+                      }
+                    } else {
+                      console.log('⚠️ Zoom not supported on this device');
+                      alert('Zoom not supported on this device');
+                    }
+                  } else {
+                    console.log('⚠️ No video stream available');
+                  }
+                } catch (error) {
+                  console.error('❌ Error zooming in:', error);
+                  alert('Failed to zoom in. Please try again.');
+                }
+              }}
+              title="Zoom In"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 10h6" />
+              </svg>
+            </button>
+
+            {/* Zoom Out Button */}
+            <button 
+              className="w-12 h-12 bg-black/50 hover:bg-black/70 text-white rounded-full flex items-center justify-center cursor-pointer transition-all duration-200 shadow-lg"
+              onClick={async () => {
+                try {
+                  if (localStream && localStream.getVideoTracks().length > 0) {
+                    const videoTrack = localStream.getVideoTracks()[0];
+                    
+                    // Check if zoom is supported
+                    if (videoTrack.getCapabilities && videoTrack.getCapabilities().zoom) {
+                      const capabilities = videoTrack.getCapabilities();
+                      const currentSettings = videoTrack.getSettings();
+                      const currentZoom = currentSettings.zoom || 1;
+                      const newZoom = Math.max(currentZoom / 1.2, capabilities.zoom.min);
+                      
+                      if (newZoom < currentZoom) {
+                        await videoTrack.applyConstraints({
+                          advanced: [{ zoom: newZoom }]
+                        });
+                        
+                        console.log(`✅ Zoom decreased: ${currentZoom.toFixed(2)}x → ${newZoom.toFixed(2)}x`);
+                        
+                        // Visual feedback
+                        const button = event.target;
+                        button.style.backgroundColor = 'rgba(59, 130, 246, 0.8)'; // Blue when zoomed out
+                        setTimeout(() => {
+                          button.style.backgroundColor = 'rgba(0, 0, 0, 0.5)'; // Reset to black
+                        }, 500);
+                      } else {
+                        console.log('⚠️ Already at minimum zoom level');
+                        alert('Already at minimum zoom level');
+                      }
+                    } else {
+                      console.log('⚠️ Zoom not supported on this device');
+                      alert('Zoom not supported on this device');
+                    }
+                  } else {
+                    console.log('⚠️ No video stream available');
+                  }
+                } catch (error) {
+                  console.error('❌ Error zooming out:', error);
+                  alert('Failed to zoom out. Please try again.');
+                }
+              }}
+              title="Zoom Out"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7" />
+              </svg>
+            </button>
+          </div>
+        )}
+
         {
           !open && (
-            <Button onClick={handleVideoCallEnd} className='absolute bottom-40 right-[50%] translate-x-[50%] text-white bg-red-400 rounded-md hover:bg-red-600 cursor-pointer text-xl'>
-              End Video Call
+            <Button 
+              onClick={handleVideoCallEnd} 
+              className='absolute bottom-8 left-[50%] -translate-x-[50%] text-white bg-red-500 hover:bg-red-600 rounded-full px-8 py-4 cursor-pointer text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 border-2 border-red-400'
+              style={{
+                minWidth: '200px',
+                boxShadow: '0 10px 25px rgba(239, 68, 68, 0.3)',
+                backdropFilter: 'blur(10px)',
+                background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)'
+              }}
+            >
+              <div className="flex items-center justify-center gap-3">
+                <span>End Video Call</span>
+              </div>
             </Button>
           )
         }
