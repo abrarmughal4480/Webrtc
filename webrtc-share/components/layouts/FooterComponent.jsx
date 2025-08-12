@@ -280,14 +280,15 @@ export function Footer() {
             {/* Left Section - Company Info */}
             <div className="space-y-4 flex items-center justify-center flex-col">
               <h2 className="text-2xl font-bold text-gray-900">Videodesk.co.uk</h2>
-              {/* <div className="space-y-2 text-gray-600 flex items-center justify-center flex-col">
-                <div>
-                  <span className="font-medium text-center">Phone number</span>
-                </div>
-                <div>
-                  <span className="font-medium text-center">Email</span>
-                </div>
-              </div> */}
+              <div className="text-gray-600 text-center">
+                <a 
+                  href="mailto:Info@videodesk.co.uk" 
+                  className="font-medium hover:text-[#9452FF] transition-colors duration-200 cursor-pointer"
+                  title="Send email to Info@videodesk.co.uk"
+                >
+                  Info@videodesk.co.uk
+                </a>
+              </div>
             </div>
 
             {/* Center Section - Action Buttons */}

@@ -96,6 +96,19 @@ export const setupSocketListeners = () => {
       socket.to(roomId).emit('user-disconnected');
     });
 
+    // Mouse tracking events
+    socket.on('mouse-event', (data) => {
+      // Get the room ID from the socket's joined rooms
+      const rooms = Array.from(socket.rooms);
+      const roomId = rooms.find(room => room !== socket.id);
+      
+      if (roomId) {
+        // Send mouse event to all other users in the same room
+        socket.to(roomId).emit('mouse-event', data);
+        logger.info(`Mouse event from ${socket.id} in room ${roomId}: ${data.type} at (${data.x}, ${data.y})`);
+      }
+    });
+
     socket.on('disconnect', () => {
       logger.info('User disconnected: ' + socket.id);
       // --- DISCONNECT CLEANUP STUB ---

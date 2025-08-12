@@ -38,6 +38,44 @@ input[type="text"] {
   -o-autocomplete: off !important;
 }
 
+/* Remove focus outline for mouse clicks while keeping it for keyboard navigation */
+*:focus:not(:focus-visible) {
+  outline: none !important;
+}
+
+/* Remove focus outline from buttons specifically */
+button:focus:not(:focus-visible) {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* Remove focus outline from dropdown triggers */
+[data-radix-popper-content-wrapper] button:focus:not(:focus-visible) {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* More aggressive focus removal for dropdown buttons */
+button[data-state="closed"]:focus,
+button[data-state="open"]:focus,
+[role="button"]:focus,
+[data-radix-trigger]:focus {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* Remove all focus outlines from buttons */
+button:focus {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* Remove focus from dropdown menu items */
+[data-radix-dropdown-menu-item]:focus {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
 input:-webkit-autofill,
 input:-webkit-autofill:hover,
 input:-webkit-autofill:focus,

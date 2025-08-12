@@ -3,23 +3,14 @@ import UserModel from '../models/user.js';
 import sendResponse from '../utils/sendResponse.js';
 import {sendToken} from '../utils/sendToken.js';
 import ErrorHandler from '../utils/errorHandler.js';
-import sendEmail from '../utils/sendEmail.js';
 import crypto from 'crypto';
-import fs from 'fs';
 import path, {dirname} from 'path';
 import {fileURLToPath} from 'url';
 import { generateOTP } from '../utils/generateOTP.js';
 import { sendMail } from '../services/mailService.js';
-import { v2 as cloudinary } from 'cloudinary';
 import { S3Client, DeleteObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
 
-// Configure cloudinary
-cloudinary.config({
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-    api_key: process.env.CLOUDINARY_API_KEY,
-    api_secret: process.env.CLOUDINARY_API_SECRET
-});
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -1663,3 +1654,198 @@ export const registerResident = catchAsyncError(async (req, res) => {
     // Log the user in immediately and return token
     sendToken(res, user, 'Resident account created successfully', 201);
 });
+
+// Get all users with specific roles (landlord, resident, company-admin)
+export const getAllUsersByRole = catchAsyncError(async (req, res) => {
+    try {
+        if (req.user.role !== 'superadmin' && req.user.role !== 'admin') {
+            return res.status(403).json({ success: false, message: 'Access denied. Only superadmin and admin can view all users.' });
+        }
+        
+        const { deleted } = req.query;
+        let filter = { role: { $in: ['landlord', 'resident', 'company-admin'] } };
+        
+        // Filter by deleted status
+        if (deleted === 'true') {
+            filter.deleted = true;
+        } else {
+            filter.deleted = { $ne: true };
+        }
+        
+        const users = await UserModel.find(filter).select('-password -OTP -resetPasswordToken -resetPasswordExpire');
+        const usersWithStatus = users.map(user => {
+            const userObj = user.toObject();
+            if (user.currentLoginTime) {
+                const lastLogin = new Date(user.currentLoginTime);
+                const thirtyDaysAgo = new Date();
+                thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+                userObj.status = lastLogin > thirtyDaysAgo ? 'active' : 'inactive';
+            } else {
+                userObj.status = 'inactive';
+            }
+            userObj.lastLogin = user.currentLoginTime || user.createdAt;
+            return userObj;
+        });
+        res.status(200).json({ success: true, users: usersWithStatus, count: usersWithStatus.length });
+    } catch (error) {
+        console.error('Error in getAllUsersByRole:', error);
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+});
+
+// Get user by ID
+export const getUserById = catchAsyncError(async (req, res) => {
+    try {
+        // Check if user has permission (superadmin or admin only)
+        if (req.user.role !== 'superadmin' && req.user.role !== 'admin') {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied. Only superadmin and admin can view user details.'
+            });
+        }
+
+        const { id } = req.params;
+        const user = await UserModel.findById(id).select('-password -OTP -resetPasswordToken -resetPasswordExpire');
+
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: 'User not found'
+            });
+        }
+
+        // Add status field
+        const userObj = user.toObject();
+        if (user.currentLoginTime) {
+            const lastLogin = new Date(user.currentLoginTime);
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+            
+            if (lastLogin > thirtyDaysAgo) {
+                userObj.status = 'active';
+            } else {
+                userObj.status = 'inactive';
+            }
+        } else {
+            userObj.status = 'inactive';
+        }
+
+        userObj.lastLogin = user.currentLoginTime || user.createdAt;
+
+        res.status(200).json({
+            success: true,
+            user: userObj
+        });
+
+    } catch (error) {
+        console.error('❌ Error fetching user:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error fetching user',
+            error: error.message
+        });
+    }
+});
+
+// Delete user by ID
+export const deleteUser = catchAsyncError(async (req, res) => {
+    try {
+        if (req.user.role !== 'superadmin' && req.user.role !== 'admin') {
+            return res.status(403).json({ success: false, message: 'Access denied. Only superadmin and admin can delete users.' });
+        }
+
+        const { id } = req.params;
+
+        // Prevent self-deletion
+        if (id === req.user._id.toString()) {
+            return res.status(400).json({ success: false, message: 'You cannot delete your own account.' });
+        }
+
+        // Prevent superadmin deletion
+        const userToDelete = await UserModel.findById(id);
+        if (!userToDelete) {
+            return res.status(404).json({ success: false, message: 'User not found.' });
+        }
+
+        if (userToDelete.role === 'superadmin') {
+            return res.status(400).json({ success: false, message: 'Superadmin accounts cannot be deleted.' });
+        }
+
+        // Soft delete: move to trash
+        userToDelete.deleted = true;
+        userToDelete.deletedAt = new Date();
+        await userToDelete.save();
+
+        sendResponse(res, 200, true, { userId: id }, "User moved to trash successfully");
+    } catch (error) {
+        console.error('Error in deleteUser:', error);
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+});
+
+export const restoreUser = catchAsyncError(async (req, res) => {
+    try {
+        if (req.user.role !== 'superadmin' && req.user.role !== 'admin') {
+            return res.status(403).json({ success: false, message: 'Access denied. Only superadmin and admin can restore users.' });
+        }
+
+        const { id } = req.params;
+        const userToRestore = await UserModel.findById(id);
+        
+        if (!userToRestore) {
+            return res.status(404).json({ success: false, message: 'User not found.' });
+        }
+
+        if (!userToRestore.deleted) {
+            return res.status(400).json({ success: false, message: 'User is not in trash.' });
+        }
+
+        // Restore user from trash
+        userToRestore.deleted = false;
+        userToRestore.deletedAt = null;
+        await userToRestore.save();
+
+        sendResponse(res, 200, true, { userId: id }, "User restored successfully");
+    } catch (error) {
+        console.error('Error in restoreUser:', error);
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+});
+
+export const permanentDeleteUser = catchAsyncError(async (req, res) => {
+    try {
+        if (req.user.role !== 'superadmin' && req.user.role !== 'admin') {
+            return res.status(403).json({ success: false, message: 'Access denied. Only superadmin and admin can permanently delete users.' });
+        }
+
+        const { id } = req.params;
+
+        // Prevent self-deletion
+        if (id === req.user._id.toString()) {
+            return res.status(400).json({ success: false, message: 'You cannot delete your own account.' });
+        }
+
+        const userToDelete = await UserModel.findById(id);
+        if (!userToDelete) {
+            return res.status(404).json({ success: false, message: 'User not found.' });
+        }
+
+        if (userToDelete.role === 'superadmin') {
+            return res.status(400).json({ success: false, message: 'Superadmin accounts cannot be deleted.' });
+        }
+
+        if (!userToDelete.deleted) {
+            return res.status(400).json({ success: false, message: 'User must be in trash before permanent deletion.' });
+        }
+
+        // Hard delete: permanently remove user
+        await UserModel.findByIdAndDelete(id);
+
+        sendResponse(res, 200, true, { userId: id }, "User permanently deleted");
+    } catch (error) {
+        console.error('Error in permanentDeleteUser:', error);
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+});
+
+

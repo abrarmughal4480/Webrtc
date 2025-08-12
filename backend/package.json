@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "start": "node index.js",
-    "dev": "nodemon index.js"
+    "dev": "nodemon index.js",
+    "update-role": "node updateUserRole.js"
   },
   "author": "",
   "license": "ISC",

@@ -105,7 +105,19 @@ export default function Page({ params }) {
   const saveTimeoutRef = useRef(null);
   const processedItemsRef = useRef(new Set());
 
-  const { handleDisconnect, isConnected, screenshots, takeScreenshot, startPeerConnection, deleteScreenshot, handleVideoPlay, showVideoPlayError, isCapturingScreenshot, updateScreenshotProperties } = useWebRTC(true, id, videoRef);
+  const { 
+    handleDisconnect, 
+    isConnected, 
+    screenshots, 
+    takeScreenshot, 
+    startPeerConnection, 
+    deleteScreenshot, 
+    handleVideoPlay, 
+    showVideoPlayError, 
+    isCapturingScreenshot, 
+    updateScreenshotProperties,
+    remoteMousePosition
+  } = useWebRTC(true, id, videoRef);
   const { setResetOpen, setMessageOpen, setLandlordDialogOpen, setTickerOpen, setFeedbackOpen, setFaqOpen, setShareLinkOpen, setInviteOpen } = useDialog();
   const { user, isAuth, setIsAuth, setUser } = useUser();
 
@@ -2572,6 +2584,32 @@ export default function Page({ params }) {
                   onMouseUp={(e) => { if (app.zoomLevel > 1) e.currentTarget.style.cursor = 'grab'; }}
                   onMouseLeave={(e) => { if (app.zoomLevel > 1) e.currentTarget.style.cursor = 'grab'; }}
                 />
+
+                {/* Remote Mouse Cursor Indicator - Only show after 2 second hold */}
+                {remoteMousePosition.showIndicator && remoteMousePosition.x > 0 && remoteMousePosition.y > 0 && (
+                  <div 
+                    className={`absolute w-6 h-6 pointer-events-none z-20 transition-all duration-100 rounded-full flex items-center justify-center ${
+                      remoteMousePosition.isHolding 
+                        ? 'bg-red-500 border-2 border-white' 
+                        : 'bg-blue-500 border-2 border-white animate-pulse'
+                    }`}
+                    style={{
+                      left: `${remoteMousePosition.x}%`,
+                      top: `${remoteMousePosition.y}%`,
+                      transform: 'translate(-50%, -50%)'
+                    }}
+                  >
+                    <div className="w-2 h-2 bg-white rounded-full"></div>
+                    {/* Live tracking indicator */}
+                    {!remoteMousePosition.isHolding && (
+                      <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full border-2 border-white animate-bounce"></div>
+                    )}
+                  </div>
+                )}
+
+
+
+
               </div>
 
               <div style={{ position: 'absolute', top: '2vh', left: '1.5vw', zIndex: 10 }}>

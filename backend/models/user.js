@@ -15,10 +15,14 @@ const userSchema = new mongoose.Schema({
         required: true,
         default: undefined
     },
+    isTemporaryPassword: {
+        type: Boolean,
+        default: false
+    },
     role: {
         type: String,
         required: true,
-        enum:['landlord', 'resident', 'admin', 'company-admin'], 
+        enum:['landlord', 'resident', 'admin', 'company-admin', 'superadmin'], 
         default: 'landlord'
     },
     OTP: {
@@ -65,7 +69,25 @@ const userSchema = new mongoose.Schema({
     }],
     meetingFolders: { type: Map, of: String, default: {} }, // meetingId -> folderId mapping
     resetPasswordToken: String,
-    resetPasswordExpire: Date
+    resetPasswordExpire: Date,
+    // Trash functionality
+    deleted: {
+        type: Boolean,
+        default: false
+    },
+    deletedAt: {
+        type: Date,
+        default: null
+    },
+    // Data cleanup tracking
+    dataCleaned: {
+        type: Boolean,
+        default: false
+    },
+    cleanupDate: {
+        type: Date,
+        default: null
+    }
 }, {
     timestamps: true
 });

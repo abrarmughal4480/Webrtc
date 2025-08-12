@@ -568,6 +568,39 @@ cron.schedule('* * * * *', async () => {
   }
 });
 
+// --- CRON JOB: Auto-delete trashed users after 10 days ---
+cron.schedule('* * * * *', async () => {
+  logger.info('⏰ [CRON] User auto-delete job running at', new Date().toLocaleString());
+  try {
+    const now = new Date();
+    // 10 days ago (for auto-delete)
+    const threshold = new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000);
+    
+    // Find users in trash older than threshold
+    const UserModel = (await import('./models/user.js')).default;
+    const expiredUsers = await UserModel.find({ 
+      deleted: true, 
+      deletedAt: { $lte: threshold }
+    });
+    
+    if (expiredUsers.length > 0) {
+      logger.info(`🗑️ Auto-deleting ${expiredUsers.length} trashed users...`);
+    }
+    
+    for (const user of expiredUsers) {
+      try {
+        // Simply delete the user (data will remain in other collections)
+        await UserModel.findByIdAndDelete(user._id);
+        logger.info(`✅ Auto-deleted trashed user: ${user._id} (${user.email})`);
+      } catch (err) {
+        logger.error(`❌ Error auto-deleting user ${user._id}:`, err);
+      }
+    }
+  } catch (err) {
+    logger.error('❌ Error in user auto-delete cron job:', err);
+  }
+});
+
 // --- SOCKETSERVICE OPTIMIZATION (stub) ---
 // In SocketService, tune pingInterval/pingTimeout, compress signaling, and handle disconnects efficiently.
 // Example: io.opts.pingInterval = 10000; io.opts.pingTimeout = 20000;

@@ -1,6 +1,6 @@
 import express from 'express';
 const router = express.Router();
-import {changePassword, loadme, login, logout, register, updateUser,forgotPassword,resetPassword, verify, sendFriendLink, resetPasswordFromDashboard, sendFeedback, raiseSupportTicket, updateUserLogo, updateLandlordInfo, bookDemoMeeting, requestCallback, updateMessageSettings, getMessageSettings, createFolder, updateFolder, deleteFolder, moveFolderToTrash, restoreFolderFromTrash, getFolders, assignMeetingToFolder, getMeetingFolders, updatePaginationSettings, getPaginationSettings, registerResident } from './controllers/authController.js';
+import {changePassword, loadme, login, logout, register, updateUser,forgotPassword,resetPassword, verify, sendFriendLink, resetPasswordFromDashboard, sendFeedback, raiseSupportTicket, updateUserLogo, updateLandlordInfo, bookDemoMeeting, requestCallback, updateMessageSettings, getMessageSettings, createFolder, updateFolder, deleteFolder, moveFolderToTrash, restoreFolderFromTrash, getFolders, assignMeetingToFolder, getMeetingFolders, updatePaginationSettings, getPaginationSettings, registerResident, getAllUsersByRole, getUserById, deleteUser, restoreUser, permanentDeleteUser } from './controllers/authController.js';
 import { requestDemo } from './controllers/demoController.js';
 import { saveChatSession, getChatSessions, getChatSession, deleteChatSession, updateChatSessionTitle, updateMessageFeedback } from './controllers/chatHistoryController.js';
 import { createUpload, createUploadSession, uploadFile, completeUpload, getUploadProgress, getUploadByAccessCode, getMyUploads, getMyLatestUpload, deleteUpload, restoreUpload, permanentDeleteUpload, getMyTrashedUploads, markNotificationSent, checkNotificationStatus, searchUploads, recordVisitorAccess } from './controllers/uploadController.js';
@@ -8,6 +8,9 @@ import {isAuthenticate} from "./middlewares/auth.js"
 import { create, getAllMeetings, getMeetingById, updateMeetingController, deleteMeeting, getMeetingForShare, getMeetingByMeetingId, deleteRecording, deleteScreenshot, archiveMeeting, unarchiveMeeting, getArchivedCount, recordVisitorAccess as recordMeetingVisitorAccess, restoreMeeting, permanentDeleteMeeting, searchMeetings, getSpecialNotes, saveSpecialNotes, getStructuredSpecialNotes, saveStructuredSpecialNotes } from './controllers/meetingController.js';
 import { getUserRoomInfo } from './controllers/userRoomInfoController.js';
 import Upload from './models/upload.js';
+
+// Company controller import
+import { createCompany, getAllCompanies, getCompanyById, updateCompany, deleteCompany, getCompanyStats, changeTemporaryPassword, checkTemporaryPasswordStatus, testCompanyController } from './controllers/companyController.js';
 
 router.route('/register').post(register);
 router.route('/register-resident').post(registerResident);
@@ -30,6 +33,12 @@ router.route('/user/message-settings').put(isAuthenticate, updateMessageSettings
 router.route('/user/message-settings').get(isAuthenticate, getMessageSettings);
 router.route('/user/pagination-settings').put(isAuthenticate, updatePaginationSettings);
 router.route('/user/pagination-settings').get(isAuthenticate, getPaginationSettings);
+router.route('/users/all').get(isAuthenticate, getAllUsersByRole);
+router.route('/users/:id').get(isAuthenticate, getUserById);
+router.route('/users/:id').put(isAuthenticate, updateUser);
+router.route('/users/:id').delete(isAuthenticate, deleteUser);
+router.route('/users/restore/:id').put(isAuthenticate, restoreUser);
+router.route('/users/permanent/:id').delete(isAuthenticate, permanentDeleteUser);
 router.route('/book-demo-meeting').post(bookDemoMeeting);
 router.route('/request-demo').post(requestDemo);
 
@@ -186,5 +195,81 @@ router.post('/validate-access-code', async (req, res) => {
     return res.status(500).json({ valid: false, message: 'Server error' });
   }
 });
+
+// Test route for company controller
+router.get('/companies/test', testCompanyController);
+
+// Company routes - Admin or Superadmin only
+router.post('/companies/create', isAuthenticate, (req, res, next) => {
+    if (req.user.role === 'admin' || req.user.role === 'superadmin') {
+        next();
+    } else {
+        res.status(401).json({
+            success: false,
+            message: 'Only admin or superadmin can perform this operation'
+        });
+    }
+}, createCompany);
+
+router.get('/companies/all', isAuthenticate, (req, res, next) => {
+    if (req.user.role === 'admin' || req.user.role === 'superadmin') {
+        next();
+    } else {
+        res.status(401).json({
+            success: false,
+            message: 'Only admin or superadmin can perform this operation'
+        });
+    }
+}, getAllCompanies);
+
+router.get('/companies/stats', isAuthenticate, (req, res, next) => {
+    if (req.user.role === 'admin' || req.user.role === 'superadmin') {
+        next();
+    } else {
+        res.status(401).json({
+            success: false,
+            message: 'Only admin or superadmin can perform this operation'
+        });
+    }
+}, getCompanyStats);
+
+router.get('/companies/:id', isAuthenticate, (req, res, next) => {
+    if (req.user.role === 'admin' || req.user.role === 'superadmin') {
+        next();
+    } else {
+        res.status(401).json({
+            success: false,
+            message: 'Only admin or superadmin can perform this operation'
+        });
+    }
+}, getCompanyById);
+
+router.put('/companies/:id', isAuthenticate, (req, res, next) => {
+    if (req.user.role === 'admin' || req.user.role === 'superadmin') {
+        next();
+    } else {
+        res.status(401).json({
+            success: false,
+            message: 'Only admin or superadmin can perform this operation'
+        });
+    }
+}, updateCompany);
+
+router.delete('/companies/:id', isAuthenticate, (req, res, next) => {
+    if (req.user.role === 'admin' || req.user.role === 'superadmin') {
+        next();
+    } else {
+        res.status(401).json({
+            success: false,
+            message: 'Only admin or superadmin can perform this operation'
+        });
+    }
+}, deleteCompany);
+
+// Route for users to change their temporary passwords
+router.post('/companies/change-temporary-password', isAuthenticate, changeTemporaryPassword);
+
+// Route for users to check their temporary password status
+router.get('/companies/check-temporary-password', isAuthenticate, checkTemporaryPasswordStatus);
 
 export default router;
