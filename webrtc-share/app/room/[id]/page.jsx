@@ -22,16 +22,7 @@ const page = ({params}) => {
   const [buttonColor, setButtonColor] = useState('bg-green-800');
   const [pageLoading, setPageLoading] = useState(true);
   const videoRef = useRef(null);
-  const notificationSocketRef = useRef(null);  const {
-    localStream, 
-    remoteStream, 
-    socket, 
-    socketConnection, 
-    handleDisconnect, 
-    startPeerConnection, 
-    endCallWithRedirect,
-    remoteMousePosition
-  } = useWebRTC(false, id, videoRef);
+  const notificationSocketRef = useRef(null);  const {localStream, remoteStream, socket, socketConnection, handleDisconnect, startPeerConnection, endCallWithRedirect} = useWebRTC(false, id, videoRef);
   const [roomUserInfo, setRoomUserInfo] = useState(null);
   const [minSkeletonTimePassed, setMinSkeletonTimePassed] = useState(false);
   const [isDefaultRedirectUrlFromUser, setIsDefaultRedirectUrlFromUser] = useState(true);
@@ -328,32 +319,6 @@ const page = ({params}) => {
     <>
       <div className='w-[100vw] h-[100vh] relative overflow-hidden'>
         <video ref={videoRef} autoPlay className="w-full h-full object-cover absolute top-0 left-0" />
-
-        {/* Remote Mouse Cursor Indicator - Only show after 2 second hold */}
-        {!open && remoteMousePosition.showIndicator && remoteMousePosition.x > 0 && remoteMousePosition.y > 0 && (
-          <div 
-            className={`absolute w-6 h-6 pointer-events-none z-10 transition-all duration-100 rounded-full flex items-center justify-center ${
-              remoteMousePosition.isHolding 
-                ? 'bg-red-500 border-2 border-white' 
-                : 'bg-blue-500 border-2 border-white animate-pulse'
-            }`}
-            style={{
-              left: `${remoteMousePosition.x}%`,
-              top: `${remoteMousePosition.y}%`,
-              transform: 'translate(-50%, -50%)'
-            }}
-          >
-            <div className="w-2 h-2 bg-white rounded-full"></div>
-            {/* Live tracking indicator */}
-            {!remoteMousePosition.isHolding && (
-              <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full border-2 border-white animate-bounce"></div>
-            )}
-          </div>
-        )}
-
-
-
-
 
         {
           !open && (

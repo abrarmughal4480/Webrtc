@@ -1095,10 +1095,13 @@ export const getMeetingByMeetingId = async (req, res) => {
         const meeting = await MeetingModel.findOne({ meeting_id: id });
 
         if (!meeting) {
-            return res.status(404).json({
-                success: false,
-                message: "Meeting not found",
-                isNewMeeting: true
+            // Instead of treating this as an error, return a success response indicating no meeting found
+            // This prevents the error logging and treats it as a normal case for new meetings
+            return res.status(200).json({
+                success: true,
+                meeting: null,
+                isNewMeeting: true,
+                message: "No existing meeting found - ready for new meeting creation"
             });
         }
 

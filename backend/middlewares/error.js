@@ -4,6 +4,42 @@ const ErrorMiddleware = (err, req, res, next) => {
   err.statusCode = err.statusCode || 500;
   err.message ||= "Internal Server Error";
 
+  // Filter out expected errors that shouldn't be logged as errors
+  // These are normal cases that don't indicate system problems
+  
+  // Meeting not found errors (expected for new meetings)
+  if (err.message === "Meeting not found" && err.statusCode === 404) {
+    console.log('ℹ️ Meeting not found (expected for new meetings):', err.message, 'Path:', req.path, 'Method:', req.method);
+    
+    res.status(404).json({
+      success: false,
+      message: err.message,
+    });
+    return;
+  }
+  
+  // Recording not found errors (expected when deleting non-existent recordings)
+  if (err.message === "Recording not found" && err.statusCode === 404) {
+    console.log('ℹ️ Recording not found (expected):', err.message, 'Path:', req.path, 'Method:', req.method);
+    
+    res.status(404).json({
+      success: false,
+      message: err.message,
+    });
+    return;
+  }
+  
+  // Screenshot not found errors (expected when deleting non-existent screenshots)
+  if (err.message === "Screenshot not found" && err.statusCode === 404) {
+    console.log('ℹ️ Screenshot not found (expected):', err.message, 'Path:', req.path, 'Method:', req.method);
+    
+    res.status(404).json({
+      success: false,
+      message: err.message,
+    });
+    return;
+  }
+
   console.log('🚨 Error caught in middleware:', {
     name: err.name,
     message: err.message,

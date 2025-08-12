@@ -16,15 +16,15 @@ import SpecialNotesDialog from "@/components/dialogs/SpecialNotesDialog"
 export default function Page({ params }) {
   if (!params) {
     console.error('Missing params in Page component');
-    return <div style={{width: '100vw', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f9fafb'}}><p>Loading...</p></div>;
+    return <div style={{ width: '100vw', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f9fafb' }}><p>Loading...</p></div>;
   }
 
   const resolvedParams = use(params);
   const id = resolvedParams?.id;
-  
+
   if (!id) {
     console.error('Missing meeting ID');
-    return <div style={{width: '100vw', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f9fafb'}}><p>Invalid meeting ID</p></div>;
+    return <div style={{ width: '100vw', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f9fafb' }}><p>Invalid meeting ID</p></div>;
   }
 
   const router = useRouter();
@@ -105,19 +105,7 @@ export default function Page({ params }) {
   const saveTimeoutRef = useRef(null);
   const processedItemsRef = useRef(new Set());
 
-  const { 
-    handleDisconnect, 
-    isConnected, 
-    screenshots, 
-    takeScreenshot, 
-    startPeerConnection, 
-    deleteScreenshot, 
-    handleVideoPlay, 
-    showVideoPlayError, 
-    isCapturingScreenshot, 
-    updateScreenshotProperties,
-    remoteMousePosition
-  } = useWebRTC(true, id, videoRef);
+  const { handleDisconnect, isConnected, screenshots, takeScreenshot, startPeerConnection, deleteScreenshot, handleVideoPlay, showVideoPlayError, isCapturingScreenshot, updateScreenshotProperties } = useWebRTC(true, id, videoRef);
   const { setResetOpen, setMessageOpen, setLandlordDialogOpen, setTickerOpen, setFeedbackOpen, setFaqOpen, setShareLinkOpen, setInviteOpen } = useDialog();
   const { user, isAuth, setIsAuth, setUser } = useUser();
 
@@ -162,7 +150,7 @@ export default function Page({ params }) {
       updateApp({ isEndingVideo: true });
       if (saveAction) await saveAction();
       handleDisconnect(false); // Don't redirect here, we'll do it manually
-      
+
       // Explicitly redirect to dashboard after save
       setTimeout(() => {
         router.push("../../../dashboard");
@@ -187,105 +175,107 @@ export default function Page({ params }) {
     const fetchExistingMeetingData = async () => {
       updateApp({ isLoadingMeetingData: true });
       try {
-        console.log('Fetching existing meeting data for ID:', id);
+
         const response = await getMeetingByMeetingId(id);
 
-        if (response?.data?.success && response?.data?.meeting) {
-          const meetingData = response.data.meeting;
-          console.log('Found existing meeting data:', meetingData);
-          
-          updateForm({
-            residentName: meetingData.name || "",
-            first_name: meetingData.first_name || "",
-            last_name: meetingData.last_name || "",
-            house_name_number: meetingData.house_name_number || "",
-            flat_apartment_room: meetingData.flat_apartment_room || "",
-            street_road: meetingData.street_road || "",
-            city: meetingData.city || "",
-            country: meetingData.country || "",
-            postCode: meetingData.reference || "",
-            actualPostCode: meetingData.post_code || "",
-            phoneNumber: meetingData.phone_number || "",
-            repairDetails: meetingData.repair_detail || "",
-            targetTime: meetingData.target_time || "Emergency 24 Hours",
-            specialNotes: meetingData.special_notes || "",
-            workDetails: Array.isArray(meetingData.work_details) ? meetingData.work_details : []
-          });
+        if (response?.data?.success) {
+          if (response?.data?.isNewMeeting) {
+            // This is a new meeting - no existing data to load
 
-          if (meetingData.work_details && Array.isArray(meetingData.work_details)) {
-            let workDetail1Text = "", workDetail2Text = "", workDetail3Text = "";
-            const additionalWorkDetails = [], ttValues = {};
-            
-            meetingData.work_details.forEach((wd) => {
-              if (wd.detail) {
-                if (wd.detail === meetingData.repair_detail) {
-                  ttValues['field1'] = wd.target_time || "Emergency 24 Hours";
-                } else {
-                  if (!workDetail1Text) {
-                    workDetail1Text = wd.detail;
+            updateApp({ existingMeetingData: null });
+          } else if (response?.data?.meeting) {
+            // Existing meeting found - load the data
+            const meetingData = response.data.meeting;
+
+
+            updateForm({
+              residentName: meetingData.name || "",
+              first_name: meetingData.first_name || "",
+              last_name: meetingData.last_name || "",
+              house_name_number: meetingData.house_name_number || "",
+              flat_apartment_room: meetingData.flat_apartment_room || "",
+              street_road: meetingData.street_road || "",
+              city: meetingData.city || "",
+              country: meetingData.country || "",
+              postCode: meetingData.reference || "",
+              actualPostCode: meetingData.post_code || "",
+              phoneNumber: meetingData.phone_number || "",
+              repairDetails: meetingData.repair_detail || "",
+              targetTime: meetingData.target_time || "Emergency 24 Hours",
+              specialNotes: meetingData.special_notes || "",
+              workDetails: Array.isArray(meetingData.work_details) ? meetingData.work_details : []
+            });
+
+            if (meetingData.work_details && Array.isArray(meetingData.work_details)) {
+              let workDetail1Text = "", workDetail2Text = "", workDetail3Text = "";
+              const additionalWorkDetails = [], ttValues = {};
+
+              meetingData.work_details.forEach((wd) => {
+                if (wd.detail) {
+                  if (wd.detail === meetingData.repair_detail) {
                     ttValues['field1'] = wd.target_time || "Emergency 24 Hours";
-                  } else if (!workDetail2Text) {
-                    workDetail2Text = wd.detail;
-                    ttValues['field2'] = wd.target_time || "Emergency 24 Hours";
-                  } else if (!workDetail3Text) {
-                    workDetail3Text = wd.detail;
-                    ttValues['field3'] = wd.target_time || "Emergency 24 Hours";
                   } else {
-                    additionalWorkDetails.push(wd.detail);
-                    ttValues[`workDetail${additionalWorkDetails.length - 1}`] = wd.target_time || "Emergency 24 Hours";
+                    if (!workDetail1Text) {
+                      workDetail1Text = wd.detail;
+                      ttValues['field1'] = wd.target_time || "Emergency 24 Hours";
+                    } else if (!workDetail2Text) {
+                      workDetail2Text = wd.detail;
+                      ttValues['field2'] = wd.target_time || "Emergency 24 Hours";
+                    } else if (!workDetail3Text) {
+                      workDetail3Text = wd.detail;
+                      ttValues['field3'] = wd.target_time || "Emergency 24 Hours";
+                    } else {
+                      additionalWorkDetails.push(wd.detail);
+                      ttValues[`workDetail${additionalWorkDetails.length - 1}`] = wd.target_time || "Emergency 24 Hours";
+                    }
                   }
                 }
-              }
-            });
-            
-            updateForm({
-              workDetail1: workDetail1Text,
-              workDetail2: workDetail2Text,
-              workDetail3: workDetail3Text,
-              workDetails: additionalWorkDetails,
-              selectedTTValues: ttValues
-            });
-          }
+              });
 
-          if (meetingData.recordings?.length > 0) {
-            const existingRecordings = meetingData.recordings.map(rec => ({
-              id: rec._id || Date.now() + Math.random(),
-              url: rec.url,
-              blob: null,
-              timestamp: new Date(rec.timestamp).toLocaleString(),
-              duration: rec.duration || 0,
-              isExisting: true
-            }));
-            updateMedia({ recordings: existingRecordings });
-          }
+              updateForm({
+                workDetail1: workDetail1Text,
+                workDetail2: workDetail2Text,
+                workDetail3: workDetail3Text,
+                workDetails: additionalWorkDetails,
+                selectedTTValues: ttValues
+              });
+            }
 
-          if (meetingData.screenshots?.length > 0) {
-            const existingScreenshotsData = meetingData.screenshots.map(screenshot => ({
-              id: screenshot._id || Date.now() + Math.random(),
-              url: screenshot.url,
-              timestamp: new Date(screenshot.timestamp).toLocaleString(),
-              isExisting: true
-            }));
-            updateMedia({ existingScreenshots: existingScreenshotsData });
-            console.log('Loaded existing screenshots:', existingScreenshotsData.length);
-          }
+            if (meetingData.recordings?.length > 0) {
+              const existingRecordings = meetingData.recordings.map(rec => ({
+                id: rec._id || Date.now() + Math.random(),
+                url: rec.url,
+                blob: null,
+                timestamp: new Date(rec.timestamp).toLocaleString(),
+                duration: rec.duration || 0,
+                isExisting: true
+              }));
+              updateMedia({ recordings: existingRecordings });
+            }
 
-          updateApp({ existingMeetingData: meetingData });
-          toast.success("Meeting data loaded successfully!", {
-            description: `Found ${meetingData.recordings?.length || 0} recordings and ${meetingData.screenshots?.length || 0} screenshots`
-          });
+            if (meetingData.screenshots?.length > 0) {
+              const existingScreenshotsData = meetingData.screenshots.map(screenshot => ({
+                id: screenshot._id || Date.now() + Math.random(),
+                url: screenshot.url,
+                timestamp: new Date(screenshot.timestamp).toLocaleString(),
+                isExisting: true
+              }));
+              updateMedia({ existingScreenshots: existingScreenshotsData });
+
+            }
+
+            updateApp({ existingMeetingData: meetingData });
+          }
         }
       } catch (error) {
         if (error.code === 'ERR_NETWORK') {
-          console.log('Cannot connect to server - this is normal if server is starting up');
-        } else if (error?.response?.status === 404) {
-          console.log('No existing meeting data found for ID:', id, '(This is normal for new meetings)');
+          // Cannot connect to server - this is normal if server is starting up
         } else if (error?.response?.status === 500) {
-          console.log('Server error while fetching meeting data - this may be temporary');
+          // Server error while fetching meeting data - this may be temporary
         } else if (error.code === 'ECONNABORTED') {
-          console.log('Request timeout while fetching meeting data');
+          // Request timeout while fetching meeting data
         } else {
-          console.log('Error fetching meeting data:', error.message);
+          // Error fetching meeting data
         }
       } finally {
         updateApp({ isLoadingMeetingData: false, isLoadingTokenInfo: false });
@@ -315,7 +305,7 @@ export default function Page({ params }) {
 
   const performSave = useCallback(async (options = {}) => {
     const { disconnectVideo = false } = options;
-    console.log('Starting save process...');
+
 
     const newRecordings = media.recordings.filter(recording => !recording.isExisting && recording.blob);
     const existingRecordings = media.recordings.filter(recording => recording.isExisting);
@@ -326,7 +316,7 @@ export default function Page({ params }) {
       const recordingKey = `${recording.id}-${recording.timestamp}`;
 
       if (processedRecordings.has(recordingKey)) {
-        console.log('Skipping duplicate recording:', recordingKey);
+
         continue;
       }
 
@@ -340,9 +330,9 @@ export default function Page({ params }) {
           duration: recording.duration || Math.floor((recording.blob.size / 1000) / 16),
           size: recording.blob.size
         });
-        console.log(`NEW recording ${i + 1} processed successfully`);
+
       } catch (error) {
-        console.error(`Error processing NEW recording ${i + 1}:`, error);
+
       }
     }
 
@@ -367,14 +357,14 @@ export default function Page({ params }) {
       }
 
       if (getScreenshotStatus(screenshotId)) {
-        console.log('Skipping already saved screenshot:', screenshotId);
+
         continue;
       }
 
       const screenshotKey = `screenshot-${i}-${screenshotIdentifier}`;
 
       if (processedScreenshots.has(screenshotKey)) {
-        console.log('Skipping duplicate screenshot:', screenshotKey);
+
         continue;
       }
 
@@ -387,46 +377,42 @@ export default function Page({ params }) {
         }
 
         const canvasId = screenshotId;
-        console.log(`Checking for drawings in canvas ${canvasId} for screenshot ${i + 1}`);
-        console.log('Available drawing data keys:', Object.keys(drawingData));
+
 
         let hasDrawings = false;
         if (drawingData[canvasId]?.strokes?.length > 0) {
-          console.log(`Found ${drawingData[canvasId].strokes.length} strokes for screenshot ${i + 1}. Merging drawings...`);
+
           try {
             const mergedData = await mergeWithBackground(finalScreenshotData, canvasId);
             if (mergedData && mergedData !== finalScreenshotData) {
               finalScreenshotData = mergedData;
               hasDrawings = true;
-              console.log(`Drawing merge completed for screenshot ${i + 1}`);
-            } else {
-              console.log(`Merge returned same data for screenshot ${i + 1}`);
             }
           } catch (mergeError) {
-            console.error(`Error merging drawings for screenshot ${i + 1}:`, mergeError);
+            // Error merging drawings for screenshot
           }
         } else {
           const alternativeCanvasIds = [`new-${i}`, `screenshot-${i}`, screenshotIdentifier];
 
           for (const altCanvasId of alternativeCanvasIds) {
             if (drawingData[altCanvasId]?.strokes?.length > 0) {
-              console.log(`Found drawings in alternative canvas ID: ${altCanvasId} for screenshot ${i + 1}`);
+
               try {
                 const mergedData = await mergeWithBackground(finalScreenshotData, altCanvasId);
                 if (mergedData && mergedData !== finalScreenshotData) {
                   finalScreenshotData = mergedData;
                   hasDrawings = true;
-                  console.log(`Drawing merge completed using alternative ID ${altCanvasId} for screenshot ${i + 1}`);
+
                   break;
                 }
               } catch (mergeError) {
-                console.error(`Error merging drawings with alternative ID ${altCanvasId}:`, mergeError);
+
               }
             }
           }
 
           if (!hasDrawings) {
-            console.log(`No drawings found for screenshot ${i + 1} (tried canvas IDs: ${canvasId}, ${alternativeCanvasIds.join(', ')})`);
+
           }
         }
 
@@ -440,9 +426,9 @@ export default function Page({ params }) {
           originalScreenshotId: screenshotId
         });
 
-        console.log(`Screenshot ${i + 1} processed successfully with drawings: ${hasDrawings}`);
+
       } catch (error) {
-        console.error(`Error processing screenshot ${i + 1}:`, error);
+
         let fallbackData;
         try {
           fallbackData = typeof screenshotData === 'object' ? JSON.stringify(screenshotData) : String(screenshotData);
@@ -450,7 +436,7 @@ export default function Page({ params }) {
             fallbackData = fallbackData.split('#')[0];
           }
         } catch (fallbackError) {
-          console.error('Failed to create fallback screenshot data:', fallbackError);
+
           fallbackData = `fallback-screenshot-${i}`;
         }
 
@@ -516,33 +502,24 @@ export default function Page({ params }) {
       update_mode: app.existingMeetingData ? 'update' : 'create'
     };
 
-    console.log('Sending data to server...');
-    console.log('Form data summary:', {
-      meeting_id: id,
-      update_mode: formData.update_mode,
-      new_recordings_count: recordingsData.length,
-      new_screenshots_count: screenshotsData.length,
-      screenshots_with_drawings: screenshotsData.filter(s => s.hasDrawings).length,
-      existing_recordings_count: existingRecordings.length,
-      total_recordings_after_save: existingRecordings.length + recordingsData.length
-    });
+
 
     try {
       const response = await createRequest(formData);
-      console.log('Save successful!');
-      
+
+
       if (response?.data?.upload_summary || response?.data?.media_summary) {
         const summary = response.data.upload_summary || response.data.media_summary;
         const recordingsUploaded = summary.recordings_uploaded || summary.new_recordings_added || 0;
         const recordingsAttempted = summary.recordings_attempted || recordingsData.length;
         const screenshotsUploaded = summary.screenshots_uploaded || summary.new_screenshots_added || 0;
         const screenshotsAttempted = summary.screenshots_attempted || screenshotsData.length;
-        
+
         const recordingsFailed = recordingsAttempted - recordingsUploaded;
         const screenshotsFailed = screenshotsAttempted - screenshotsUploaded;
         const totalSuccessful = recordingsUploaded + screenshotsUploaded;
         const totalFailed = recordingsFailed + screenshotsFailed;
-        
+
         if (totalFailed === 0 && totalSuccessful > 0) {
           toast.success("All content saved successfully!", {
             description: `${screenshotsUploaded} screenshots and ${recordingsUploaded} recordings saved.`
@@ -555,7 +532,7 @@ export default function Page({ params }) {
           if (screenshotsFailed > 0) {
             description += ` ${screenshotsFailed} screenshot(s) failed.`;
           }
-          
+
           toast.warning("Partial save completed", { description });
         } else if (totalFailed > 0 && totalSuccessful === 0) {
           let description = "Save failed. ";
@@ -566,7 +543,7 @@ export default function Page({ params }) {
             description += `${screenshotsFailed} screenshot(s) failed. `;
           }
           description += "Try reducing file sizes.";
-          
+
           toast.error("Save failed", { description });
         }
       }
@@ -580,24 +557,16 @@ export default function Page({ params }) {
           const timeDiff = now - screenshotTime;
           return timeDiff < 60000; // Within last minute
         });
-        
-        console.log('All backend screenshots:', backendScreenshots.length);
-        console.log('Recent backend screenshots found:', recentScreenshots.length);
-        recentScreenshots.forEach((s, i) => {
-          console.log(`Recent backend screenshot ${i + 1}:`, {
-            id: s._id,
-            timestamp: s.timestamp,
-            url: s.url?.substring(0, 50) + '...'
-          });
-        });
-        
+
+
+
         // Update local screenshots with backend IDs
         const updatedScreenshots = screenshots.map((screenshot, index) => {
           const screenshotData = typeof screenshot === 'object' ? screenshot.data : screenshot;
           const screenshotId = typeof screenshot === 'object' ?
             (screenshot.id || `screenshot-${screenshot.timestamp || Date.now()}-${Math.random()}`) :
             `screenshot-${index}-${Date.now()}-${Math.random()}`;
-          
+
           // Find matching backend screenshot
           const matchingBackendScreenshot = recentScreenshots.find(bs => {
             // Try to match by timestamp or other criteria
@@ -606,7 +575,7 @@ export default function Page({ params }) {
             const timeDiff = Math.abs(now - bsTime);
             return timeDiff < 60000; // Within last minute
           });
-          
+
           if (matchingBackendScreenshot) {
             const updatedScreenshot = {
               ...screenshot,
@@ -617,12 +586,12 @@ export default function Page({ params }) {
             console.log('Updated screenshot with backend ID:', updatedScreenshot.backendId, 'Local ID:', screenshotId);
             return updatedScreenshot;
           }
-          
+
           return screenshot;
         });
-        
+
         console.log('Updated local screenshots with backend IDs');
-        
+
         // Use updateScreenshotProperties to update each screenshot
         screenshots.forEach((screenshot, index) => {
           const screenshotId = typeof screenshot === 'object' ? screenshot.id : null;
@@ -633,31 +602,26 @@ export default function Page({ params }) {
               const timeDiff = Math.abs(now - bsTime);
               return timeDiff < 60000; // Within last minute
             });
-            
+
             if (matchingBackendScreenshot) {
               updateScreenshotProperties(screenshotId, {
                 backendId: matchingBackendScreenshot._id,
                 isSaved: true,
                 savedAt: new Date().toISOString()
               });
-              console.log('Updated screenshot with backend ID using updateScreenshotProperties');
-              
+
+
               // Verify the update worked
               setTimeout(() => {
                 const updatedScreenshot = screenshots.find(s => s.id === screenshotId);
-                console.log('Verification - Updated screenshot:', {
-                  id: updatedScreenshot?.id,
-                  backendId: updatedScreenshot?.backendId,
-                  isSaved: updatedScreenshot?.isSaved,
-                  savedAt: updatedScreenshot?.savedAt
-                });
+
               }, 100);
             } else {
               updateScreenshotProperties(screenshotId, {
                 isSaved: true,
                 savedAt: new Date().toISOString()
               });
-              console.log('Screenshot marked as saved using updateScreenshotProperties');
+
             }
           }
         });
@@ -673,8 +637,7 @@ export default function Page({ params }) {
       }
 
     } catch (error) {
-      console.error('Save failed:', error);
-      
+
       if (error?.response?.data?.message?.includes('File size too large')) {
         toast.error("Recording too large", {
           description: "Video file exceeds 10MB limit. Try recording shorter videos or reduce quality."
@@ -688,7 +651,7 @@ export default function Page({ params }) {
           description: error?.response?.data?.message || error.message || "Please try again."
         });
       }
-      
+
       throw error;
     }
 
@@ -696,12 +659,12 @@ export default function Page({ params }) {
 
     screenshotsData.forEach(screenshot => {
       if (screenshot.canvasId && drawingData[screenshot.canvasId]) {
-        console.log('Clearing drawing data for:', screenshot.canvasId);
+
         delete drawingData[screenshot.canvasId];
       }
       if (screenshot.originalScreenshotId) {
         markScreenshotAsSaved(screenshot.originalScreenshotId);
-        console.log('Marked screenshot as saved:', screenshot.originalScreenshotId);
+
       }
     });
 
@@ -718,7 +681,7 @@ export default function Page({ params }) {
           flat_apartment_room: form.flat_apartment_room,
           street_road: form.street_road,
           city: form.city,
-    
+
           country: form.country,
           post_code: form.actualPostCode,
           phone_number: form.phoneNumber,
@@ -736,16 +699,16 @@ export default function Page({ params }) {
 
   const handleZoom = (direction) => {
     updateApp(prev => {
-      const newZoom = direction === 'in' 
-        ? Math.min(prev.zoomLevel + 0.25, 3) 
+      const newZoom = direction === 'in'
+        ? Math.min(prev.zoomLevel + 0.25, 3)
         : Math.max(prev.zoomLevel - 0.25, 0.5);
-      
+
       console.log(`Zooming ${direction} to:`, newZoom);
-      
+
       if (newZoom <= 1) {
         return { zoomLevel: newZoom, videoPanX: 0, videoPanY: 0 };
       }
-      
+
       return { zoomLevel: newZoom };
     });
   };
@@ -828,7 +791,7 @@ export default function Page({ params }) {
 
     } catch (error) {
       console.error('End Video and Save failed:', error);
-      
+
       if (!error?.handledByPerformSave) {
         toast.error("Failed to end video and save content", {
           description: error?.response?.data?.message || error.message || "Please try again."
@@ -845,17 +808,17 @@ export default function Page({ params }) {
     e?.stopImmediatePropagation?.();
 
     if (app.isSaving || app.isEndingSave || app.saveInProgress) {
-      console.log('Save already in progress');
+
       return;
     }
 
     try {
       updateApp({ saveInProgress: true, isSaving: true });
       await performSave();
-      console.log('Save operation completed');
+
     } catch (error) {
-      console.error('Save failed:', error);
-      
+
+
       if (!error?.handledByPerformSave) {
         toast.error("Failed to save repair", {
           description: error?.response?.data?.message || error.message || "Please try again."
@@ -903,12 +866,12 @@ export default function Page({ params }) {
         const elapsedSinceStart = Math.floor((Date.now() - savedTime) / 1000);
         startTimeRef.current = savedTime;
         updateApp({ callDuration: elapsedSinceStart });
-        console.log('Restored call timer from localStorage:', elapsedSinceStart);
+
       } else {
         const startTime = Date.now();
         startTimeRef.current = startTime;
         localStorage.setItem(`call-start-time-${id}`, startTime.toString());
-        console.log('Started new call timer');
+
       }
 
       timerRef.current = setInterval(() => {
@@ -925,7 +888,7 @@ export default function Page({ params }) {
       updateApp({ callDuration: 0 });
       localStorage.removeItem(`call-start-time-${id}`);
       localStorage.removeItem(`call-duration-${id}`);
-      console.log('Call ended, cleared timer from localStorage');
+
     }
 
     return () => {
@@ -942,7 +905,7 @@ export default function Page({ params }) {
     if (savedDuration && savedStartTime && !isConnected) {
       const duration = parseInt(savedDuration);
       updateApp({ callDuration: duration });
-      console.log('Loaded call duration from localStorage on mount:', duration);
+
     }
   }, [id, ui.isClient]);
 
@@ -974,16 +937,16 @@ export default function Page({ params }) {
   }, [media.isRecording, media.recordingStartTime]);
 
   const startScreenRecording = async () => {
-    console.log('Starting screen recording...');
-    
+
+
     try {
       if (!videoRef.current?.srcObject) {
-        console.log('No video stream available');
+
         toast.error('No video stream available');
         return;
       }
 
-      console.log('Video stream found, proceeding with recording setup');
+
 
       const startTime = Date.now();
       updateMedia({ recordingStartTime: startTime });
@@ -1007,12 +970,12 @@ export default function Page({ params }) {
       let selectedOption = recorderOptions.find(option => MediaRecorder.isTypeSupported(option.mimeType));
 
       if (!selectedOption) {
-        console.log('No supported recording format found');
+
         toast.error('Recording format not supported');
         return;
       }
 
-      console.log(`Selected recording format: ${selectedOption.mimeType} @ ${selectedOption.videoBitsPerSecond / 1000000}Mbps`);
+
 
       const recorder = new MediaRecorder(stream, selectedOption);
       recordingChunks.current = [];
@@ -1020,7 +983,7 @@ export default function Page({ params }) {
       recorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
           recordingChunks.current.push(event.data);
-          console.log(`Ultra quality chunk: ${(event.data.size / 1024 / 1024).toFixed(2)}MB`);
+
         }
       };
 
@@ -1043,19 +1006,15 @@ export default function Page({ params }) {
           duration: duration
         };
 
-        setMedia(prev => ({ 
-          ...prev, 
-          recordings: [...prev.recordings, newRecording], 
-          isRecording: false, 
-          recordingStartTime: null 
+        setMedia(prev => ({
+          ...prev,
+          recordings: [...prev.recordings, newRecording],
+          isRecording: false,
+          recordingStartTime: null
         }));
 
-        console.log('ULTRA HIGH quality recording completed:', {
-          duration: `${duration}s`,
-          size: `${(blob.size / 1024 / 1024).toFixed(2)}MB`,
-          bitrate: `${selectedOption.videoBitsPerSecond / 1000000}Mbps`
-        });
-        
+
+
         const fileSizeMB = blob.size / 1024 / 1024;
         if (fileSizeMB > 8) {
           toast.warning(`Recording saved but file is large (${fileSizeMB.toFixed(1)}MB)`);
@@ -1069,12 +1028,12 @@ export default function Page({ params }) {
       toast.success('Video recording started');
 
     } catch (error) {
-      console.error('Error starting ultra high quality recording:', error);
+
       toast.error('Failed to start recording');
-      
+
       try {
         console.log('Attempting fallback recording...');
-        
+
         const stream = videoRef.current.srcObject;
         const startTime = Date.now();
         updateMedia({ recordingStartTime: startTime });
@@ -1117,13 +1076,13 @@ export default function Page({ params }) {
             duration: duration
           };
 
-          setMedia(prev => ({ 
-            ...prev, 
-            recordings: [...prev.recordings, newRecording], 
-            isRecording: false, 
-            recordingStartTime: null 
+          setMedia(prev => ({
+            ...prev,
+            recordings: [...prev.recordings, newRecording],
+            isRecording: false,
+            recordingStartTime: null
           }));
-          
+
           const fileSizeMB = blob.size / 1024 / 1024;
           if (fileSizeMB > 8) {
             toast.warning(`Recording saved but file is large (${fileSizeMB.toFixed(1)}MB)`);
@@ -1136,7 +1095,7 @@ export default function Page({ params }) {
         recorder.start(100);
         toast.success('Video recording started');
       } catch (fallbackError) {
-        console.error('Fallback recording also failed:', fallbackError);
+
         toast.error('Failed to start video recording');
         updateMedia({ recordingStartTime: null, isRecording: false });
       }
@@ -1154,13 +1113,9 @@ export default function Page({ params }) {
   };
 
   const handleRecordingToggle = () => {
-    console.log('Recording toggle clicked. Current state:', { isRecording: media.isRecording });
-    
     if (media.isRecording) {
-      console.log('Stopping recording...');
       stopScreenRecording();
     } else {
-      console.log('Starting recording...');
       startScreenRecording();
     }
   };
@@ -1174,7 +1129,7 @@ export default function Page({ params }) {
     const itemKey = `recording-${recording.id}`;
 
     if (processedItemsRef.current.has(itemKey)) {
-      console.log('Recording already being processed:', itemKey);
+
       return;
     }
 
@@ -1182,7 +1137,7 @@ export default function Page({ params }) {
 
     try {
       updateApp({ savingRecordingId: recording.id });
-      console.log('Saving individual recording...');
+
 
       toast.loading("Saving recording...", { id: `save-recording-${recording.id}` });
 
@@ -1227,7 +1182,7 @@ export default function Page({ params }) {
       if (response?.data?.upload_summary || response?.data?.media_summary) {
         const summary = response.data.upload_summary || response.data.media_summary;
         const recordingsUploaded = summary.recordings_uploaded || summary.new_recordings_added || 0;
-        
+
         if (recordingsUploaded > 0) {
           toast.success("Recording saved successfully!", { id: `save-recording-${recording.id}` });
           setMedia(prev => ({
@@ -1249,8 +1204,8 @@ export default function Page({ params }) {
       }
 
     } catch (error) {
-      console.error('Save recording failed:', error);
-      
+
+
       if (error?.response?.data?.message?.includes('File size too large')) {
         toast.error("Recording too large", {
           id: `save-recording-${recording.id}`,
@@ -1276,17 +1231,17 @@ export default function Page({ params }) {
   const deleteRecording = async (recording) => {
     try {
       if (recording.isExisting) {
-        console.log(`Deleting existing recording ${recording.id} from meeting ${id}`);
+
 
         try {
           const response = await deleteRecordingRequest(id, recording.id);
           toast.success(response.data.timeout ? "Recording deletion requested (processing in background)" : "Recording deleted successfully!");
         } catch (error) {
-          console.error('Error during API delete call:', error);
+
           toast.info("Recording removed from view but backend deletion failed");
         }
       } else {
-        console.log(`Deleting local recording ${recording.id}`);
+
       }
 
       setMedia(prev => ({
@@ -1303,7 +1258,7 @@ export default function Page({ params }) {
         toast.success("Recording removed!");
       }
     } catch (error) {
-      console.error('Delete recording failed:', error);
+
       toast.error("Failed to delete recording", {
         description: error?.response?.data?.message || error.message
       });
@@ -1323,12 +1278,12 @@ export default function Page({ params }) {
           backendId = screenshot.id;
         } else {
           // Case 3: Object with local screenshot id (not a backend ID)
-          console.error('❌ Invalid screenshot object for deletion:', screenshot);
+
           toast.error("Cannot delete screenshot - invalid ID format");
           return;
         }
       } else {
-        console.error('❌ Invalid screenshot parameter:', screenshot);
+
         toast.error("Cannot delete screenshot - invalid parameter");
         return;
       }
@@ -1336,7 +1291,7 @@ export default function Page({ params }) {
       const response = await deleteScreenshotRequest(id, backendId);
 
       toast.success(response.data.timeout ? "Screenshot deletion requested (processing in background)" : "Screenshot deleted successfully!");
-      
+
       // Remove from existing screenshots if it's there
       setMedia(prev => {
         const filteredScreenshots = prev.existingScreenshots.filter(s => s.id !== backendId);
@@ -1345,15 +1300,15 @@ export default function Page({ params }) {
           existingScreenshots: filteredScreenshots
         };
       });
-      
+
       // Also remove from local screenshots array if it has the same backend ID
       const localScreenshotIndex = screenshots.findIndex(s => s.backendId === backendId);
       if (localScreenshotIndex !== -1) {
         deleteScreenshot(localScreenshotIndex);
       }
-      
+
     } catch (error) {
-      console.error('❌ Delete screenshot failed:', error);
+
       toast.error("Failed to delete screenshot", {
         description: error?.response?.data?.message || error.message
       });
@@ -1362,18 +1317,18 @@ export default function Page({ params }) {
 
   const deleteNewScreenshot = (screenshotIndex, screenshotId) => {
     try {
-      console.log('Deleting screenshot:', { index: screenshotIndex, id: screenshotId });
+
 
       const canvasId = screenshotId || `new-${screenshotIndex}`;
       if (drawingData[canvasId]) {
-        console.log('Cleaning up drawing data for:', canvasId);
+
         delete drawingData[canvasId];
       }
 
       deleteScreenshot(screenshotIndex);
       toast.success("Screenshot removed!");
     } catch (error) {
-      console.error('Error deleting screenshot:', error);
+
       toast.error("Failed to delete screenshot");
     }
   };
@@ -1386,35 +1341,35 @@ export default function Page({ params }) {
     // Check the saved status map first
     const savedStatus = app.screenshotSavedStatus.get(screenshotId);
     if (savedStatus) return true;
-    
+
     // Also check if the screenshot object itself has isSaved property
     const screenshot = screenshots.find(s => {
       const id = typeof s === 'object' ? s.id : null;
       return id === screenshotId;
     });
-    
+
     return screenshot?.isSaved || false;
   };
 
 
-  console.log(screenshots,"AAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
+
   const saveIndividualScreenshot = useCallback(async (screenshotData, index, screenshotId) => {
     const itemKey = `screenshot-${screenshotId || index}`;
 
     if (processedItemsRef.current.has(itemKey) || app.savingScreenshotIds.has(screenshotId)) {
-      console.log('Screenshot already being processed:', itemKey);
+
       return;
     }
 
     processedItemsRef.current.add(itemKey);
 
     try {
-      updateApp({ 
-        savingScreenshotIndex: index, 
-        savingScreenshotIds: new Set(app.savingScreenshotIds).add(screenshotId) 
+      updateApp({
+        savingScreenshotIndex: index,
+        savingScreenshotIds: new Set(app.savingScreenshotIds).add(screenshotId)
       });
 
-      console.log('Saving individual screenshot...', index, 'Local ID:', screenshotId);
+
       toast.loading("Saving screenshot...", { id: `save-screenshot-${screenshotId}` });
 
       let finalScreenshotData = screenshotData.split('#')[0];
@@ -1427,7 +1382,7 @@ export default function Page({ params }) {
         `screenshot-${index}-${Date.now()}-${Math.random()}`
       ].filter(Boolean);
 
-      console.log('Checking for drawings in possible canvas IDs:', possibleCanvasIds);
+
 
       let foundCanvasId = null;
       let foundDrawingData = null;
@@ -1436,19 +1391,18 @@ export default function Page({ params }) {
         if (drawingData[canvasId]?.strokes?.length > 0) {
           foundCanvasId = canvasId;
           foundDrawingData = drawingData[canvasId];
-          console.log('Found drawings in canvas:', canvasId, 'Strokes:', foundDrawingData.strokes.length);
+
           break;
         }
       }
 
       if (foundCanvasId && foundDrawingData) {
-        console.log('Merging drawings with screenshot...');
+
         try {
           finalScreenshotData = await mergeWithBackground(finalScreenshotData, foundCanvasId);
-          console.log('Drawing merge completed successfully');
+
         } catch (mergeError) {
-          console.error('Error merging drawings:', mergeError);
-          console.log('Proceeding with original screenshot without drawings');
+
         }
       }
 
@@ -1491,15 +1445,15 @@ export default function Page({ params }) {
         update_mode: app.existingMeetingData ? 'update' : 'create'
       };
 
-      console.log('Sending screenshot data to server');
+
 
       const response = await createRequest(formData);
-      
+
       if (response?.data?.upload_summary || response?.data?.media_summary) {
-   
+
         const summary = response.data.upload_summary || response.data.media_summary;
         const screenshotsUploaded = summary.screenshots_uploaded || summary.new_screenshots_added || 0;
-        
+
         if (screenshotsUploaded > 0) {
           toast.success(
             screenshotsData[0].hasDrawings
@@ -1507,11 +1461,11 @@ export default function Page({ params }) {
               : "Screenshot saved successfully!",
             { id: `save-screenshot-${screenshotId}` }
           );
-          
+
           markScreenshotAsSaved(screenshotId);
-         
-         
-          
+
+
+
           // Get the backend ID from the response
           let backendId = null;
           if (response?.data?.meeting?.screenshots) {
@@ -1523,27 +1477,19 @@ export default function Page({ params }) {
               const timeDiff = now - screenshotTime;
               return timeDiff < 60000; // Within last minute
             });
-            
-            console.log('All screenshots in response:', response.data.meeting.screenshots.length);
-            console.log('Recent screenshots found:', newScreenshots.length);
-            newScreenshots.forEach((s, i) => {
-              console.log(`Recent screenshot ${i + 1}:`, {
-                id: s._id,
-                timestamp: s.timestamp,
-                url: s.url?.substring(0, 50) + '...'
-              });
-            });
-            
+
+
+
             if (newScreenshots.length > 0) {
               // Get the most recent one
               const latestScreenshot = newScreenshots[newScreenshots.length - 1];
               backendId = latestScreenshot._id;
-              console.log('Backend ID received for screenshot:', backendId, 'Local ID:', screenshotId);
+
             }
           }
-          
-          
-          
+
+
+
 
           // Update the screenshot in the local array to include backend ID and mark as saved
           const updatedScreenshots = screenshots.map((screenshot, i) => {
@@ -1554,16 +1500,16 @@ export default function Page({ params }) {
                 isSaved: true,
                 savedAt: new Date().toISOString()
               };
-              console.log('Updated screenshot with backend ID:', updatedScreenshot.backendId, 'Local ID:', screenshotId);
+
               return updatedScreenshot;
             }
             return screenshot;
           });
-          
+
           // Update the screenshots array without removing it
           // Note: This assumes screenshots is managed by useWebRTC hook
           // We need to update the local state to reflect the saved status
-          
+
           // Use the updateScreenshotProperties function to update the screenshot
           if (backendId) {
             updateScreenshotProperties(screenshotId, {
@@ -1573,17 +1519,11 @@ export default function Page({ params }) {
               data: finalScreenshotData,
               url: finalScreenshotData
             });
-            console.log('Screenshot updated with backend ID using updateScreenshotProperties');
-           
+
+
             // Verify the update worked
             setTimeout(() => {
               const updatedScreenshot = screenshots.find(s => s.id === screenshotId);
-              console.log('Verification - Updated screenshot:', {
-                id: updatedScreenshot?.id,
-                backendId: updatedScreenshot?.backendId,
-                isSaved: updatedScreenshot?.isSaved,
-                savedAt: updatedScreenshot?.savedAt
-              });
             }, 100);
           } else {
             updateScreenshotProperties(screenshotId, {
@@ -1593,20 +1533,20 @@ export default function Page({ params }) {
             console.log('Screenshot marked as saved using updateScreenshotProperties');
           }
 
-          
-          
+
+
           updateUI({ activePencilScreenshot: null, showPencilDropdown: null });
-          
+
           if (foundCanvasId && drawingData[foundCanvasId]) {
             console.log('Cleaning up drawing data after successful save');
             delete drawingData[foundCanvasId];
-            
+
             const relatedCanvasIds = [
               `maximized-canvas-${screenshotId}`,
               `new-${index}`,
               `maximized-canvas-new-${index}`
             ];
-            
+
             relatedCanvasIds.forEach(relatedId => {
               if (drawingData[relatedId]) {
                 console.log('Also clearing related canvas data:', relatedId);
@@ -1614,7 +1554,7 @@ export default function Page({ params }) {
               }
             });
           }
-          
+
           console.log(`Screenshot ${index} successfully saved with backend ID: ${backendId}`);
         } else {
           toast.error("Screenshot too large", {
@@ -1624,7 +1564,7 @@ export default function Page({ params }) {
         }
       } else {
         toast.success("Screenshot saved successfully!", { id: `save-screenshot-${screenshotId}` });
-        
+
         markScreenshotAsSaved(screenshotId);
         // Update the screenshot in the local array to mark as saved
         const updatedScreenshots = screenshots.map((screenshot, i) => {
@@ -1637,9 +1577,9 @@ export default function Page({ params }) {
           }
           return screenshot;
         });
-        
+
         console.log('Screenshot marked as saved locally');
-        
+
         // Use updateScreenshotProperties for the fallback case too
         updateScreenshotProperties(screenshotId, {
           isSaved: true,
@@ -1650,7 +1590,7 @@ export default function Page({ params }) {
 
     } catch (error) {
       console.error('Save screenshot failed:', error);
-      
+
       if (error?.response?.data?.message?.includes('File size too large')) {
         toast.error("Screenshot too large", {
           id: `save-screenshot-${screenshotId}`,
@@ -1668,14 +1608,14 @@ export default function Page({ params }) {
         });
       }
     } finally {
-      updateApp({ 
-        savingScreenshotIndex: null, 
-        savingScreenshotIds: new Set([...app.savingScreenshotIds].filter(id => id !== screenshotId)) 
+      updateApp({
+        savingScreenshotIndex: null,
+        savingScreenshotIds: new Set([...app.savingScreenshotIds].filter(id => id !== screenshotId))
       });
       processedItemsRef.current.delete(itemKey);
     }
   }, [
-    id, form, app.existingMeetingData, drawingData, mergeWithBackground, 
+    id, form, app.existingMeetingData, drawingData, mergeWithBackground,
     app.savingScreenshotIds, markScreenshotAsSaved, screenshots, updateScreenshotProperties
   ]);
 
@@ -1688,7 +1628,6 @@ export default function Page({ params }) {
   }, []);
 
   const handleScreenshotTaken = useCallback((screenshot, index) => {
-    console.log('Screenshot taken, auto-maximizing:', screenshot);
     maximizeScreenshot(screenshot, index, false);
   }, [maximizeScreenshot]);
 
@@ -1696,29 +1635,29 @@ export default function Page({ params }) {
     if (ui.maximizedItem?.type === 'screenshot' && !ui.maximizedItem.isExisting) {
       const screenshotId = ui.maximizedItem.data.id;
       const canvasId = screenshotId;
-      
+
       const mergedScreenshotKey = `merged-${screenshotId}`;
       if (window.tempMergedScreenshots?.[mergedScreenshotKey]) {
         console.log('Cleaning up temporary merged screenshot data:', mergedScreenshotKey);
         delete window.tempMergedScreenshots[mergedScreenshotKey];
       }
-      
+
       const img = document.getElementById(`maximized-img-${ui.maximizedItem.id}`);
       if (img?.cleanupPositioning) {
         console.log('Cleaning up positioning event listeners');
         img.cleanupPositioning();
       }
-      
+
       if (drawingData[canvasId]?.isSaved) {
         console.log('Cleaning up saved drawing data on close:', canvasId);
         delete drawingData[canvasId];
-        
+
         const relatedCanvasIds = [
           `maximized-canvas-${screenshotId}`,
           `new-${ui.maximizedItem.index}`,
           `maximized-canvas-new-${ui.maximizedItem.index}`
         ];
-        
+
         relatedCanvasIds.forEach(relatedId => {
           if (drawingData[relatedId]?.isSaved) {
             console.log('Also clearing related saved canvas data:', relatedId);
@@ -1727,7 +1666,7 @@ export default function Page({ params }) {
         });
       }
     }
-    
+
     updateUI({ activePencilScreenshot: null, showPencilDropdown: null, maximizedItem: null });
   }, [ui.maximizedItem, drawingData]);
 
@@ -1739,7 +1678,7 @@ export default function Page({ params }) {
           img.cleanupPositioning();
         }
       });
-      
+
       if (window.tempMergedScreenshots) {
         delete window.tempMergedScreenshots;
       }
@@ -1761,10 +1700,10 @@ export default function Page({ params }) {
 
   useEffect(() => {
     const handleClickOutside = (e) => {
-      const isCanvasClick = e.target.tagName === 'CANVAS' || 
-                           e.target.closest('[data-canvas-id]') ||
-                           e.target.hasAttribute('data-canvas-id');
-      
+      const isCanvasClick = e.target.tagName === 'CANVAS' ||
+        e.target.closest('[data-canvas-id]') ||
+        e.target.hasAttribute('data-canvas-id');
+
       if (ui.showTTDropdown) {
         const dropdownElement = document.querySelector(`[data-dropdown-id="${ui.showTTDropdown}"]`);
         if (dropdownElement && !dropdownElement.contains(e.target)) {
@@ -1774,9 +1713,9 @@ export default function Page({ params }) {
       if (ui.showPencilDropdown && !isCanvasClick) {
         const pencilDropdownElement = document.querySelector(`[data-pencil-dropdown-id="${ui.showPencilDropdown}"]`);
         const toolsButton = document.querySelector('[data-tools-button]');
-        
-        if (pencilDropdownElement && !pencilDropdownElement.contains(e.target) && 
-            (!toolsButton || !toolsButton.contains(e.target))) {
+
+        if (pencilDropdownElement && !pencilDropdownElement.contains(e.target) &&
+          (!toolsButton || !toolsButton.contains(e.target))) {
           updateUI({ showPencilDropdown: null, activePencilScreenshot: null });
         }
       }
@@ -1795,11 +1734,11 @@ export default function Page({ params }) {
 
     if (isInMinimizedView && screenshotData && index !== null) {
       console.log('Pencil clicked in minimized view - maximizing screenshot');
-      
+
       maximizeScreenshot(screenshotData, index, false);
       setSelectedTool('brush');
       updateUI({ activePencilScreenshot: activeId });
-      
+
       console.log('Screenshot maximized with pencil tool activated (no dropdown)');
       return;
     }
@@ -1810,7 +1749,7 @@ export default function Page({ params }) {
     } else {
       console.log('Opening dropdown for:', activeId);
       updateUI({ activePencilScreenshot: activeId, showPencilDropdown: activeId });
-      
+
       if (selectedTool !== 'brush') {
         setSelectedTool('brush');
       }
@@ -1818,10 +1757,10 @@ export default function Page({ params }) {
   }, [ui.activePencilScreenshot, ui.showPencilDropdown, ui.maximizedItem, maximizeScreenshot, selectedTool]);
 
   const getLandlordName = () => app.tokenLandlordInfo?.landlordName || user?.landlordInfo?.landlordName || null;
-  
+
   const getLandlordLogo = () => {
     const isValidImageUrl = (url) => url && (url.startsWith('data:') || url.startsWith('http://') || url.startsWith('https://'));
-    
+
     if (app.tokenLandlordInfo?.landlordLogo && isValidImageUrl(app.tokenLandlordInfo.landlordLogo)) {
       return app.tokenLandlordInfo.landlordLogo;
     }
@@ -1837,8 +1776,8 @@ export default function Page({ params }) {
   const getScreenshotSavedCount = () => {
     let savedCount = media.existingScreenshots.length;
     screenshots.forEach((screenshot, index) => {
-      const screenshotId = typeof screenshot === 'object' ? 
-        (screenshot.id || `screenshot-${index}-${Date.now()}`) : 
+      const screenshotId = typeof screenshot === 'object' ?
+        (screenshot.id || `screenshot-${index}-${Date.now()}`) :
         `screenshot-${index}-${Date.now()}`;
       if (getScreenshotStatus(screenshotId) || screenshot.isSaved) {
         savedCount++;
@@ -1850,8 +1789,8 @@ export default function Page({ params }) {
   const getScreenshotUnsavedCount = () => {
     let unsavedCount = 0;
     screenshots.forEach((screenshot, index) => {
-      const screenshotId = typeof screenshot === 'object' ? 
-        (screenshot.id || `screenshot-${index}-${Date.now()}`) : 
+      const screenshotId = typeof screenshot === 'object' ?
+        (screenshot.id || `screenshot-${index}-${Date.now()}`) :
         `screenshot-${index}-${Date.now()}`;
       if (!getScreenshotStatus(screenshotId) && !screenshot.isSaved) {
         unsavedCount++;
@@ -1864,7 +1803,7 @@ export default function Page({ params }) {
 
   const getProfileImage = () => {
     const isValidImageUrl = (url) => url && (url.startsWith('data:') || url.startsWith('http://') || url.startsWith('https://'));
-    
+
     if (app.tokenLandlordInfo?.profileImage && isValidImageUrl(app.tokenLandlordInfo.profileImage)) {
       return app.tokenLandlordInfo.profileImage;
     }
@@ -2021,16 +1960,25 @@ export default function Page({ params }) {
   // When loading meeting data, also load structured special notes from backend (if meeting exists)
   useEffect(() => {
     if (!ui.isClient || !id) return;
+
+    // Only fetch structured notes if we have an existing meeting
+    if (!app.existingMeetingData) {
+      setStructuredSpecialNotes({});
+      return;
+    }
+
     const fetchStructuredNotes = async () => {
       try {
+        console.log('Fetching structured special notes for existing meeting');
         const res = await getStructuredSpecialNotes(id);
         setStructuredSpecialNotes(res.data.structured_special_notes || {});
       } catch (err) {
+        console.log('Failed to fetch structured notes:', err.message);
         setStructuredSpecialNotes({});
       }
     };
     fetchStructuredNotes();
-  }, [id, ui.isClient]);
+  }, [id, ui.isClient, app.existingMeetingData]);
 
   if (!ui.isClient) {
     return (
@@ -2063,7 +2011,7 @@ export default function Page({ params }) {
 
       <div className="hide-scrollbar" style={{ width: '100vw', height: 'auto', minHeight: '100vh', margin: 0, padding: '1vh 1vw', fontFamily: 'sans-serif', overflow: 'auto', boxSizing: 'border-box' }}>
         <style dangerouslySetInnerHTML={{ __html: `* { box-sizing: border-box; } .hide-scrollbar::-webkit-scrollbar { display: none; } .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; overflow-x: hidden; } body { overflow-x: hidden; } .responsive-column { padding: 1vh 1vw; height: auto; overflow-y: visible; overflow-x: hidden; } .responsive-content { width: 100%; height: auto; min-height: fit-content; }` }} />
-        
+
         {ui.maximizedItem && (
           <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0, 0, 0, 0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: '2vh 2vw' }}>
             <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -2076,7 +2024,7 @@ export default function Page({ params }) {
                   >
                     <X style={{ width: '18px', height: '18px', strokeWidth: '3' }} />
                   </button>
-                  
+
                   <video
                     src={ui.maximizedItem.data.url}
                     controls={true}
@@ -2096,34 +2044,25 @@ export default function Page({ params }) {
                 const mergedScreenshotKey = `merged-${screenshotId}`;
                 const mergedData = window.tempMergedScreenshots?.[mergedScreenshotKey];
                 let isSaved = getScreenshotStatus(screenshotId);
-                
+
                 let screenshotUrl = ui.maximizedItem.isExisting ? ui.maximizedItem.data.url : ui.maximizedItem.data.url;
                 if (mergedData && isSaved && mergedData.originalIndex === ui.maximizedItem.index) {
                   screenshotUrl = mergedData.mergedData;
                   console.log('Using merged screenshot data for display');
                 }
-                
-                const isActive = ui.activePencilScreenshot === screenshotId;
-                
-                console.log('Maximized screenshot data:', {
-                  isExisting: ui.maximizedItem.isExisting,
-                  data: ui.maximizedItem.data,
-                  screenshotUrl: screenshotUrl,
-                  screenshotId: screenshotId,
-                  isSaved: isSaved,
-                  hasMergedData: !!mergedData
-                });
 
-                if(isSaved) ui.maximizedItem.isExisting = true;
-                if(ui.maximizedItem.isExisting) isSaved = true;
-                
+                const isActive = ui.activePencilScreenshot === screenshotId;
+
+                if (isSaved) ui.maximizedItem.isExisting = true;
+                if (ui.maximizedItem.isExisting) isSaved = true;
+
                 return (
                   <div className="relative w-full h-full flex items-center justify-center p-4">
                     <div className="relative flex items-center justify-center w-full h-full" style={{ maxWidth: 'calc(100vw - 2rem)', maxHeight: 'calc(100vh - 2rem)', minWidth: '300px', minHeight: '300px' }}>
-                      <div 
+                      <div
                         id={`tools-panel-${screenshotId}`}
                         style={{ position: 'absolute', top: '20px', right: '27%', zIndex: 30, display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'flex-start', backgroundColor: 'rgba(255, 255, 255, 0.95)', padding: '16px', borderRadius: '16px', border: '2px solid rgba(59, 130, 246, 0.3)', backdropFilter: 'blur(20px)', boxShadow: '0 10px 25px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(255, 255, 255, 0.05)', transition: 'all 0.3s ease' }}>
-                        
+
                         {/* Close button positioned at top-right corner of tools panel */}
                         <button
                           id="maximize-close-button-screenshot"
@@ -2140,7 +2079,7 @@ export default function Page({ params }) {
                         >
                           <X style={{ width: '14px', height: '14px', strokeWidth: '3' }} />
                         </button>
-                        
+
                         <div style={{ color: '#1f2937', fontSize: '12px', fontWeight: '700', marginBottom: '4px', textAlign: 'center', width: '100%', letterSpacing: '0.5px', textTransform: 'uppercase' }}>Tools</div>
 
                         {(!isSaved || !ui.maximizedItem.isExisting) && (
@@ -2150,7 +2089,7 @@ export default function Page({ params }) {
                               const index = ui.maximizedItem.index;
                               const screenshotId = ui.maximizedItem.data.id;
                               console.log('Saving screenshot from maximized view:', { index, screenshotId });
-                              
+
                               try {
                                 await saveIndividualScreenshot(screenshotData, index, screenshotId);
                                 setTimeout(() => {
@@ -2160,10 +2099,10 @@ export default function Page({ params }) {
                                 console.error('Error saving screenshot:', error);
                               }
                             }}
-                            className={`group relative p-3 rounded-xl transition-all duration-300 border-2 w-12 h-12 flex items-center justify-center shadow-lg ${app.savingScreenshotIds.has(ui.maximizedItem.data.id) 
-                              ? 'bg-gray-400 border-gray-300 text-white cursor-not-allowed' 
+                            className={`group relative p-3 rounded-xl transition-all duration-300 border-2 w-12 h-12 flex items-center justify-center shadow-lg ${app.savingScreenshotIds.has(ui.maximizedItem.data.id)
+                              ? 'bg-gray-400 border-gray-300 text-white cursor-not-allowed'
                               : 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-200 text-green-600 hover:from-green-500 hover:to-emerald-500 hover:border-green-400 hover:text-white hover:transform hover:scale-105'
-                            }`}
+                              }`}
                             title={app.savingScreenshotIds.has(ui.maximizedItem.data.id) ? "Saving..." : "Save & Close"}
                             disabled={app.savingScreenshotIds.has(ui.maximizedItem.data.id)}
                           >
@@ -2187,10 +2126,10 @@ export default function Page({ params }) {
                             console.log('More tools clicked for maximized canvas:', canvasId);
                             handlePencilClick(canvasId, screenshotId, null, null);
                           }}
-                          className={`group relative p-3 rounded-xl transition-all duration-300 border-2 w-12 h-12 flex items-center justify-center shadow-lg ${isActive 
-                            ? 'bg-gradient-to-r from-blue-500 to-purple-600 border-blue-300 text-white transform scale-105' 
+                          className={`group relative p-3 rounded-xl transition-all duration-300 border-2 w-12 h-12 flex items-center justify-center shadow-lg ${isActive
+                            ? 'bg-gradient-to-r from-blue-500 to-purple-600 border-blue-300 text-white transform scale-105'
                             : 'bg-gradient-to-r from-gray-50 to-gray-100 border-gray-200 text-gray-700 hover:from-blue-50 hover:to-purple-50 hover:border-blue-300 hover:text-blue-600 hover:transform hover:scale-105'
-                          }`}
+                            }`}
                           title="Activate Drawing Mode"
                         >
                           <Palette className="w-5 h-5" />
@@ -2198,7 +2137,7 @@ export default function Page({ params }) {
                             <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full border-2 border-white"></div>
                           )}
                         </button>
-                        
+
                         <button
                           onClick={() => clearCanvas(canvasId)}
                           className="group relative p-3 rounded-xl transition-all duration-300 border-2 w-12 h-12 flex items-center justify-center shadow-lg bg-gradient-to-r from-red-50 to-pink-50 border-red-200 text-red-600 hover:from-red-500 hover:to-pink-500 hover:border-red-400 hover:text-white hover:transform hover:scale-105"
@@ -2228,11 +2167,11 @@ export default function Page({ params }) {
                           <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-red-400 to-orange-400 opacity-0 group-hover:opacity-20 transition-opacity duration-300"></div>
                         </button>
                       </div>
-                      
+
                       <div id={ui.maximizedItem.id}>
-                        <Loader2 className="text-green-500 text-4xl animate-spin" size={50}/>
+                        <Loader2 className="text-green-500 text-4xl animate-spin" size={50} />
                       </div>
-                      
+
                       <img
                         id={`maximized-img-${ui.maximizedItem.id}`}
                         src={screenshotUrl}
@@ -2242,61 +2181,56 @@ export default function Page({ params }) {
                         onLoad={async (e) => {
                           const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
                           await sleep(2000);
-                          
-                          if(window.document.getElementById(ui.maximizedItem.id)) window.document.getElementById(ui.maximizedItem.id).style.display = "none"
+
+                          if (window.document.getElementById(ui.maximizedItem.id)) window.document.getElementById(ui.maximizedItem.id).style.display = "none"
                           e.target.style.opacity = '1';
                           const img = e.target;
-                          console.log(`Image loaded: ${img.naturalWidth}x${img.naturalHeight} pixels`);
-                          console.log(`Display size: ${img.clientWidth}x${img.clientHeight} pixels`);
-                          
+
                           img.style.maxWidth = '100%';
                           img.style.maxHeight = '100%';
                           img.style.width = 'auto';
                           img.style.height = 'auto';
                           img.style.objectFit = 'contain';
                           img.style.display = 'block';
-                          
+
                           const updateDropdownPosition = () => {
                             const dropdown = document.querySelector(`[data-pencil-dropdown-id="${screenshotId}"]`);
                             const toolsPanel = document.getElementById(`tools-panel-${screenshotId}`);
-                            
+
                             if (dropdown && toolsPanel) {
                               const toolsPanelRect = toolsPanel.getBoundingClientRect();
                               dropdown.style.top = `${toolsPanelRect.top}px`;
                               console.log(`Dropdown synced with tools panel at top: ${toolsPanelRect.top}px`);
                             }
                           };
-                          
+
                           const positionToolsPanel = () => {
                             const toolsPanel = document.getElementById(`tools-panel-${screenshotId}`);
                             if (toolsPanel && img) {
                               const imgRect = img.getBoundingClientRect();
                               const containerRect = img.parentElement.getBoundingClientRect();
-                              
+
                               const imageLeft = imgRect.left - containerRect.left;
                               const imageTop = imgRect.top - containerRect.top;
                               const imageRight = imgRect.right - containerRect.left;
-                              
+
                               const toolsPanelLeft = imageRight + 20;
                               const toolsPanelTop = imageTop;
-                              
+
                               toolsPanel.style.left = `${toolsPanelLeft}px`;
                               toolsPanel.style.top = `${toolsPanelTop}px`;
                               toolsPanel.style.right = 'auto';
                               toolsPanel.style.transform = 'none';
-                              
+
                               const dropdown = document.querySelector(`[data-pencil-dropdown-id="${screenshotId}"]`);
                               if (dropdown) {
                                 dropdown.style.top = `${toolsPanelTop + containerRect.top}px`;
                                 console.log(`Dropdown positioned at top: ${toolsPanelTop + containerRect.top}px`);
                               }
-                              
-                              console.log(`Tools panel positioned: left=${toolsPanelLeft}px, top=${toolsPanelTop}px`);
-                              console.log(`Screenshot bounds: left=${imageLeft}px, top=${imageTop}px, right=${imageRight}px`);
-                              
+
                               const viewportWidth = window.innerWidth;
                               const toolsPanelWidth = toolsPanel.offsetWidth || 100;
-                              
+
                               if (toolsPanelLeft + toolsPanelWidth > viewportWidth - 20) {
                                 const leftSidePosition = imageLeft - toolsPanelWidth - 20;
                                 if (leftSidePosition > 20) {
@@ -2307,44 +2241,41 @@ export default function Page({ params }) {
                                   console.log(`Tools panel positioned inside screenshot: left=${imageLeft + 10}px`);
                                 }
                               }
-                              
+
                               setTimeout(updateDropdownPosition, 100);
                             }
                           };
-                          
+
                           setTimeout(positionToolsPanel, 50);
                           setTimeout(positionToolsPanel, 150);
                           setTimeout(positionToolsPanel, 300);
-                          
+
                           const handleResize = () => {
                             positionToolsPanel();
                             setTimeout(updateDropdownPosition, 50);
                           };
-                          
+
                           window.addEventListener('resize', handleResize);
-                          
+
                           setTimeout(() => {
                             window.removeEventListener('resize', handleResize);
                           }, 30000);
-                          
+
                           const attemptCanvasSync = (attempt = 1) => {
                             const displayWidth = img.offsetWidth;
                             const displayHeight = img.offsetHeight;
                             const boundingRect = img.getBoundingClientRect();
-                            
-                            console.log(`Attempt ${attempt} - Natural: ${img.naturalWidth}x${img.naturalHeight}`);
-                            console.log(`Attempt ${attempt} - Offset: ${displayWidth}x${displayHeight}`);
-                            console.log(`Attempt ${attempt} - BoundingRect: ${boundingRect.width}x${boundingRect.height}`);
-                            
+
+
                             const finalWidth = Math.round(boundingRect.width);
                             const finalHeight = Math.round(boundingRect.height);
-                            
+
                             if (finalWidth > 50 && finalHeight > 50) {
                               const canvas = img.parentElement.querySelector(`canvas[data-canvas-id="${canvasId}"]`);
                               if (canvas) {
                                 const imgRect = img.getBoundingClientRect();
                                 const containerRect = img.parentElement.getBoundingClientRect();
-                                
+
                                 canvas.width = finalWidth;
                                 canvas.height = finalHeight;
                                 canvas.style.width = finalWidth + 'px';
@@ -2353,22 +2284,19 @@ export default function Page({ params }) {
                                 canvas.style.top = (imgRect.top - containerRect.top) + 'px';
                                 canvas.style.left = (imgRect.left - containerRect.left) + 'px';
                                 canvas.style.zIndex = '15';
-                                
-                                console.log(`Canvas positioned and sized: ${finalWidth}x${finalHeight}`);
-                                console.log(`Canvas position: top=${imgRect.top - containerRect.top}px, left=${imgRect.left - containerRect.left}px`);
-                                
+
                                 setTimeout(positionToolsPanel, 100);
                                 initializeCanvas(canvas, screenshotUrl, canvasId);
                                 return true;
                               }
                             }
-                            
+
                             if (attempt < 5) {
                               setTimeout(() => attemptCanvasSync(attempt + 1), 100 * attempt);
                             }
-      return false;
-    };
-    
+                            return false;
+                          };
+
                           setTimeout(() => attemptCanvasSync(), 50);
                         }}
                         onError={(e) => {
@@ -2426,7 +2354,7 @@ export default function Page({ params }) {
                       />
 
                       {isActive && ui.showPencilDropdown === screenshotId && (
-                        <div 
+                        <div
                           data-pencil-dropdown-id={screenshotId}
                           style={{ position: 'fixed', left: `${Math.min(ui.clickPosition.x + 65, window.innerWidth - 280)}px`, zIndex: 1000, backgroundColor: 'white', borderRadius: '16px', border: '2px solid #e5e7eb', boxShadow: '0 20px 40px rgba(0, 0, 0, 0.15), 0 4px 12px rgba(0, 0, 0, 0.1)', padding: '20px', minWidth: '280px', maxWidth: '320px', maxHeight: '70vh', overflowY: 'auto', backdropFilter: 'blur(10px)', background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)' }}
                           ref={(el) => {
@@ -2532,11 +2460,11 @@ export default function Page({ params }) {
               <div style={{ display: 'flex', alignItems: 'center', gap: '1vw' }}>
                 <div className={`w-12 h-12 overflow-hidden ${getProfileShapeClass()}`} style={{ width: '3vw', height: '6vh', minWidth: '48px', minHeight: '48px' }}>
                   {getProfileImage() ? (
-                    <img 
-                      src={getProfileImage()} 
-                      alt="Profile Image" 
+                    <img
+                      src={getProfileImage()}
+                      alt="Profile Image"
                       className={`w-full h-full ${getImageObjectFitClass()}`}
-                      onError={(e) => { e.target.style.display = 'none'; }} 
+                      onError={(e) => { e.target.style.display = 'none'; }}
                     />
                   ) : (
                     <div className={`w-full h-full bg-gray-200 flex items-center justify-center text-gray-600 font-semibold ${getProfileShapeClass()}`} style={{ fontSize: '1.2vw' }}>
@@ -2584,32 +2512,6 @@ export default function Page({ params }) {
                   onMouseUp={(e) => { if (app.zoomLevel > 1) e.currentTarget.style.cursor = 'grab'; }}
                   onMouseLeave={(e) => { if (app.zoomLevel > 1) e.currentTarget.style.cursor = 'grab'; }}
                 />
-
-                {/* Remote Mouse Cursor Indicator - Only show after 2 second hold */}
-                {remoteMousePosition.showIndicator && remoteMousePosition.x > 0 && remoteMousePosition.y > 0 && (
-                  <div 
-                    className={`absolute w-6 h-6 pointer-events-none z-20 transition-all duration-100 rounded-full flex items-center justify-center ${
-                      remoteMousePosition.isHolding 
-                        ? 'bg-red-500 border-2 border-white' 
-                        : 'bg-blue-500 border-2 border-white animate-pulse'
-                    }`}
-                    style={{
-                      left: `${remoteMousePosition.x}%`,
-                      top: `${remoteMousePosition.y}%`,
-                      transform: 'translate(-50%, -50%)'
-                    }}
-                  >
-                    <div className="w-2 h-2 bg-white rounded-full"></div>
-                    {/* Live tracking indicator */}
-                    {!remoteMousePosition.isHolding && (
-                      <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full border-2 border-white animate-bounce"></div>
-                    )}
-                  </div>
-                )}
-
-
-
-
               </div>
 
               <div style={{ position: 'absolute', top: '2vh', left: '1.5vw', zIndex: 10 }}>
@@ -2694,7 +2596,7 @@ export default function Page({ params }) {
                   </div>
                 </button>
               </div>
-              
+
               {/* Enhanced Dashboard Link - Below action buttons */}
               <div className="w-full mt-3">
                 <button
@@ -2810,7 +2712,7 @@ export default function Page({ params }) {
                       <div key={`existing-${screenshot.id}`} className="flex-shrink-0 w-[15vw] min-w-[180px]">
                         <img src="/icons/ci_label.svg" className="mb-2" />
                         <div className="aspect-square bg-gradient-to-br from-green-50 to-green-100 border-2 border-green-200 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 ease-in-out transform hover:scale-105 flex items-center justify-center relative cursor-pointer group"
-                             onClick={() => maximizeScreenshot(screenshot, index, true)}>
+                          onClick={() => maximizeScreenshot(screenshot, index, true)}>
                           <div className="text-center text-green-700 p-6 transition-all duration-300 group-hover:text-green-800">
                             <div className="w-12 h-12 mx-auto mb-3 bg-green-200 rounded-full flex items-center justify-center group-hover:bg-green-300 transition-colors duration-300">
                               <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2840,39 +2742,23 @@ export default function Page({ params }) {
                     const isActive = ui.activePencilScreenshot === canvasId;
                     const cleanScreenshotUrl = screenshotData.split('#')[0];
 
-                    console.log(`Rendering screenshot ${index}:`, { 
-                      canvasId, 
-                      screenshotId, 
-                      isSaved, 
-                      backendId,
-                      hasBackendId: !!backendId,
-                      isSavedProperty: screenshot.isSaved,
-                      savedStatus: getScreenshotStatus(screenshotId),
-                      fullScreenshot: screenshot
-                    });
-                    
                     return (
                       <div key={`screenshot-container-${screenshotId}`} className="relative pencil-dropdown-container flex-shrink-0 w-[15vw] min-w-[180px]">
                         <img src="/icons/ci_label.svg" className="mb-2" />
-                        <div className={`aspect-square bg-gradient-to-br ${
-                          isSaved 
-                            ? 'from-green-50 to-green-100 border-green-200' 
+                        <div className={`aspect-square bg-gradient-to-br ${isSaved
+                            ? 'from-green-50 to-green-100 border-green-200'
                             : 'from-blue-50 to-blue-100 border-blue-200'
-                        } border-2 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 ease-in-out transform hover:scale-105 flex items-center justify-center relative cursor-pointer group`}
-                             onClick={() => {
-                               console.log('Maximizing screenshot:', { index, cleanScreenshotUrl, backendId });
-                               maximizeScreenshot({...screenshot, id: screenshotId}, index, false);
-                             }}>
-                          <div className={`text-center ${
-                            isSaved ? 'text-green-700' : 'text-blue-700'
-                          } p-6 transition-all duration-300 ${
-                            isSaved ? 'group-hover:text-green-800' : 'group-hover:text-blue-800'
-                          }`}>
-                            <div className={`w-12 h-12 mx-auto mb-3 ${
-                              isSaved ? 'bg-green-200' : 'bg-blue-200'
-                            } rounded-full flex items-center justify-center ${
-                              isSaved ? 'group-hover:bg-green-300' : 'group-hover:bg-blue-300'
-                            } transition-colors duration-300`}>
+                          } border-2 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 ease-in-out transform hover:scale-105 flex items-center justify-center relative cursor-pointer group`}
+                          onClick={() => {
+                            console.log('Maximizing screenshot:', { index, cleanScreenshotUrl, backendId });
+                            maximizeScreenshot({ ...screenshot, id: screenshotId }, index, false);
+                          }}>
+                          <div className={`text-center ${isSaved ? 'text-green-700' : 'text-blue-700'
+                            } p-6 transition-all duration-300 ${isSaved ? 'group-hover:text-green-800' : 'group-hover:text-blue-800'
+                            }`}>
+                            <div className={`w-12 h-12 mx-auto mb-3 ${isSaved ? 'bg-green-200' : 'bg-blue-200'
+                              } rounded-full flex items-center justify-center ${isSaved ? 'group-hover:bg-green-300' : 'group-hover:bg-blue-300'
+                              } transition-colors duration-300`}>
                               {isSaved ? (
                                 <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -2891,11 +2777,10 @@ export default function Page({ params }) {
                             </div>
                           </div>
 
-                          <div className={`absolute inset-0 rounded-xl ${
-                            isSaved 
-                              ? 'bg-gradient-to-r from-green-400 to-emerald-400' 
+                          <div className={`absolute inset-0 rounded-xl ${isSaved
+                              ? 'bg-gradient-to-r from-green-400 to-emerald-400'
                               : 'bg-gradient-to-r from-blue-400 to-purple-400'
-                          } opacity-0 group-hover:opacity-20 transition-opacity duration-300`}></div>
+                            } opacity-0 group-hover:opacity-20 transition-opacity duration-300`}></div>
 
                           <div className="absolute top-2 left-2 flex flex-col gap-1 z-10">
                             <button
@@ -2905,9 +2790,8 @@ export default function Page({ params }) {
                                   saveIndividualScreenshot(cleanScreenshotUrl, index, screenshotId);
                                 }
                               }}
-                              className={`p-1 hover:bg-black/20 rounded text-white ${
-                                isSaved || app.savingScreenshotIds.has(screenshotId) ? 'opacity-50' : ''
-                              }`}
+                              className={`p-1 hover:bg-black/20 rounded text-white ${isSaved || app.savingScreenshotIds.has(screenshotId) ? 'opacity-50' : ''
+                                }`}
                               title={isSaved ? "Already saved" : "Save screenshot"}
                               disabled={isSaved || app.savingScreenshotIds.has(screenshotId)}
                             >
@@ -3024,23 +2908,23 @@ export default function Page({ params }) {
                   disabled={!shareLink}
                   aria-label="Copy share link"
                 >
-                 {copied ? (
-  <span className="font-semibold">Copied</span>
-) : (
-  <>
-    <Copy className="w-5 h-5 mr-1" />
-    <span>Copy</span>
-  </>
-)}
+                  {copied ? (
+                    <span className="font-semibold">Copied</span>
+                  ) : (
+                    <>
+                      <Copy className="w-5 h-5 mr-1" />
+                      <span>Copy</span>
+                    </>
+                  )}
                 </button>
               </div>
               <span className="text-xs font-normal text-gray-500">(Copy and paste link to your job ticket or any system)</span>
             </div>
 
             <div className="w-full flex items-center gap-4 mt-6">
-              <button 
-                onClick={() => handleSaveAndRedirect(null)} 
-                disabled={!isConnected || app.isEndingVideo} 
+              <button
+                onClick={() => handleSaveAndRedirect(null)}
+                disabled={!isConnected || app.isEndingVideo}
                 className={`${app.isEndingVideo ? 'bg-red-400' : 'bg-red-500 hover:bg-red-600'} disabled:opacity-50 text-white font-medium py-4 rounded-md transition-colors flex-1 whitespace-pre`}
               >
                 {app.isEndingVideo ? (
@@ -3101,7 +2985,7 @@ export default function Page({ params }) {
               <div className="flex flex-col md:flex-row md:justify-between gap-4 mb-3">
                 <div className="flex-1">
                   <label htmlFor="residentAddress" className="block text-lg font-medium mb-2">Resident Address :</label>
-                  
+
                   <div className="mb-3">
                     <input
                       type="text"
@@ -3138,8 +3022,8 @@ export default function Page({ params }) {
                       placeholder="Town/City"
                       value={form.city}
                       onChange={e => updateForm({ city: e.target.value })}
-                        className="w-full p-3 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-300"
-                      />
+                      className="w-full p-3 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-300"
+                    />
                   </div>
                   <div className="mb-3">
                     <input
@@ -3164,7 +3048,7 @@ export default function Page({ params }) {
                   />
                 </div>
               </div>
-              
+
               <div className="mb-3">
                 <textarea
                   placeholder="Phone no:"
@@ -3233,11 +3117,10 @@ export default function Page({ params }) {
                           <button
                             key={index}
                             onClick={() => handleTTOptionSelect(detail.field, option)}
-                            className={`w-full text-left px-4 py-2 text-sm first:rounded-t-lg last:rounded-b-lg transition-colors duration-200 ${
-                              form.selectedTTValues[detail.field] === option 
-                                ? 'bg-orange-300 text-white' 
+                            className={`w-full text-left px-4 py-2 text-sm first:rounded-t-lg last:rounded-b-lg transition-colors duration-200 ${form.selectedTTValues[detail.field] === option
+                                ? 'bg-orange-300 text-white'
                                 : 'hover:bg-orange-200 hover:bg-opacity-30'
-                            }`}
+                              }`}
                           >
                             {option}
                           </button>
@@ -3273,11 +3156,10 @@ export default function Page({ params }) {
                           <button
                             key={optionIndex}
                             onClick={() => handleTTOptionSelect(`workDetail${index}`, option)}
-                            className={`w-full text-left px-4 py-2 text-sm first:rounded-t-lg last:rounded-b-lg transition-colors duration-200 ${
-                              form.selectedTTValues[`workDetail${index}`] === option 
-                                ? 'bg-orange-300 text-white' 
+                            className={`w-full text-left px-4 py-2 text-sm first:rounded-t-lg last:rounded-b-lg transition-colors duration-200 ${form.selectedTTValues[`workDetail${index}`] === option
+                                ? 'bg-orange-300 text-white'
                                 : 'hover:bg-orange-200 hover:bg-opacity-30'
-                            }`}
+                              }`}
                           >
                             {option}
                           </button>
@@ -3296,8 +3178,8 @@ export default function Page({ params }) {
                   <button
                     onClick={() => updateUI({ showSpecialNotes: true })}
                     className={`px-3 py-1 rounded-full transition-colors text-sm font-medium ${ui.showSpecialNotes
-                        ? 'bg-green-600 text-white shadow-sm'
-                        : 'bg-transparent text-gray-600 hover:bg-green-100'
+                      ? 'bg-green-600 text-white shadow-sm'
+                      : 'bg-transparent text-gray-600 hover:bg-green-100'
                       }`}
                     title="Show Special Notes"
                   >
@@ -3306,8 +3188,8 @@ export default function Page({ params }) {
                   <button
                     onClick={() => updateUI({ showSpecialNotes: false })}
                     className={`px-3 py-1 rounded-full transition-colors text-sm font-medium ${!ui.showSpecialNotes
-                        ? 'bg-gray-600 text-white shadow-sm'
-                        : 'bg-transparent text-gray-600 hover:bg-gray-300'
+                      ? 'bg-gray-600 text-white shadow-sm'
+                      : 'bg-transparent text-gray-600 hover:bg-gray-300'
                       }`}
                     title="Hide Special Notes"
                   >

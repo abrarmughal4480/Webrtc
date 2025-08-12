@@ -68,241 +68,6 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
     const processedItemsRef = useRef(new Set());
     const [savingScreenshotIds, setSavingScreenshotIds] = useState(new Set());
 
-    // Mouse and touch tracking states
-    const [remoteMousePosition, setRemoteMousePosition] = useState({ x: 0, y: 0, isHolding: false, showIndicator: false });
-    const mouseTrackingRef = useRef(null);
-    const lastMouseEventTime = useRef(0);
-
-    // Mouse and touch tracking functions
-    const startPointerTracking = useCallback(() => {
-        console.log('🚀 Starting pointer tracking...', { 
-            isAdmin, 
-            hasVideoRef: !!videoRef?.current,
-            videoRefType: typeof videoRef?.current
-        });
-        
-        if (!videoRef?.current) {
-            console.error('❌ Video ref not available');
-            return;
-        }
-        
-        if (!isAdmin) {
-            console.log('❌ Not admin, skipping pointer tracking');
-            return;
-        }
-
-        const videoElement = videoRef.current;
-        console.log('✅ Video element found, setting up event listeners');
-        
-        // Common function to handle pointer events (mouse and touch) - ADMIN ONLY
-        const handlePointerDown = (e) => {
-            console.log('🖱️ Pointer down event triggered:', { 
-                type: e.type, 
-                isAdmin, 
-                hasSocket: !!socketConnection.current,
-                clientX: e.clientX,
-                clientY: e.clientY,
-                timestamp: new Date().toISOString()
-            });
-            
-            if (!socketConnection.current) {
-                console.error('❌ Socket connection not available');
-                return;
-            }
-            
-            if (!isAdmin) {
-                console.log('❌ Not admin, ignoring pointer down');
-                return;
-            }
-            
-            const rect = videoElement.getBoundingClientRect();
-            console.log('📐 Video element bounds:', {
-                left: rect.left,
-                top: rect.top,
-                width: rect.width,
-                height: rect.height
-            });
-            
-            let x, y;
-            
-            // Handle both mouse and touch events
-            if (e.type === 'mousedown') {
-                x = ((e.clientX - rect.left) / rect.width) * 100;
-                y = ((e.clientY - rect.top) / rect.height) * 100;
-                console.log('🖱️ Mouse coordinates calculated:', { 
-                    clientX: e.clientX, 
-                    clientY: e.clientY, 
-                    x: Math.round(x * 100) / 100, 
-                    y: Math.round(y * 100) / 100 
-                });
-            } else if (e.type === 'touchstart') {
-                const touch = e.touches[0];
-                x = ((touch.clientX - rect.left) / rect.width) * 100;
-                y = ((touch.clientY - rect.top) / rect.height) * 100;
-                console.log('👆 Touch coordinates calculated:', { 
-                    touchX: touch.clientX, 
-                    touchY: touch.clientY, 
-                    x: Math.round(x * 100) / 100, 
-                    y: Math.round(y * 100) / 100 
-                });
-            }
-            
-            console.log('📍 Final coordinates:', { x: Math.round(x * 100) / 100, y: Math.round(y * 100) / 100 });
-            
-            // Show indicator immediately (no 2-second delay)
-            setRemoteMousePosition(prev => {
-                const newPosition = { 
-                    ...prev, 
-                    x: Math.round(x * 100) / 100, 
-                    y: Math.round(y * 100) / 100,
-                    showIndicator: true,
-                    isHolding: true
-                };
-                console.log('🔄 Updating local mouse position:', newPosition);
-                return newPosition;
-            });
-            
-            // Send pointer hold event to remote peer immediately
-            const pointerData = {
-                type: 'pointerhold',
-                x: Math.round(x * 100) / 100,
-                y: Math.round(y * 100) / 100,
-                timestamp: Date.now()
-            };
-            console.log('📤 Admin sending pointer hold event:', pointerData);
-            
-            try {
-                socketConnection.current.emit('mouse-event', pointerData);
-                console.log('✅ Pointer hold event sent successfully');
-            } catch (error) {
-                console.error('❌ Error sending pointer hold event:', error);
-            }
-        };
-
-        // Live tracking during hold (mouse move and touch move)
-        const handlePointerMove = (e) => {
-            if (!socketConnection.current || !isAdmin) return; // Only admin can send events
-            
-            const rect = videoElement.getBoundingClientRect();
-            let x, y;
-            
-            // Handle both mouse and touch events
-            if (e.type === 'mousemove') {
-                x = ((e.clientX - rect.left) / rect.width) * 100;
-                y = ((e.clientY - rect.top) / rect.height) * 100;
-            } else if (e.type === 'touchmove') {
-                const touch = e.touches[0];
-                x = ((touch.clientX - rect.left) / rect.width) * 100;
-                y = ((touch.clientY - rect.top) / rect.height) * 100;
-            }
-            
-            // Update local position for live tracking
-            setRemoteMousePosition(prev => ({ 
-                ...prev, 
-                x: Math.round(x * 100) / 100, 
-                y: Math.round(y * 100) / 100 
-            }));
-            
-            // Send live tracking event to remote peer
-            const pointerData = {
-                type: 'pointermove',
-                x: Math.round(x * 100) / 100,
-                y: Math.round(y * 100) / 100,
-                timestamp: Date.now()
-            };
-            console.log('👆 Admin sending live pointer move event:', pointerData);
-            
-            try {
-                socketConnection.current.emit('mouse-event', pointerData);
-                console.log('✅ Pointer move event sent successfully');
-            } catch (error) {
-                console.error('❌ Error sending pointer move event:', error);
-            }
-        };
-
-        const handlePointerUp = (e) => {
-            console.log('🖱️ Pointer up event triggered:', { 
-                type: e.type, 
-                isAdmin, 
-                hasSocket: !!socketConnection.current,
-                timestamp: new Date().toISOString()
-            });
-            
-            if (!socketConnection.current || !isAdmin) return; // Only admin can send events
-            
-            const rect = videoElement.getBoundingClientRect();
-            let x, y;
-            
-            // Handle both mouse and touch events
-            if (e.type === 'mouseup') {
-                x = ((e.clientX - rect.left) / rect.width) * 100;
-                y = ((e.clientY - rect.top) / rect.height) * 100;
-            } else if (e.type === 'touchend') {
-                const touch = e.changedTouches[0];
-                x = ((touch.clientX - rect.left) / rect.width) * 100;
-                y = ((touch.clientY - rect.top) / rect.height) * 100;
-            }
-            
-            console.log('📍 Pointer up coordinates:', { x: Math.round(x * 100) / 100, y: Math.round(y * 100) / 100 });
-            
-            // Hide indicator immediately when pointer is released
-            setRemoteMousePosition(prev => {
-                const newPosition = { 
-                    ...prev, 
-                    showIndicator: false,
-                    isHolding: false
-                };
-                console.log('🔄 Hiding indicator, updating position:', newPosition);
-                return newPosition;
-            });
-            
-            // Send pointer up event to remote peer
-            const pointerData = {
-                type: 'pointerup',
-                x: Math.round(x * 100) / 100,
-                y: Math.round(y * 100) / 100,
-                timestamp: Date.now()
-            };
-            console.log('📤 Admin sending pointer up event:', pointerData);
-            
-            try {
-                socketConnection.current.emit('mouse-event', pointerData);
-                console.log('✅ Pointer up event sent successfully');
-            } catch (error) {
-                console.error('❌ Error sending pointer up event:', error);
-            }
-        };
-
-        // Add event listeners for both mouse and touch
-        videoElement.addEventListener('mousedown', handlePointerDown);
-        videoElement.addEventListener('mousemove', handlePointerMove);
-        videoElement.addEventListener('mouseup', handlePointerUp);
-        videoElement.addEventListener('touchstart', handlePointerDown, { passive: false });
-        videoElement.addEventListener('touchmove', handlePointerMove, { passive: false });
-        videoElement.addEventListener('touchend', handlePointerUp, { passive: false });
-        
-        console.log('✅ Event listeners added successfully');
-        
-        // Store cleanup function
-        mouseTrackingRef.current = () => {
-            videoElement.removeEventListener('mousedown', handlePointerDown);
-            videoElement.removeEventListener('mousemove', handlePointerMove);
-            videoElement.removeEventListener('mouseup', handlePointerUp);
-            videoElement.removeEventListener('touchstart', handlePointerDown);
-            videoElement.removeEventListener('touchmove', handlePointerMove);
-            videoElement.removeEventListener('touchend', handlePointerUp);
-        };
-    }, [videoRef]);
-
-    const stopPointerTracking = useCallback(() => {
-        if (mouseTrackingRef.current) {
-            mouseTrackingRef.current();
-            mouseTrackingRef.current = null;
-        }
-    }, []);
-
-
-
     useEffect(() => {
         const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4000';
         const socketUrl = backendUrl.replace('/api/v1', '');
@@ -321,63 +86,17 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
             }
         });
 
-        // Pointer event listeners (mouse and touch)
-        socketConnection.current.on('mouse-event', (data) => {
-            console.log('👆 Received pointer event:', data);
-            if (data.type === 'pointerhold') {
-                console.log('🔴 Setting pointer hold position:', { x: data.x, y: data.y });
-                setRemoteMousePosition({ x: data.x, y: data.y, isHolding: true, showIndicator: true });
-            } else if (data.type === 'pointerdown') {
-                console.log('🔴 Setting pointer down position:', { x: data.x, y: data.y });
-                setRemoteMousePosition({ x: data.x, y: data.y, isHolding: true, showIndicator: true });
-            } else if (data.type === 'pointermove') {
-                console.log('🔵 Setting pointer move position:', { x: data.x, y: data.y });
-                setRemoteMousePosition(prev => ({ 
-                    ...prev, 
-                    x: data.x, 
-                    y: data.y,
-                    showIndicator: true // Keep indicator visible during movement
-                }));
-            } else if (data.type === 'pointerup') {
-                console.log('⚪ Hiding pointer indicator');
-                setRemoteMousePosition({ x: data.x, y: data.y, isHolding: false, showIndicator: false });
-            }
-        });
-
         // Cleanup on unmount
         return () => {
             if (socketConnection.current) {
                 socketConnection.current.disconnect();
             }
-            stopPointerTracking();
         };
-    }, [roomId, isAdmin, stopPointerTracking]);
-
-    // Start pointer tracking when video ref is available
-    useEffect(() => {
-        console.log('🔄 useEffect triggered for pointer tracking:', { 
-            hasVideoRef: !!videoRef?.current, 
-            isAdmin,
-            videoRefType: typeof videoRef?.current
-        });
-        
-        if (videoRef?.current) {
-            console.log('🎯 Starting pointer tracking...');
-            startPointerTracking();
-        } else {
-            console.log('⏳ Waiting for video ref...');
-        }
-        
-        return () => {
-            console.log('🧹 Cleaning up pointer tracking...');
-            stopPointerTracking();
-        };
-    }, [videoRef, startPointerTracking, stopPointerTracking]);
+    }, [roomId, isAdmin]);
 
     // Enhanced getUserMedia with comprehensive device error handling
     const getUserMedia = async () => {
         try {
-            console.log('🎥 Starting camera access (video only mode)...');
 
             // Step 1: Check if getUserMedia is supported
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -387,13 +106,12 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
             // Step 2: Check permissions first (if supported)
             try {
                 const permissionStatus = await navigator.permissions.query({ name: 'camera' });
-                console.log('📷 Camera permission status:', permissionStatus.state);
 
                 if (permissionStatus.state === 'denied') {
                     throw new Error('Camera permission denied. Please enable camera access in browser settings and refresh the page.');
                 }
             } catch (permError) {
-                console.log('⚠️ Permission API not supported, proceeding...');
+                // Permission API not supported, proceeding...
             }
 
             // Step 3: Enumerate available devices to check what's actually available
@@ -401,22 +119,13 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
             try {
                 const devices = await navigator.mediaDevices.enumerateDevices();
                 availableDevices = devices.filter(device => device.kind === 'videoinput');
-                console.log('📹 Available video devices:', availableDevices.length);
 
                 if (availableDevices.length === 0) {
                     throw new Error('No camera devices found. Please connect a camera and refresh the page.');
                 }
 
-                // Log device info (without sensitive details)
-                availableDevices.forEach((device, index) => {
-                    console.log(`Camera ${index + 1}:`, {
-                        label: device.label || 'Unknown Camera',
-                        deviceId: device.deviceId ? 'present' : 'missing'
-                    });
-                });
-
             } catch (enumError) {
-                console.log('⚠️ Could not enumerate devices, proceeding with basic constraints');
+                // Could not enumerate devices, proceeding with basic constraints
             }
 
             // Step 4: ENHANCED Progressive constraint strategy (from best to basic) - ULTRA HIGH QUALITY VIDEO ONLY
@@ -645,14 +354,11 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
             // Try each strategy until one works
             for (const strategy of constraintStrategies) {
                 try {
-                    console.log(`🔄 Trying strategy: ${strategy.name}`);
                     stream = await navigator.mediaDevices.getUserMedia(strategy.constraints);
                     usedStrategy = strategy.name;
-                    console.log(`✅ Success with strategy: ${strategy.name}`);
                     break;
                 } catch (strategyError) {
                     lastError = strategyError;
-                    console.log(`❌ Strategy "${strategy.name}" failed:`, strategyError.message);
 
                     // If it's a specific constraint error, try without problematic constraints
                     if (strategyError.name === 'OverconstrainedError' ||
@@ -671,14 +377,12 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
                                 delete fallbackConstraints.video.height;
                                 delete fallbackConstraints.video.frameRate;
 
-                                console.log(`🔄 Retrying "${strategy.name}" with relaxed constraints`);
                                 stream = await navigator.mediaDevices.getUserMedia(fallbackConstraints);
                                 usedStrategy = strategy.name + " (relaxed constraints)";
-                                console.log(`✅ Success with modified strategy: ${usedStrategy}`);
                                 break;
                             }
                         } catch (fallbackError) {
-                            console.log(`❌ Fallback also failed for "${strategy.name}":`, fallbackError.message);
+                            // Fallback also failed
                         }
                     }
 
@@ -689,8 +393,6 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
 
             // If no strategy worked
             if (!stream) {
-                console.error('❌ All camera access strategies failed');
-
                 // Provide detailed error message based on the last error
                 let userMessage = 'Unable to access camera (video only mode). ';
 
@@ -715,38 +417,19 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
                 throw error;
             }
 
-            // Step 5: Log actual stream capabilities and success info
+            // Step 5: Get stream capabilities and success info
             const videoTrack = stream.getVideoTracks()[0];
             const audioTrack = stream.getAudioTracks()[0];
 
             if (videoTrack) {
                 const settings = videoTrack.getSettings();
 
-                console.log('📹 Video track settings:', {
-                    width: settings.width,
-                    height: settings.height,
-                    frameRate: settings.frameRate,
-                    facingMode: settings.facingMode,
-                    deviceId: settings.deviceId ? 'present' : 'missing'
-                });
-
                 // Try to get capabilities if supported
                 try {
                     const capabilities = videoTrack.getCapabilities();
-                    console.log('📹 Video capabilities:', {
-                        maxWidth: capabilities.width?.max,
-                        maxHeight: capabilities.height?.max,
-                        maxFrameRate: capabilities.frameRate?.max,
-                        facingModes: capabilities.facingMode
-                    });
                 } catch (capError) {
-                    console.log('⚠️ Could not get video capabilities');
+                    // Could not get video capabilities
                 }
-            }
-
-            if (audioTrack) {
-                const settings = audioTrack.getSettings();
-                console.log('🎵 Audio track active:', settings);
             }
 
             // Step 6: Set up the stream
@@ -756,22 +439,13 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
             if (videoRef.current) {
                 videoRef.current.srcObject = stream;
                 videoRef.current.play().catch(playError => {
-                    console.log('⚠️ Video autoplay failed (this is normal):', playError.message);
+                    // Video autoplay failed (this is normal)
                 });
             }
-
-            console.log(`✅ Camera stream acquired successfully using: ${usedStrategy}`);
-            console.log(`📊 Final stream stats:`, {
-                videoTracks: stream.getVideoTracks().length,
-                audioTracks: stream.getAudioTracks().length,
-                active: stream.active
-            });
 
             return stream;
 
         } catch (error) {
-            console.error('❌ Failed to get user media:', error);
-
             // Re-throw the error for handling in the calling code
             throw error;
         }
@@ -795,7 +469,7 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
             try {
                 peerConnectionRef.current.close();
             } catch (error) {
-                console.error('Error closing peer connection:', error);
+                // Error closing peer connection
             }
         }
 
@@ -842,20 +516,11 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
         }
 
         peerConnection.onicecandidateerror = (error) => {
-            // Only log if there's meaningful error information
-            if (error && (error.errorCode || error.errorText || error.url)) {
-                console.error('ICE candidate error:', {
-                    errorCode: error.errorCode,
-                    errorText: error.errorText,
-                    url: error.url
-                });
-            }
             // ICE candidate errors are often normal during connection establishment
             // so we don't need to take any action here
         }
 
         peerConnection.oniceconnectionstatechange = () => {
-            console.log('ICE connection state changed:', peerConnection.iceConnectionState);
             if (peerConnection.iceConnectionState == "disconnected") {
                 setIsConnected(false);
                 if (!isAdmin) {
@@ -865,7 +530,7 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
         }
 
         peerConnection.onicegatheringstatechange = () => {
-            console.log('ICE gathering state changed:', peerConnection.iceGatheringState);
+            // ICE gathering state changed
         }
 
         return peerConnection;
@@ -887,11 +552,10 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
             const offer = await peerConnection.createOffer();
             await peerConnection.setLocalDescription(offer);
             socketConnection.current.emit('offer', offer, roomId);
-            console.log('Offer sent');
 
             peerConnectionRef.current = peerConnection;
         } catch (error) {
-            console.error('Error starting peer connection:', error);
+            // Error starting peer connection
         }
     }
 
@@ -899,7 +563,6 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
 
 
     const handleOffer = async (offer) => {
-        console.log('handleOffer');
         try {
             const peerConnection = createRTCPeerConnection();
             peerConnectionRef.current = peerConnection;
@@ -908,7 +571,7 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
             await peerConnectionRef.current.setLocalDescription(answer);
             socketConnection.current.emit('answer', answer, roomId);
         } catch (error) {
-            console.error('Error handling offer:', error);
+            // Error handling offer
         }
     }
 
@@ -916,20 +579,18 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
 
 
     const handleAnswer = async (answer) => {
-        console.log('handleAnswer');
         try {
             await peerConnectionRef.current.setRemoteDescription(answer);
         } catch (error) {
-            console.error('Error handling answer:', error);
+            // Error handling answer
         }
     }
 
     const handleIceCandidate = async (candidate) => {
-        console.log('handleIceCandidate');
         try {
             await peerConnectionRef.current.addIceCandidate(candidate);
         } catch (error) {
-            console.error('Error handling ice candidate:', error);
+            // Error handling ice candidate
         }
     }
 
@@ -952,15 +613,14 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
                     router.push(`../../../dashboard/`);
                 }
             } else {
-                console.log('📞 Video disconnected without redirect');
+                // Video disconnected without redirect
             }
         } catch (error) {
-            console.error('Error disconnecting:', error);
+            // Error disconnecting
         }
     }
 
     const handleUserDisconnected = () => {
-        console.log('[useWebRTC] handleUserDisconnected called');
         setIsConnected(false);
         setShowVideoPlayError(false);
 
@@ -969,10 +629,8 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
             const redirectUrl = localStorage.getItem("redirectUrl");
             if (redirectUrl) {
                 const feedbackUrl = `/?show-feedback=true&redirectUrl=${encodeURIComponent(redirectUrl)}`;
-                console.log('[useWebRTC] User disconnected, redirecting to tailored feedback page:', feedbackUrl);
                 window.location.href = feedbackUrl;
             } else {
-                console.log('[useWebRTC] User disconnected, redirecting to default feedback page');
                 router.push('/?show-feedback=true');
             }
         }
@@ -1000,19 +658,16 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
         // Prevent rapid successive calls
         const now = Date.now();
         if (now - lastCaptureTime.current < 2000) { // 2 second cooldown
-            console.log('📸 Screenshot cooldown active, please wait...');
             toast.info('Please wait before taking another screenshot');
             return;
         }
 
         if (!remoteStream && !localStream) {
-            console.error('❌ No stream available for screenshot');
             return;
         }
 
         // Prevent multiple concurrent captures
         if (captureInProgress) {
-            console.log('📸 Screenshot capture already in progress...');
             return;
         }
 
@@ -1025,13 +680,11 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
         try {
             const stream = isAdmin ? remoteStream : localStream;
             if (!stream) {
-                console.error('❌ Stream not available');
                 return;
             }
 
             const videoTrack = stream.getVideoTracks()[0];
             if (!videoTrack) {
-                console.error('❌ No video track available');
                 return;
             }
 
@@ -1039,18 +692,9 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
             const timestamp = Date.now();
             const uniqueId = Math.random().toString(36).substring(2, 15);
 
-            console.log('📸 Taking ULTRA HIGH QUALITY screenshot from stream:', {
-                width: settings.width,
-                height: settings.height,
-                frameRate: settings.frameRate,
-                timestamp: new Date(timestamp).toISOString(),
-                uniqueId: uniqueId
-            });
-
             // Use the actual video element for capturing
             const sourceVideo = videoRef.current;
             if (!sourceVideo) {
-                console.error('❌ Video element not available');
                 return;
             }
 
@@ -1058,21 +702,10 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
                 try {
                     // Force video to current time to ensure fresh frame
                     const currentTime = sourceVideo.currentTime;
-                    console.log('📸 Capturing frame at video time:', currentTime, 'with unique ID:', uniqueId);
 
                     // Get the actual video dimensions - ENHANCED for ultra high resolution
                     const videoWidth = sourceVideo.videoWidth || settings.width || 3840;
                     const videoHeight = sourceVideo.videoHeight || settings.height || 2160;
-
-                    console.log('📸 Capturing ULTRA HIGH QUALITY frame:', {
-                        videoWidth,
-                        videoHeight,
-                        readyState: sourceVideo.readyState,
-                        currentTime: currentTime,
-                        paused: sourceVideo.paused,
-                        timestamp: timestamp,
-                        uniqueId: uniqueId
-                    });
 
                     // Create moderate-resolution canvas with unique ID for 5-10MB file size
                     const canvas = document.createElement('canvas');
@@ -1105,7 +738,6 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
                     const hasData = imageData.data.some(pixel => pixel !== 0);
 
                     if (!hasData) {
-                        console.warn('⚠️ Canvas appears empty, trying alternative capture method');
                         throw new Error('Canvas empty');
                     }
 
@@ -1115,7 +747,6 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
                     // Check for duplicate content using hash
                     const imageHash = await generateImageHash(screenshot);
                     if (screenshotHashes.has(imageHash)) {
-                        console.log('⚠️ Duplicate screenshot detected, skipping...');
                         toast.info('Duplicate screenshot detected');
                         canvas.remove();
                         return;
@@ -1147,23 +778,11 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
                         return newScreenshots;
                     });
 
-                    console.log('✅ ULTRA HIGH QUALITY screenshot captured:', {
-                        resolution: `${canvas.width}x${canvas.height}`,
-                        scale: `${scale}x`,
-                        size: `${Math.round(screenshot.length / 1024)}KB`,
-                        format: 'PNG (Maximum Quality)',
-                        timestamp: new Date(timestamp).toISOString(),
-                        videoTime: currentTime,
-                        uniqueId: uniqueId,
-                        hash: imageHash,
-                        screenshotId: completelyUniqueScreenshot.id
-                    });
-
                     // Clean up canvas
                     canvas.remove();
 
                 } catch (captureError) {
-                    console.error('❌ Error capturing frame:', captureError);
+                    // Error capturing frame
                 }
             };
 
@@ -1191,7 +810,6 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
             }
 
         } catch (error) {
-            console.error('❌ Error in takeScreenshot:', error);
             toast.error('Failed to capture screenshot');
         } finally {
             // Reset states with minimum loading time
@@ -1209,13 +827,11 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
     // ENHANCED recording function with ULTRA HIGH quality
     const takeRecording = () => {
         if (!remoteStream && !localStream) {
-            console.error('❌ No stream available for recording');
             return;
         }
 
         const stream = isAdmin ? remoteStream : localStream;
         if (!stream) {
-            console.error('❌ Stream not available');
             return;
         }
 
@@ -1265,11 +881,8 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
             }
 
             if (!selectedOptions) {
-                console.error('❌ No supported recording format found');
                 return;
             }
-
-            console.log('🎥 Starting ULTRA HIGH QUALITY video recording with:', selectedOptions);
 
             try {
                 setRecordingActive(true);
@@ -1280,7 +893,6 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
                 mediaRecorder.ondataavailable = (event) => {
                     if (event.data && event.data.size > 0) {
                         mediaRecordingChunks.current.push(event.data);
-                        console.log(`📊 ULTRA HIGH QUALITY Recording chunk: ${(event.data.size / 1024 / 1024).toFixed(2)} MB`);
                     }
                 };
 
@@ -1293,21 +905,12 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
                         const recordingUrl = URL.createObjectURL(recordingBlob);
                         setRecordings(prev => [recordingUrl, ...prev]);
 
-                        console.log('✅ ULTRA HIGH QUALITY video recording saved:', {
-                            format: selectedOptions.mimeType,
-                            bitrate: `${selectedOptions.videoBitsPerSecond / 1000000}Mbps`,
-                            size: `${Math.round(recordingBlob.size / 1024 / 1024 * 100) / 100}MB`,
-                            chunks: mediaRecordingChunks.current.length,
-                            type: 'Ultra High Quality Video Only'
-                        });
-
                         mediaRecordingChunks.current = [];
                     }
                     setRecordingActive(false);
                 };
 
                 mediaRecorder.onerror = (event) => {
-                    console.error('❌ Recording error:', event.error);
                     setRecordingActive(false);
                 };
 
@@ -1315,17 +918,13 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
                 mediaRecorder.start(100); // 100ms chunks for ultra smooth recording
                 mediaRecorderRef.current = mediaRecorder;
 
-                console.log('✅ ULTRA HIGH QUALITY video recording started (audio disabled, ultra high bitrate)');
-
             } catch (error) {
-                console.error('❌ Error starting recording:', error);
                 setRecordingActive(false);
             }
         } else {
             // Stop recording
             if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
                 mediaRecorderRef.current.stop();
-                console.log('🛑 ULTRA HIGH QUALITY Recording stopped');
             } else {
                 setRecordingActive(false);
             }
@@ -1338,7 +937,6 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
             const newScreenshots = [...prev];
             if (index >= 0 && index < newScreenshots.length) {
                 newScreenshots.splice(index, 1);
-                console.log(`🗑️ Screenshot ${index} deleted`);
             }
             return newScreenshots;
         });
@@ -1350,13 +948,11 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
 
         // Prevent duplicate processing
         if (processedItemsRef.current.has(itemKey) || savingScreenshotIds.has(screenshotId)) {
-            console.log('⚠️ Screenshot already being processed:', itemKey);
             return;
         }
 
         // Check if screenshot was already saved
         if (getScreenshotStatus && getScreenshotStatus(screenshotId)) {
-            console.log('⚠️ Screenshot already saved:', screenshotId);
             toast.info('Screenshot already saved');
             return;
         }
@@ -1368,16 +964,13 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
 
             // Here you would implement your actual save logic
             // This is a placeholder that should be replaced with actual save functionality
-            console.log('💾 Saving screenshot:', screenshotId);
 
             // Simulate save operation
             await new Promise(resolve => setTimeout(resolve, 1000));
 
-            console.log('✅ Screenshot saved successfully:', screenshotId);
             toast.success('Screenshot saved successfully');
 
         } catch (error) {
-            console.error('❌ Save screenshot failed:', error);
             toast.error('Failed to save screenshot');
         } finally {
             setSavingScreenshotIds(prev => {
@@ -1392,7 +985,6 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
     // 5. Cleanup function to reset hashes when needed
     const clearScreenshotHashes = useCallback(() => {
         setScreenshotHashes(new Set());
-        console.log('🧹 Screenshot hashes cleared');
     }, []);
 
     // Cleanup effect
@@ -1410,7 +1002,7 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
             }
             if (socketConnection.current) {
                 socketConnection.current.disconnect();
-            } console.log('🧹 Cleanup completed (video only)');
+            }
         };
     }, []);
 
@@ -1438,32 +1030,21 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
     // Add this function to handle end call with tailored/default redirect
     const endCallWithRedirect = (isDefaultRedirectUrl, redirectUrl) => {
         try {
-            console.log('[useWebRTC] endCallWithRedirect called with:', {
-                isDefaultRedirectUrl,
-                redirectUrl,
-                hasRedirectUrl: !!redirectUrl,
-                redirectUrlType: typeof redirectUrl,
-                redirectUrlLength: redirectUrl ? redirectUrl.length : 0
-            });
-            
             handleDisconnect(false); // Only disconnect, don't redirect yet
             
             if (!isDefaultRedirectUrl && redirectUrl) {
                 // Tailored URL - redirect to feedback page with redirect URL
                 let feedbackUrl = `/?show-feedback=true&redirectUrl=${encodeURIComponent(redirectUrl)}`;
-                console.log('[useWebRTC] Redirecting to feedback page with tailored URL:', feedbackUrl);
                 setTimeout(() => {
                     window.location.href = feedbackUrl;
                 }, 3000); // Reduced to 3 seconds for faster feedback
             } else {
                 // Default URL - redirect to feedback page after 3 seconds
-                console.log('[useWebRTC] Redirecting to feedback page (default, no tailored link)');
                 setTimeout(() => {
                     window.location.href = '/?show-feedback=true';
                 }, 3000); // Reduced to 3 seconds for faster feedback
             }
         } catch (error) {
-            console.error('[useWebRTC] Error ending video call:', error);
             // Fallback - go to home page after 5 seconds
             setTimeout(() => {
                 window.location.href = '/';
@@ -1497,11 +1078,7 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
         updateScreenShortId,
         // Add the new function to exports
         endCallWithRedirect,
-        updateScreenshotProperties,
-        // Pointer tracking functions (mouse and touch)
-        remoteMousePosition,
-        startPointerTracking,
-        stopPointerTracking
+        updateScreenshotProperties
     }
 }
 
