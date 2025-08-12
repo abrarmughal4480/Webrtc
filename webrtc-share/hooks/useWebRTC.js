@@ -68,6 +68,11 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
     const processedItemsRef = useRef(new Set());
     const [savingScreenshotIds, setSavingScreenshotIds] = useState(new Set());
 
+    // Mouse tracking state
+    const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+    const [isMouseDown, setIsMouseDown] = useState(false);
+    const lastMouseEventTime = useRef(0);
+
     useEffect(() => {
         const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4000';
         const socketUrl = backendUrl.replace('/api/v1', '');
@@ -644,6 +649,7 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
         socketConnection.current.on('answer', handleAnswer);
         socketConnection.current.on('ice-candidate', handleIceCandidate);
         socketConnection.current.on('user-disconnected', handleUserDisconnected);
+        socketConnection.current.on('mouse-event', handleIncomingMouseEvent);
 
         return () => {
             if (socketConnection.current) {
@@ -651,6 +657,7 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
                 socketConnection.current.off('answer', handleAnswer);
                 socketConnection.current.off('ice-candidate', handleIceCandidate);
                 socketConnection.current.off('user-disconnected', handleUserDisconnected);
+                socketConnection.current.off('mouse-event', handleIncomingMouseEvent);
             }
         }
     }, [isAdmin, roomId]);    // 3. Enhanced takeScreenshot function with duplicate prevention
@@ -1052,6 +1059,104 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
         }
     }
 
+    // Mouse tracking functions
+    const handleMouseDown = (e) => {
+        if (!isAdmin || !socketConnection.current) return;
+        
+        const rect = e.currentTarget.getBoundingClientRect();
+        const x = ((e.clientX - rect.left) / rect.width) * 100;
+        const y = ((e.clientY - rect.top) / rect.height) * 100;
+        
+        setIsMouseDown(true);
+        setMousePosition({ x, y });
+        
+        // Send mouse down event to user
+        socketConnection.current.emit('mouse-event', {
+            type: 'mousedown',
+            x: x,
+            y: y,
+            timestamp: Date.now()
+        }, roomId);
+    };
+
+    const handleMouseMove = (e) => {
+        if (!isAdmin || !socketConnection.current || !isMouseDown) return;
+        
+        const rect = e.currentTarget.getBoundingClientRect();
+        const x = ((e.clientX - rect.left) / rect.width) * 100;
+        const y = ((e.clientY - rect.top) / rect.height) * 100;
+        
+        // Throttle mouse move events to avoid spam
+        const now = Date.now();
+        if (now - lastMouseEventTime.current < 30) return; // 30ms throttle for better responsiveness
+        lastMouseEventTime.current = now;
+        
+        setMousePosition({ x, y });
+        
+        // Send mouse move event to user
+        socketConnection.current.emit('mouse-event', {
+            type: 'mousemove',
+            x: x,
+            y: y,
+            timestamp: now
+        }, roomId);
+    };
+
+    const handleMouseUp = (e) => {
+        if (!isAdmin || !socketConnection.current) return;
+        
+        setIsMouseDown(false);
+        
+        // Send mouse up event to user
+        socketConnection.current.emit('mouse-event', {
+            type: 'mouseup',
+            x: mousePosition.x,
+            y: mousePosition.y,
+            timestamp: Date.now()
+        }, roomId);
+    };
+
+    const handleMouseLeave = () => {
+        if (!isAdmin || !socketConnection.current) return;
+        
+        setIsMouseDown(false);
+        
+        // Send mouse leave event to user
+        socketConnection.current.emit('mouse-event', {
+            type: 'mouseleave',
+            x: mousePosition.x,
+            y: mousePosition.y,
+            timestamp: Date.now()
+        }, roomId);
+    };
+
+    // Function to handle incoming mouse events (for users)
+    const handleIncomingMouseEvent = (event) => {
+        if (isAdmin) return; // Only users should receive mouse events
+        
+        const { type, x, y, timestamp } = event;
+        
+        switch (type) {
+            case 'mousedown':
+                // Show click indicator
+                setMousePosition({ x, y });
+                setIsMouseDown(true);
+                break;
+            case 'mousemove':
+                // Update mouse position
+                setMousePosition({ x, y });
+                break;
+            case 'mouseup':
+                // Hide click indicator
+                setIsMouseDown(false);
+                break;
+            case 'mouseleave':
+                // Clear everything
+                setIsMouseDown(false);
+                break;
+        }
+    };
+
     return {
         localStream,
         remoteStream,
@@ -1078,7 +1183,16 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
         updateScreenShortId,
         // Add the new function to exports
         endCallWithRedirect,
-        updateScreenshotProperties
+        updateScreenshotProperties,
+        // Add mouse tracking functions to exports
+        handleMouseDown,
+        handleMouseMove,
+        handleMouseUp,
+        handleMouseLeave,
+        handleIncomingMouseEvent,
+        // Add mouse tracking state to exports
+        mousePosition,
+        isMouseDown
     }
 }
 

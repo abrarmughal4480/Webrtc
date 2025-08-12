@@ -28,6 +28,9 @@ export default function Page({ params }) {
   }
 
   const router = useRouter();
+
+
+
   const [ui, setUI] = useState({
     isClient: false,
     showDropdown: false,
@@ -105,7 +108,10 @@ export default function Page({ params }) {
   const saveTimeoutRef = useRef(null);
   const processedItemsRef = useRef(new Set());
 
-  const { handleDisconnect, isConnected, screenshots, takeScreenshot, startPeerConnection, deleteScreenshot, handleVideoPlay, showVideoPlayError, isCapturingScreenshot, updateScreenshotProperties } = useWebRTC(true, id, videoRef);
+  const {
+    handleDisconnect, isConnected, screenshots, takeScreenshot, startPeerConnection, deleteScreenshot, handleVideoPlay, showVideoPlayError, isCapturingScreenshot, updateScreenshotProperties,
+    handleMouseDown, handleMouseMove, handleMouseUp, handleMouseLeave, mousePosition, isMouseDown
+  } = useWebRTC(true, id, videoRef);
   const { setResetOpen, setMessageOpen, setLandlordDialogOpen, setTickerOpen, setFeedbackOpen, setFaqOpen, setShareLinkOpen, setInviteOpen } = useDialog();
   const { user, isAuth, setIsAuth, setUser } = useUser();
 
@@ -2507,14 +2513,78 @@ export default function Page({ params }) {
                   playsInline
                   controls={false}
                   style={{ width: 'calc(100% + 2px)', height: 'auto', objectFit: 'cover', position: 'relative', borderRadius: '1.5vw', transition: 'transform 0.3s ease-out', transform: `scale(${app.zoomLevel}) translate(${app.videoPanX}px, ${app.videoPanY}px)`, transformOrigin: 'center center', display: 'block', maxWidth: 'calc(100% + 2px)', padding: 0, margin: '-1px', border: 'none', outline: 'none', boxSizing: 'border-box', verticalAlign: 'top', ...(media.isRecording && { pointerEvents: 'none', outline: 'none', border: 'none' }), ...(app.zoomLevel > 1 && !media.isRecording && { cursor: 'grab' }) }}
-                  onMouseMove={handleVideoPan}
-                  onMouseDown={(e) => { if (app.zoomLevel > 1) e.currentTarget.style.cursor = 'grabbing'; }}
-                  onMouseUp={(e) => { if (app.zoomLevel > 1) e.currentTarget.style.cursor = 'grab'; }}
-                  onMouseLeave={(e) => { if (app.zoomLevel > 1) e.currentTarget.style.cursor = 'grab'; }}
+                  onMouseMove={(e) => {
+                    if (app.zoomLevel > 1) {
+                      handleVideoPan(e);
+                    } else if (!media.isRecording) {
+                      handleMouseMove(e);
+                    }
+                  }}
+                  onMouseDown={(e) => { 
+                    if (app.zoomLevel > 1) { 
+                      e.currentTarget.style.cursor = 'grabbing'; 
+                    } else if (!media.isRecording) {
+                      handleMouseDown(e);
+                    }
+                  }}
+                  onMouseUp={(e) => { 
+                    if (app.zoomLevel > 1) { 
+                      e.currentTarget.style.cursor = 'grab'; 
+                    } else if (!media.isRecording) {
+                      handleMouseUp(e);
+                    }
+                  }}
+                  onMouseLeave={(e) => { 
+                    if (app.zoomLevel > 1) { 
+                      e.currentTarget.style.cursor = 'grab'; 
+                    } else if (!media.isRecording) {
+                      handleMouseLeave(e);
+                    }
+                  }}
                 />
+
+                {/* Mouse trail overlay for admin - ONLY over the video element */}
+                {!media.isRecording && app.zoomLevel <= 1 && (
+                  <div 
+                    style={{ 
+                      position: 'absolute', 
+                      top: '0px', 
+                      left: '0px', 
+                      right: '0px', 
+                      bottom: '0px', 
+                      pointerEvents: 'none',
+                      zIndex: 15,
+                      borderRadius: '1.5vw',
+                      overflow: 'hidden',
+                      isolation: 'isolate'
+                    }}
+                  >
+                    {/* Current mouse position indicator */}
+                    {isMouseDown && (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          left: `${mousePosition.x}%`,
+                          top: `${mousePosition.y}%`,
+                          width: '20px',
+                          height: '20px',
+                          backgroundColor: 'rgba(255, 0, 0, 0.9)',
+                          borderRadius: '50%',
+                          transform: 'translate(-50%, -50%)',
+                          border: '3px solid white',
+                          zIndex: 16,
+                          transition: 'all 0.1s ease',
+                          boxShadow: '0 0 8px rgba(255, 0, 0, 0.6)',
+                          pointerEvents: 'none'
+                        }}
+                      />
+                    )}
+                  </div>
+                )}
               </div>
 
-              <div style={{ position: 'absolute', top: '2vh', left: '1.5vw', zIndex: 10 }}>
+              {/* Video controls positioned outside the video container */}
+              <div style={{ position: 'absolute', top: '2vh', left: '1.5vw', zIndex: 30, display: isMouseDown ? 'none' : 'block' }}>
                 {media.isRecording ? (
                   <div style={{ backgroundColor: '#dc2626', color: 'white', padding: '0.8vh 1.2vw', fontSize: '0.9vw', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '0.5vw', borderRadius: '1.2vw', minFontSize: '14px', boxShadow: '0 2px 8px rgba(0,0,0,0.3)' }}>
                     <span style={{ width: '0.8vw', height: '1.5vh', borderRadius: '50%', backgroundColor: 'white', animation: 'pulse 1s infinite', minWidth: '12px', minHeight: '12px' }}></span>
@@ -2528,7 +2598,7 @@ export default function Page({ params }) {
               </div>
 
               {isConnected && (
-                <div style={{ position: 'absolute', top: '2vh', right: '1.5vw', zIndex: 10 }}>
+                <div style={{ position: 'absolute', top: '2vh', right: '1.5vw', zIndex: 30, display: isMouseDown ? 'none' : 'block' }}>
                   <button onClick={handleEndVideo} className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-medium transition-colors" style={{ fontSize: '0.9vw', minFontSize: '14px' }}>
                     End Video
                   </button>
@@ -2536,22 +2606,22 @@ export default function Page({ params }) {
               )}
 
               {showVideoPlayError && (
-                <button className="w-[3rem] h-[3rem] bg-amber-500 text-white rounded-full absolute top-[50%] left-[50%] -translate-x-[50%] -translate-y-[50%] flex items-center justify-center cursor-pointer" title="Play Video" onClick={handleVideoPlay}>
+                <button className="w-[3rem] h-[3rem] bg-amber-500 text-white rounded-full absolute top-[50%] left-[50%] -translate-x-[50%] -translate-y-[50%] flex items-center justify-center cursor-pointer" title="Play Video" onClick={handleVideoPlay} style={{ zIndex: 30, display: isMouseDown ? 'none' : 'block' }}>
                   <Play />
                 </button>
               )}
 
-              <div className="absolute bottom-2 left-[50%] -translate-x-[50%] text-white px-3 py-1 text-sm font-medium flex items-center gap-3" style={{ display: media.isRecording ? 'none' : 'flex' }}>
+              <div className="absolute bottom-2 left-[50%] -translate-x-[50%] text-white px-3 py-1 text-sm font-medium flex items-center gap-3" style={{ display: media.isRecording ? 'none' : (isMouseDown ? 'none' : 'flex'), zIndex: 30 }}>
                 <span className="w-4 h-4 rounded-full bg-red-600 block"></span>
                 <span className="text-white text-lg">{isConnected ? formatTime(app.callDuration) : "0:00"}</span>
               </div>
 
-              <div className="absolute bottom-2 right-0 text-white px-3 py-1 text-sm font-medium flex items-center gap-3 flex-col" style={{ display: media.isRecording ? 'none' : 'flex' }}>
+              <div className="absolute bottom-2 right-0 text-white px-3 py-1 text-sm font-medium flex items-center gap-3 flex-col" style={{ display: media.isRecording ? 'none' : (isMouseDown ? 'none' : 'flex'), zIndex: 30 }}>
                 <button className="p-1 rounded text-white cursor-pointer hover:bg-black/20 transition-colors" onClick={() => handleZoom('in')} disabled={app.zoomLevel >= 3} title={`Zoom In (${Math.round(app.zoomLevel * 100)}%)`}>
                   <ZoomIn className={`w-4 h-4 ${app.zoomLevel >= 3 ? 'opacity-50' : ''}`} />
                 </button>
 
-                <button className="text-xs bg-black/30 px-2 py-1 rounded hover:bg-black/50 transition-colors" onClick={handleZoomReset} title="Click to reset zoom">
+                <button className="text-xs bg-black/30 px-2 py-1 rounded hover:bg-black/50 transition-colors" onClick={() => handleZoomReset()} title="Click to reset zoom">
                   {Math.round(app.zoomLevel * 100)}%
                 </button>
 

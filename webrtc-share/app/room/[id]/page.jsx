@@ -22,13 +22,14 @@ const page = ({params}) => {
   const [buttonColor, setButtonColor] = useState('bg-green-800');
   const [pageLoading, setPageLoading] = useState(true);
   const videoRef = useRef(null);
-  const notificationSocketRef = useRef(null);  const {localStream, remoteStream, socket, socketConnection, handleDisconnect, startPeerConnection, endCallWithRedirect} = useWebRTC(false, id, videoRef);
+  const notificationSocketRef = useRef(null);  const {localStream, remoteStream, socket, socketConnection, handleDisconnect, startPeerConnection, endCallWithRedirect,
+    handleMouseDown, handleMouseMove, handleMouseUp, handleMouseLeave, mousePosition, isMouseDown} = useWebRTC(false, id, videoRef);
   const [roomUserInfo, setRoomUserInfo] = useState(null);
   const [minSkeletonTimePassed, setMinSkeletonTimePassed] = useState(false);
   const [isDefaultRedirectUrlFromUser, setIsDefaultRedirectUrlFromUser] = useState(true);
   const [redirectUrlFromUser, setRedirectUrlFromUser] = useState('');
   const [showDefaultLeader, setShowDefaultLeader] = useState(false);
-  
+
   // Helper function to get hover color based on button color
   const getHoverColor = (bgColor) => {
     const colorMap = {
@@ -319,6 +320,41 @@ const page = ({params}) => {
     <>
       <div className='w-[100vw] h-[100vh] relative overflow-hidden'>
         <video ref={videoRef} autoPlay className="w-full h-full object-cover absolute top-0 left-0" />
+
+        {/* Mouse tracking overlay for user */}
+        {!open && (
+          <div 
+            style={{ 
+              position: 'absolute', 
+              top: 0, 
+              left: 0, 
+              width: '100%', 
+              height: '100%', 
+              pointerEvents: 'none',
+              zIndex: 20
+            }}
+          >
+            {/* Current mouse position indicator */}
+            {isMouseDown && (
+              <div
+                style={{
+                  position: 'absolute',
+                  left: `${mousePosition.x}%`,
+                  top: `${mousePosition.y}%`,
+                  width: '24px',
+                  height: '24px',
+                  backgroundColor: 'rgba(255, 0, 0, 0.9)',
+                  borderRadius: '50%',
+                  transform: 'translate(-50%, -50%)',
+                  border: '3px solid white',
+                  zIndex: 22,
+                  transition: 'all 0.1s ease',
+                  boxShadow: '0 0 10px rgba(255, 0, 0, 0.7)'
+                }}
+              />
+            )}
+          </div>
+        )}
 
         {
           !open && (
