@@ -24,7 +24,7 @@ const page = ({params}) => {
   const videoRef = useRef(null);
   const notificationSocketRef = useRef(null);  const {localStream, remoteStream, socket, socketConnection, handleDisconnect, startPeerConnection, endCallWithRedirect,
     handleMouseDown, handleMouseMove, handleMouseUp, handleMouseLeave, mousePosition, isMouseDown,
-    handleCameraZoom, handleCameraTorch} = useWebRTC(false, id, videoRef);
+    handleCameraZoom, handleCameraTorch, handleIncomingCameraZoom, handleIncomingCameraTorch} = useWebRTC(false, id, videoRef);
   const [roomUserInfo, setRoomUserInfo] = useState(null);
   const [minSkeletonTimePassed, setMinSkeletonTimePassed] = useState(false);
   const [isDefaultRedirectUrlFromUser, setIsDefaultRedirectUrlFromUser] = useState(true);
@@ -362,7 +362,7 @@ const page = ({params}) => {
           <div 
             style={{ 
               position: 'absolute', 
-              bottom: '120px', 
+              bottom: 'calc(env(safe-area-inset-bottom) + 180px)',
               right: '20px', 
               display: 'flex',
               flexDirection: 'column',
@@ -373,7 +373,7 @@ const page = ({params}) => {
             {/* Torch Button */}
             <button 
               className="w-12 h-12 bg-black/50 hover:bg-black/70 text-white rounded-full flex items-center justify-center cursor-pointer transition-all duration-200 shadow-lg"
-              onClick={async () => {
+              onClick={async (event) => {
                 try {
                   if (localStream && localStream.getVideoTracks().length > 0) {
                     const videoTrack = localStream.getVideoTracks()[0];
@@ -401,14 +401,14 @@ const page = ({params}) => {
                       }
                     } else {
                       console.log('⚠️ Torch not supported on this device');
-                      alert('Torch not supported on this device');
+                      // Removed alert to prevent spam
                     }
                   } else {
                     console.log('⚠️ No video stream available');
                   }
                 } catch (error) {
                   console.error('❌ Error toggling torch:', error);
-                  alert('Failed to toggle torch. Please try again.');
+                  // Removed alert to prevent spam
                 }
               }}
               title="Toggle Torch"
@@ -421,7 +421,7 @@ const page = ({params}) => {
             {/* Zoom In Button */}
             <button 
               className="w-12 h-12 bg-black/50 hover:bg-black/70 text-white rounded-full flex items-center justify-center cursor-pointer transition-all duration-200 shadow-lg"
-              onClick={async () => {
+              onClick={async (event) => {
                 try {
                   if (localStream && localStream.getVideoTracks().length > 0) {
                     const videoTrack = localStream.getVideoTracks()[0];
@@ -448,18 +448,18 @@ const page = ({params}) => {
                         }, 500);
                       } else {
                         console.log('⚠️ Already at maximum zoom level');
-                        alert('Already at maximum zoom level');
+                        // Removed alert to prevent spam
                       }
                     } else {
                       console.log('⚠️ Zoom not supported on this device');
-                      alert('Zoom not supported on this device');
+                      // Removed alert to prevent spam
                     }
                   } else {
                     console.log('⚠️ No video stream available');
                   }
                 } catch (error) {
                   console.error('❌ Error zooming in:', error);
-                  alert('Failed to zoom in. Please try again.');
+                  // Removed alert to prevent spam
                 }
               }}
               title="Zoom In"
@@ -473,7 +473,7 @@ const page = ({params}) => {
             {/* Zoom Out Button */}
             <button 
               className="w-12 h-12 bg-black/50 hover:bg-black/70 text-white rounded-full flex items-center justify-center cursor-pointer transition-all duration-200 shadow-lg"
-              onClick={async () => {
+              onClick={async (event) => {
                 try {
                   if (localStream && localStream.getVideoTracks().length > 0) {
                     const videoTrack = localStream.getVideoTracks()[0];
@@ -500,18 +500,18 @@ const page = ({params}) => {
                         }, 500);
                       } else {
                         console.log('⚠️ Already at minimum zoom level');
-                        alert('Already at minimum zoom level');
+                        // Removed alert to prevent spam
                       }
                     } else {
                       console.log('⚠️ Zoom not supported on this device');
-                      alert('Zoom not supported on this device');
+                      // Removed alert to prevent spam
                     }
                   } else {
                     console.log('⚠️ No video stream available');
                   }
                 } catch (error) {
                   console.error('❌ Error zooming out:', error);
-                  alert('Failed to zoom out. Please try again.');
+                  // Removed alert to prevent spam
                 }
               }}
               title="Zoom Out"
@@ -527,12 +527,15 @@ const page = ({params}) => {
           !open && (
             <Button 
               onClick={handleVideoCallEnd} 
-              className='absolute bottom-8 left-[50%] -translate-x-[50%] text-white bg-red-500 hover:bg-red-600 rounded-full px-8 py-4 cursor-pointer text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 border-2 border-red-400'
+              className='absolute bottom-24 left-[50%] -translate-x-[50%] text-white bg-red-500 hover:bg-red-600 rounded-full px-8 py-4 cursor-pointer text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 border-2 border-red-400'
               style={{
                 minWidth: '200px',
                 boxShadow: '0 10px 25px rgba(239, 68, 68, 0.3)',
                 backdropFilter: 'blur(10px)',
-                background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)'
+                background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+                // Mobile-safe positioning
+                bottom: 'calc(env(safe-area-inset-bottom) + 100px)',
+                maxBottom: '120px'
               }}
             >
               <div className="flex items-center justify-center gap-3">

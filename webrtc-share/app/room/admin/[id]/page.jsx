@@ -2622,20 +2622,48 @@ export default function Page({ params }) {
               </div>
 
               <div className="absolute bottom-2 right-0 text-white px-3 py-1 text-sm font-medium flex items-center gap-3 flex-col" style={{ display: media.isRecording ? 'none' : (isMouseDown ? 'none' : 'flex'), zIndex: 30 }}>
-                {/* Torch Button */}
+                {/* Torch Button - Controls User Camera */}
                 <button 
                   className="p-1 rounded text-white cursor-pointer hover:bg-black/20 transition-colors" 
-                  onClick={() => {
-                    const newTorchState = !app.torchEnabled;
-                    setApp(prev => ({ ...prev, torchEnabled: newTorchState }));
-                    handleCameraTorch(newTorchState);
+                  onClick={async () => {
+                    try {
+                      console.log('🔦 Torch button clicked');
+                      const newTorchState = !app.torchEnabled;
+                      console.log('🔦 Setting torch state:', newTorchState);
+                      
+                      setApp(prev => ({ ...prev, torchEnabled: newTorchState }));
+                      
+                      if (handleCameraTorch) {
+                        console.log('🔦 Calling handleCameraTorch with:', newTorchState);
+                        await handleCameraTorch(newTorchState);
+                        console.log('✅ Torch command sent successfully');
+                      } else {
+                        console.error('❌ handleCameraTorch function not available');
+                      }
+                    } catch (error) {
+                      console.error('❌ Error in torch button click:', error);
+                    }
                   }}
-                  title={`Turn ${app.torchEnabled ? 'OFF' : 'ON'} torch`}
+                  title={`Turn ${app.torchEnabled ? 'OFF' : 'ON'} user torch`}
                 >
                   <Zap className={`w-4 h-4 ${app.torchEnabled ? 'text-yellow-300' : ''}`} />
                 </button>
 
-                <button className="p-1 rounded text-white cursor-pointer hover:bg-black/20 transition-colors" onClick={() => handleCameraZoom('in')} disabled={app.zoomLevel >= 3} title="Zoom In User Camera">
+                {/* Zoom In Button - Controls User Camera */}
+                <button className="p-1 rounded text-white cursor-pointer hover:bg-black/20 transition-colors" onClick={async () => {
+                  try {
+                    console.log('🔍 Zoom In button clicked');
+                    if (handleCameraZoom) {
+                      console.log('🔍 Calling handleCameraZoom with: in');
+                      await handleCameraZoom('in');
+                      console.log('✅ Zoom In command sent successfully');
+                    } else {
+                      console.error('❌ handleCameraZoom function not available');
+                    }
+                  } catch (error) {
+                    console.error('❌ Error in zoom in button click:', error);
+                  }
+                }} disabled={app.zoomLevel >= 3} title="Zoom In User Camera">
                   <ZoomIn className={`w-4 h-4 ${app.zoomLevel >= 3 ? 'opacity-50' : ''}`} />
                 </button>
 
@@ -2643,7 +2671,21 @@ export default function Page({ params }) {
                   {Math.round(app.zoomLevel * 100)}%
                 </button>
 
-                <button className="p-1 rounded text-white cursor-pointer hover:bg-black/20 transition-colors" onClick={() => handleCameraZoom('out')} disabled={app.zoomLevel <= 0.5} title="Zoom Out User Camera">
+                {/* Zoom Out Button - Controls User Camera */}
+                <button className="p-1 rounded text-white cursor-pointer hover:bg-black/20 transition-colors" onClick={async () => {
+                  try {
+                    console.log('🔍 Zoom Out button clicked');
+                    if (handleCameraZoom) {
+                      console.log('🔍 Calling handleCameraZoom with: out');
+                      await handleCameraZoom('out');
+                      console.log('✅ Zoom Out command sent successfully');
+                    } else {
+                      console.error('❌ handleCameraZoom function not available');
+                    }
+                  } catch (error) {
+                    console.error('❌ Error in zoom out button click:', error);
+                  }
+                }} disabled={app.zoomLevel <= 0.5} title="Zoom Out User Camera">
                   <ZoomOut className={`w-4 h-4 ${app.zoomLevel <= 0.5 ? 'opacity-50' : ''}`} />
                 </button>
               </div>

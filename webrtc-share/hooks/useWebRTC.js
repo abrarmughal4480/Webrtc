@@ -84,11 +84,33 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
         });
 
         socketConnection.current.on('connect', () => {
+            console.log('🔌 Socket connected successfully');
+            console.log('🔌 Joining room:', roomId);
             socketConnection.current.emit('join-room', roomId);
 
             if (isAdmin) {
+                console.log('🔌 Admin detected, starting peer connection');
                 startPeerConnection();
+            } else {
+                console.log('🔌 User detected, waiting for admin');
             }
+        });
+
+        socketConnection.current.on('connect_error', (error) => {
+            console.error('❌ Socket connection error:', error);
+        });
+
+        socketConnection.current.on('disconnect', (reason) => {
+            console.log('🔌 Socket disconnected:', reason);
+        });
+
+        // Debug room joining
+        socketConnection.current.on('joined-room', (roomId) => {
+            console.log('✅ Successfully joined room:', roomId);
+        });
+
+        socketConnection.current.on('room-join-error', (error) => {
+            console.error('❌ Failed to join room:', error);
         });
 
         // Cleanup on unmount
@@ -1163,48 +1185,64 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
 
     // Camera zoom control functions
     const handleCameraZoom = async (direction) => {
-        if (!isAdmin || !socketConnection.current) return;
+        console.log('🔍 handleCameraZoom called with:', { direction, isAdmin, hasSocket: !!socketConnection.current, roomId });
+        if (!isAdmin || !socketConnection.current) {
+            console.error('❌ Cannot send zoom command:', { isAdmin, hasSocket: !!socketConnection.current });
+            return;
+        }
         
         try {
             // Send zoom command to user
+            console.log('🔍 Emitting camera-zoom event');
             socketConnection.current.emit('camera-zoom', {
                 direction: direction, // 'in' or 'out'
                 timestamp: Date.now()
-            }, roomId);
+            });
             
-            console.log(`Camera zoom ${direction} command sent`);
+            console.log(`✅ Camera zoom ${direction} command sent successfully`);
         } catch (error) {
-            console.error('Error sending camera zoom command:', error);
+            console.error('❌ Error sending camera zoom command:', error);
         }
     };
 
     // Camera torch control function
     const handleCameraTorch = async (enabled) => {
-        if (!isAdmin || !socketConnection.current) return;
+        console.log('🔦 handleCameraTorch called with:', { enabled, isAdmin, hasSocket: !!socketConnection.current, roomId });
+        if (!isAdmin || !socketConnection.current) {
+            console.error('❌ Cannot send torch command:', { isAdmin, hasSocket: !!socketConnection.current });
+            return;
+        }
         
         try {
             // Send torch command to user
+            console.log('🔦 Emitting camera-torch event');
             socketConnection.current.emit('camera-torch', {
                 enabled: enabled, // true or false
                 timestamp: Date.now()
-            }, roomId);
+            });
             
-            console.log(`Camera torch ${enabled ? 'ON' : 'OFF'} command sent`);
+            console.log(`✅ Camera torch ${enabled ? 'ON' : 'OFF'} command sent successfully`);
         } catch (error) {
-            console.error('Error sending camera torch command:', error);
+            console.error('❌ Error sending camera torch command:', error);
         }
     };
 
     // Handle incoming camera commands (for users)
     const handleIncomingCameraZoom = async (data) => {
-        if (isAdmin) return; // Only users should handle camera commands
+        console.log('🔍 handleIncomingCameraZoom received:', { data, isAdmin, hasLocalStream: !!localStream });
+        if (isAdmin) {
+            console.log('⚠️ Admin received zoom command, ignoring');
+            return; // Only users should handle camera commands
+        }
         
         try {
             const { direction } = data;
+            console.log('🔍 Processing zoom command:', direction);
             
             if (localStream && localStream.getVideoTracks().length > 0) {
                 const videoTrack = localStream.getVideoTracks()[0];
                 const capabilities = videoTrack.getCapabilities();
+                console.log('🔍 Video track capabilities:', capabilities);
                 
                 if (capabilities.zoom) {
                     const settings = videoTrack.getSettings();
@@ -1217,38 +1255,54 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
                         newZoom = Math.max(currentZoom / 1.2, capabilities.zoom.min);
                     }
                     
+                    console.log('🔍 Applying zoom constraint:', { currentZoom, newZoom, direction });
                     await videoTrack.applyConstraints({
                         advanced: [{ zoom: newZoom }]
                     });
                     
-                    console.log(`Camera zoom ${direction}: ${currentZoom} -> ${newZoom}`);
+                    console.log(`✅ Camera zoom ${direction}: ${currentZoom} -> ${newZoom}`);
+                } else {
+                    console.log('⚠️ Zoom not supported on this device');
                 }
+            } else {
+                console.log('⚠️ No local stream or video tracks available');
             }
         } catch (error) {
-            console.error('Error applying camera zoom:', error);
+            console.error('❌ Error applying camera zoom:', error);
         }
     };
 
     const handleIncomingCameraTorch = async (data) => {
-        if (isAdmin) return; // Only users should handle camera commands
+        console.log('🔦 handleIncomingCameraTorch received:', { data, isAdmin, hasLocalStream: !!localStream });
+        if (isAdmin) {
+            console.log('⚠️ Admin received torch command, ignoring');
+            return; // Only users should handle camera commands
+        }
         
         try {
             const { enabled } = data;
+            console.log('🔦 Processing torch command:', enabled);
             
             if (localStream && localStream.getVideoTracks().length > 0) {
                 const videoTrack = localStream.getVideoTracks()[0];
                 const capabilities = videoTrack.getCapabilities();
+                console.log('🔦 Video track capabilities:', capabilities);
                 
                 if (capabilities.torch) {
+                    console.log('🔦 Applying torch constraint:', enabled);
                     await videoTrack.applyConstraints({
                         advanced: [{ torch: enabled }]
                     });
                     
-                    console.log(`Camera torch ${enabled ? 'ON' : 'OFF'}`);
+                    console.log(`✅ Camera torch ${enabled ? 'ON' : 'OFF'}`);
+                } else {
+                    console.log('⚠️ Torch not supported on this device');
                 }
+            } else {
+                console.log('⚠️ No local stream or video tracks available');
             }
         } catch (error) {
-            console.error('Error applying camera torch:', error);
+            console.error('❌ Error applying camera torch:', error);
         }
     };
 

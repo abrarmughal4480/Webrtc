@@ -110,16 +110,42 @@ export const setupSocketListeners = () => {
     });
 
     // Camera control events
-    socket.on('camera-zoom', (data, roomId) => {
-      // Send camera zoom command to all other users in the same room
-      socket.to(roomId).emit('camera-zoom', data);
-      logger.info(`Camera zoom command from ${socket.id} in room ${roomId}: ${data.direction}`);
+    socket.on('camera-zoom', (data) => {
+      logger.info(`Camera zoom command received from ${socket.id}:`, data);
+      
+      // Get the room ID from the socket's joined rooms
+      const rooms = Array.from(socket.rooms);
+      const roomId = rooms.find(room => room !== socket.id);
+      
+      logger.info(`Socket ${socket.id} is in rooms:`, rooms);
+      logger.info(`Selected room for camera zoom:`, roomId);
+      
+      if (roomId) {
+        // Send camera zoom command to all other users in the same room
+        socket.to(roomId).emit('camera-zoom', data);
+        logger.info(`Camera zoom command from ${socket.id} in room ${roomId}: ${data.direction}`);
+      } else {
+        logger.warn(`Camera zoom command from ${socket.id} but no room found`);
+      }
     });
 
-    socket.on('camera-torch', (data, roomId) => {
-      // Send camera torch command to all other users in the same room
-      socket.to(roomId).emit('camera-torch', data);
-      logger.info(`Camera torch command from ${socket.id} in room ${roomId}: ${data.enabled ? 'ON' : 'OFF'}`);
+    socket.on('camera-torch', (data) => {
+      logger.info(`Camera torch command received from ${socket.id}:`, data);
+      
+      // Get the room ID from the socket's joined rooms
+      const rooms = Array.from(socket.rooms);
+      const roomId = rooms.find(room => room !== socket.id);
+      
+      logger.info(`Socket ${socket.id} is in rooms:`, rooms);
+      logger.info(`Selected room for camera torch:`, roomId);
+      
+      if (roomId) {
+        // Send camera torch command to all other users in the same room
+        socket.to(roomId).emit('camera-torch', data);
+        logger.info(`Camera torch command from ${socket.id} in room ${roomId}: ${data.enabled ? 'ON' : 'OFF'}`);
+      } else {
+        logger.warn(`Camera torch command from ${socket.id} but no room found`);
+      }
     });
 
     socket.on('disconnect', () => {
