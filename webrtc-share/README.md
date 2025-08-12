@@ -6,18 +6,19 @@
 The platform now includes real-time pointer tracking (mouse and touch) between admin and user in video sessions. This feature allows both parties to see each other's pointer actions in real-time.
 
 #### How it works:
-1. **Pointer Hold Detection**: When a user or admin holds down the mouse button or touches the screen for 2 seconds, it triggers the indicator
-2. **Live Tracking**: While holding, the indicator follows the pointer movement in real-time
-3. **Real-time Sync**: All pointer events are sent via WebSocket to the other party in real-time
-4. **Visual Indicators**: 
-   - **Red circle**: Appears after 2 seconds of continuous pointer hold (static position)
+1. **Admin-Only Control**: Only admin can send pointer events to guide users
+2. **Immediate Response**: No delay - indicator appears instantly on click/touch
+3. **Live Tracking**: While holding, the indicator follows the pointer movement in real-time
+4. **Real-time Sync**: All pointer events are sent via WebSocket to the user in real-time
+5. **Visual Indicators**: 
+   - **Red circle**: Appears immediately when admin clicks/touches
    - **Blue circle with green dot**: Shows during live tracking movement
    - **Immediate Hide**: Indicator disappears as soon as the pointer is released
    - **Smooth transitions**: All movements are animated for better user experience
 
 #### Controls:
-- **Always Active**: Pointer tracking is automatically enabled when joining a room
-- **Hold Duration**: 2-second hold required to show the indicator
+- **Admin-Only**: Pointer tracking is automatically enabled for admin users
+- **Immediate Response**: No delay or hold required - instant indicator
 - **Performance**: Optimized to only send events when needed
 
 #### Use Cases:
@@ -43,11 +44,11 @@ npm install
 
 1. Start the backend server
 2. Run the frontend application
-3. Join a room as either admin or user
-4. Pointer tracking is automatically enabled
-5. Hold down mouse button or touch screen for 2 seconds to see the indicator
+3. Join a room as admin to control pointer tracking
+4. Pointer tracking is automatically enabled for admin
+5. Click/touch anywhere to show the indicator instantly
 
 ## Configuration
 
-Pointer tracking is automatically enabled for all sessions and cannot be disabled.
+Pointer tracking is automatically enabled for admin users only and cannot be disabled.
 

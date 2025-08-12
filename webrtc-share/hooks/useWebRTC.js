@@ -72,8 +72,6 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
     const [remoteMousePosition, setRemoteMousePosition] = useState({ x: 0, y: 0, isHolding: false, showIndicator: false });
     const mouseTrackingRef = useRef(null);
     const lastMouseEventTime = useRef(0);
-    const holdTimerRef = useRef(null);
-    const holdStartTimeRef = useRef(null);
 
     // Mouse and touch tracking functions
     const startPointerTracking = useCallback(() => {
@@ -120,7 +118,7 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
 
         // Live tracking during hold (mouse move and touch move)
         const handlePointerMove = (e) => {
-            if (!socketConnection.current || !holdTimerRef.current) return;
+            if (!socketConnection.current || !isAdmin) return; // Only admin can send events
             
             const rect = videoElement.getBoundingClientRect();
             let x, y;
@@ -149,12 +147,12 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
                 y: Math.round(y * 100) / 100,
                 timestamp: Date.now()
             };
-            console.log('👆 Sending live pointer move event:', pointerData);
+            console.log('👆 Admin sending live pointer move event:', pointerData);
             socketConnection.current.emit('mouse-event', pointerData);
         };
 
         const handlePointerUp = (e) => {
-            if (!socketConnection.current) return;
+            if (!socketConnection.current || !isAdmin) return; // Only admin can send events
             
             const rect = videoElement.getBoundingClientRect();
             let x, y;
@@ -169,14 +167,12 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
                 y = ((touch.clientY - rect.top) / rect.height) * 100;
             }
             
-            // Clear hold timer and hide indicator
-            if (holdTimerRef.current) {
-                clearTimeout(holdTimerRef.current);
-                holdTimerRef.current = null;
-            }
-            
             // Hide indicator immediately when pointer is released
-            setRemoteMousePosition(prev => ({ ...prev, showIndicator: false }));
+            setRemoteMousePosition(prev => ({ 
+                ...prev, 
+                showIndicator: false,
+                isHolding: false
+            }));
             
             // Send pointer up event to remote peer
             const pointerData = {
@@ -185,7 +181,7 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
                 y: Math.round(y * 100) / 100,
                 timestamp: Date.now()
             };
-            console.log('👆 Sending pointer up event:', pointerData);
+            console.log('👆 Admin sending pointer up event:', pointerData);
             socketConnection.current.emit('mouse-event', pointerData);
         };
 
@@ -205,12 +201,6 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
             videoElement.removeEventListener('touchstart', handlePointerDown);
             videoElement.removeEventListener('touchmove', handlePointerMove);
             videoElement.removeEventListener('touchend', handlePointerUp);
-            
-            // Clear any pending hold timers
-            if (holdTimerRef.current) {
-                clearTimeout(holdTimerRef.current);
-                holdTimerRef.current = null;
-            }
         };
     }, [videoRef]);
 
@@ -245,6 +235,8 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
         socketConnection.current.on('mouse-event', (data) => {
             console.log('👆 Received pointer event:', data);
             if (data.type === 'pointerhold') {
+                setRemoteMousePosition({ x: data.x, y: data.y, isHolding: true, showIndicator: true });
+            } else if (data.type === 'pointerdown') {
                 setRemoteMousePosition({ x: data.x, y: data.y, isHolding: true, showIndicator: true });
             } else if (data.type === 'pointermove') {
                 setRemoteMousePosition(prev => ({ 
