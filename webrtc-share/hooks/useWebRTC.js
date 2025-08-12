@@ -75,35 +75,92 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
 
     // Mouse and touch tracking functions
     const startPointerTracking = useCallback(() => {
-        if (!videoRef?.current) return;
+        console.log('🚀 Starting pointer tracking...', { 
+            isAdmin, 
+            hasVideoRef: !!videoRef?.current,
+            videoRefType: typeof videoRef?.current
+        });
+        
+        if (!videoRef?.current) {
+            console.error('❌ Video ref not available');
+            return;
+        }
+        
+        if (!isAdmin) {
+            console.log('❌ Not admin, skipping pointer tracking');
+            return;
+        }
 
         const videoElement = videoRef.current;
+        console.log('✅ Video element found, setting up event listeners');
         
         // Common function to handle pointer events (mouse and touch) - ADMIN ONLY
         const handlePointerDown = (e) => {
-            if (!socketConnection.current || !isAdmin) return; // Only admin can send events
+            console.log('🖱️ Pointer down event triggered:', { 
+                type: e.type, 
+                isAdmin, 
+                hasSocket: !!socketConnection.current,
+                clientX: e.clientX,
+                clientY: e.clientY,
+                timestamp: new Date().toISOString()
+            });
+            
+            if (!socketConnection.current) {
+                console.error('❌ Socket connection not available');
+                return;
+            }
+            
+            if (!isAdmin) {
+                console.log('❌ Not admin, ignoring pointer down');
+                return;
+            }
             
             const rect = videoElement.getBoundingClientRect();
+            console.log('📐 Video element bounds:', {
+                left: rect.left,
+                top: rect.top,
+                width: rect.width,
+                height: rect.height
+            });
+            
             let x, y;
             
             // Handle both mouse and touch events
             if (e.type === 'mousedown') {
                 x = ((e.clientX - rect.left) / rect.width) * 100;
                 y = ((e.clientY - rect.top) / rect.height) * 100;
+                console.log('🖱️ Mouse coordinates calculated:', { 
+                    clientX: e.clientX, 
+                    clientY: e.clientY, 
+                    x: Math.round(x * 100) / 100, 
+                    y: Math.round(y * 100) / 100 
+                });
             } else if (e.type === 'touchstart') {
                 const touch = e.touches[0];
                 x = ((touch.clientX - rect.left) / rect.width) * 100;
                 y = ((touch.clientY - rect.top) / rect.height) * 100;
+                console.log('👆 Touch coordinates calculated:', { 
+                    touchX: touch.clientX, 
+                    touchY: touch.clientY, 
+                    x: Math.round(x * 100) / 100, 
+                    y: Math.round(y * 100) / 100 
+                });
             }
             
+            console.log('📍 Final coordinates:', { x: Math.round(x * 100) / 100, y: Math.round(y * 100) / 100 });
+            
             // Show indicator immediately (no 2-second delay)
-            setRemoteMousePosition(prev => ({ 
-                ...prev, 
-                x: Math.round(x * 100) / 100, 
-                y: Math.round(y * 100) / 100,
-                showIndicator: true,
-                isHolding: true
-            }));
+            setRemoteMousePosition(prev => {
+                const newPosition = { 
+                    ...prev, 
+                    x: Math.round(x * 100) / 100, 
+                    y: Math.round(y * 100) / 100,
+                    showIndicator: true,
+                    isHolding: true
+                };
+                console.log('🔄 Updating local mouse position:', newPosition);
+                return newPosition;
+            });
             
             // Send pointer hold event to remote peer immediately
             const pointerData = {
@@ -112,8 +169,14 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
                 y: Math.round(y * 100) / 100,
                 timestamp: Date.now()
             };
-            console.log('👆 Admin sending pointer hold event (immediate):', pointerData);
-            socketConnection.current.emit('mouse-event', pointerData);
+            console.log('📤 Admin sending pointer hold event:', pointerData);
+            
+            try {
+                socketConnection.current.emit('mouse-event', pointerData);
+                console.log('✅ Pointer hold event sent successfully');
+            } catch (error) {
+                console.error('❌ Error sending pointer hold event:', error);
+            }
         };
 
         // Live tracking during hold (mouse move and touch move)
@@ -148,10 +211,23 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
                 timestamp: Date.now()
             };
             console.log('👆 Admin sending live pointer move event:', pointerData);
-            socketConnection.current.emit('mouse-event', pointerData);
+            
+            try {
+                socketConnection.current.emit('mouse-event', pointerData);
+                console.log('✅ Pointer move event sent successfully');
+            } catch (error) {
+                console.error('❌ Error sending pointer move event:', error);
+            }
         };
 
         const handlePointerUp = (e) => {
+            console.log('🖱️ Pointer up event triggered:', { 
+                type: e.type, 
+                isAdmin, 
+                hasSocket: !!socketConnection.current,
+                timestamp: new Date().toISOString()
+            });
+            
             if (!socketConnection.current || !isAdmin) return; // Only admin can send events
             
             const rect = videoElement.getBoundingClientRect();
@@ -167,12 +243,18 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
                 y = ((touch.clientY - rect.top) / rect.height) * 100;
             }
             
+            console.log('📍 Pointer up coordinates:', { x: Math.round(x * 100) / 100, y: Math.round(y * 100) / 100 });
+            
             // Hide indicator immediately when pointer is released
-            setRemoteMousePosition(prev => ({ 
-                ...prev, 
-                showIndicator: false,
-                isHolding: false
-            }));
+            setRemoteMousePosition(prev => {
+                const newPosition = { 
+                    ...prev, 
+                    showIndicator: false,
+                    isHolding: false
+                };
+                console.log('🔄 Hiding indicator, updating position:', newPosition);
+                return newPosition;
+            });
             
             // Send pointer up event to remote peer
             const pointerData = {
@@ -181,8 +263,14 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
                 y: Math.round(y * 100) / 100,
                 timestamp: Date.now()
             };
-            console.log('👆 Admin sending pointer up event:', pointerData);
-            socketConnection.current.emit('mouse-event', pointerData);
+            console.log('📤 Admin sending pointer up event:', pointerData);
+            
+            try {
+                socketConnection.current.emit('mouse-event', pointerData);
+                console.log('✅ Pointer up event sent successfully');
+            } catch (error) {
+                console.error('❌ Error sending pointer up event:', error);
+            }
         };
 
         // Add event listeners for both mouse and touch
@@ -192,6 +280,8 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
         videoElement.addEventListener('touchstart', handlePointerDown, { passive: false });
         videoElement.addEventListener('touchmove', handlePointerMove, { passive: false });
         videoElement.addEventListener('touchend', handlePointerUp, { passive: false });
+        
+        console.log('✅ Event listeners added successfully');
         
         // Store cleanup function
         mouseTrackingRef.current = () => {
@@ -235,10 +325,13 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
         socketConnection.current.on('mouse-event', (data) => {
             console.log('👆 Received pointer event:', data);
             if (data.type === 'pointerhold') {
+                console.log('🔴 Setting pointer hold position:', { x: data.x, y: data.y });
                 setRemoteMousePosition({ x: data.x, y: data.y, isHolding: true, showIndicator: true });
             } else if (data.type === 'pointerdown') {
+                console.log('🔴 Setting pointer down position:', { x: data.x, y: data.y });
                 setRemoteMousePosition({ x: data.x, y: data.y, isHolding: true, showIndicator: true });
             } else if (data.type === 'pointermove') {
+                console.log('🔵 Setting pointer move position:', { x: data.x, y: data.y });
                 setRemoteMousePosition(prev => ({ 
                     ...prev, 
                     x: data.x, 
@@ -246,6 +339,7 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
                     showIndicator: true // Keep indicator visible during movement
                 }));
             } else if (data.type === 'pointerup') {
+                console.log('⚪ Hiding pointer indicator');
                 setRemoteMousePosition({ x: data.x, y: data.y, isHolding: false, showIndicator: false });
             }
         });
@@ -261,10 +355,21 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
 
     // Start pointer tracking when video ref is available
     useEffect(() => {
+        console.log('🔄 useEffect triggered for pointer tracking:', { 
+            hasVideoRef: !!videoRef?.current, 
+            isAdmin,
+            videoRefType: typeof videoRef?.current
+        });
+        
         if (videoRef?.current) {
+            console.log('🎯 Starting pointer tracking...');
             startPointerTracking();
+        } else {
+            console.log('⏳ Waiting for video ref...');
         }
+        
         return () => {
+            console.log('🧹 Cleaning up pointer tracking...');
             stopPointerTracking();
         };
     }, [videoRef, startPointerTracking, stopPointerTracking]);
