@@ -1,10 +1,11 @@
 "use client"
 import { DialogComponent } from '@/components/dialogs/DialogCompnent';
 import React, { createContext, useState, useContext, useRef, useEffect } from 'react';
-import { FileText, Archive, Trash2, Monitor, Smartphone, Save, History, ArchiveRestore, ExternalLink, FileSearch, MailIcon, Loader2, LockIcon, XIcon, Link, Copy, Eye, EyeOff } from "lucide-react"
+import { FileText, Archive, Trash2, Monitor, Smartphone, Save, History, ArchiveRestore, ExternalLink, FileSearch, MailIcon, Loader2, LockIcon, XIcon, Link, Copy, Eye, EyeOff, ChevronLeft, ArrowLeft, ChevronRight } from "lucide-react"
 import { Disclosure } from "@headlessui/react";
 import { ChevronDownIcon, ChevronDown } from "@heroicons/react/20/solid";
 import { sendFriendLinkRequest, resetPasswordFromDashboardRequest, sendFeedbackRequest, raiseSupportTicketRequest, forgotPasswordRequest, updateLandlordInfoRequest, updateMessageSettingsRequest, getMessageSettingsRequest } from '@/http/authHttp';
+import { createSupportTicket, getUserTickets, getTicketById, updateTicket, deleteTicket, deleteAttachment, ticketUtils } from '@/http/supportTicketHttp';
 import { getMeetingById } from '@/http/meetingHttp';
 import { useUser } from './UserProvider';
 import { toast } from 'sonner';
@@ -154,7 +155,34 @@ export const DialogProvider = ({ children }) => {
   const [callbackLoading, setCallbackLoading] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
+  const [supportCategory, setSupportCategory] = useState('');
+  const [supportAttachments, setSupportAttachments] = useState([]);
+  const [viewTicketsOpen, setViewTicketsOpen] = useState(false);
+  const [userTickets, setUserTickets] = useState([]);
+  const [ticketsLoading, setTicketsLoading] = useState(false);
+  const [selectedTicket, setSelectedTicket] = useState(null);
+  const [showTicketDetails, setShowTicketDetails] = useState(false);
+  const [ticketSearchQuery, setTicketSearchQuery] = useState('');
 
+  // Support categories array
+  const supportCategories = [
+    "Accessibility (eg. font size, button size, colour or contrast issues)",
+    "'Actions' button issue",
+    "Amending Message issue",
+    "Dashboard issue",
+    "Delete/Archive issue",
+    "Export issue",
+    "History issue",
+    "Log in/Log out issue",
+    "Payment/account queries",
+    "Password/Security issue",
+    "Saving videos or screenshots query",
+    "Sending shared links to third parties",
+    "Sending a text/email link to customers",
+    "Uploading logo or profile image issue",
+    "Video viewing page issue",
+    "Any Other issue not listed above"
+  ];
 
   useEffect(() => {
     if (!isCallbackOpen) {
@@ -527,27 +555,6 @@ export const DialogProvider = ({ children }) => {
   const [supportQuery, setSupportQuery] = useState('');
   const [feedbackLoading, setFeedbackLoading] = useState(false);
   const [supportLoading, setSupportLoading] = useState(false);
-  const [supportCategory, setSupportCategory] = useState('');
-
-  // Support categories array
-  const supportCategories = [
-    "Accessibility (eg. font size, button size, colour or contrast issues)",
-    "'Actions' button issue",
-    "Amending Message issue",
-    "Dashboard issue",
-    "Delete/Archive issue",
-    "Export issue",
-    "History issue",
-    "Log in/Log out issue",
-    "Payment/account queries",
-    "Password/Security issue",
-    "Saving videos or screenshots query",
-    "Sending shared links to third parties",
-    "Sending a text/email link to customers",
-    "Uploading logo or profile image issue",
-    "Video viewing page issue",
-    "Any Other issue not listed above"
-  ];
 
   const handleSendFeedback = async (e) => {
     e.preventDefault();
@@ -615,24 +622,64 @@ export const DialogProvider = ({ children }) => {
     setSupportLoading(true);
 
     try {
-      const res = await raiseSupportTicketRequest({
+      const res = await createSupportTicket({
         category: supportCategory,
-        query: supportQuery
-      });
+        subject: supportQuery.substring(0, 200), // Limit subject to 200 chars
+        description: supportQuery,
+        priority: 'Medium', // Default priority
+        source: 'Web'
+      }, supportAttachments);
 
       toast("Support Ticket Created", {
-        description: res.data.message || "Your support ticket has been created successfully"
+        description: res.message || "Your support ticket has been created successfully"
       });
 
       setSupportQuery('');
       setSupportCategory('');
+      setSupportAttachments([]);
       setTickerOpen(false);
+      
+      // Refresh tickets list
+      loadUserTickets();
     } catch (error) {
       toast("Failed to Create Ticket", {
-        description: error?.response?.data?.message || error.message || "Please try again later"
+        description: error?.message || error?.response?.data?.message || "Please try again later"
       });
     } finally {
       setSupportLoading(false);
+    }
+  };
+
+  // File attachment handlers
+  const handleFileSelect = (e) => {
+    const files = Array.from(e.target.files);
+    const validFiles = files.filter(file => {
+      if (file.size > 10 * 1024 * 1024) { // 10MB limit
+        toast("File size must be less than 10MB");
+        return false;
+      }
+      return true;
+    });
+    
+    setSupportAttachments(prev => [...prev, ...validFiles]);
+  };
+
+  const removeAttachment = (index) => {
+    setSupportAttachments(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const loadUserTickets = async () => {
+    if (!isAuth) return;
+    
+    setTicketsLoading(true);
+    try {
+      const res = await getUserTickets();
+      setUserTickets(res.data || []);
+    } catch (error) {
+      console.error('Error loading tickets:', error);
+      toast("Failed to load tickets");
+    } finally {
+      setTicketsLoading(false);
     }
   };
 
@@ -2263,6 +2310,24 @@ ${senderName}`;
     setIsCallbackOpen,
     isMeetingOpen,
     setISMeetingOpen,
+    setTickerOpen,
+    supportCategory,
+    setSupportCategory,
+    supportQuery,
+    setSupportQuery,
+    supportAttachments,
+    setSupportAttachments,
+    supportLoading,
+    handleRaiseSupportTicket,
+    handleFileSelect,
+    removeAttachment,
+    viewTicketsOpen,
+    setViewTicketsOpen,
+    userTickets,
+    ticketsLoading,
+    loadUserTickets,
+    ticketSearchQuery,
+    setTicketSearchQuery,
   };
 
   useEffect(() => {
@@ -3145,6 +3210,53 @@ ${senderName}`;
                   onChange={(e) => setSupportQuery(e.target.value)}
                   required
                 />
+              </div>
+
+              {/* Attachments */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Attachments (max 10MB each)
+                </label>
+                <input
+                  type="file"
+                  multiple
+                  accept="image/*,.pdf,.doc,.docx,.txt"
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  onChange={handleFileSelect}
+                />
+                
+                {/* Show selected files */}
+                {supportAttachments.length > 0 && (
+                  <div className="mt-2 space-y-2">
+                    {supportAttachments.map((file, index) => (
+                      <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
+                        <span className="text-sm text-gray-600 truncate">{file.name}</span>
+                        <button
+                          type="button"
+                          onClick={() => removeAttachment(index)}
+                          className="text-red-500 hover:text-red-700"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* View Existing Tickets Link */}
+              <div className="text-center mb-6">
+                <button
+                  type="button"
+                  onClick={() => {
+                    loadUserTickets();
+                    setViewTicketsOpen(true);
+                    setTickerOpen(false); 
+                  }}
+                  className="text-blue-600 hover:text-blue-800 text-sm font-medium underline decoration-blue-300 hover:decoration-blue-500 transition-all duration-200 cursor-pointer"
+                >
+                  View Existing Tickets
+                </button>
               </div>
 
               {/* Submit Button */}
@@ -4292,6 +4404,277 @@ ${senderName}`;
           </form>
         </div>
       </CustomDialog>
+
+      {/* View Tickets Modal */}
+      <DialogComponent open={viewTicketsOpen} setOpen={setViewTicketsOpen} isCloseable={true}>
+        <div className="w-[500px] max-h-[90vh] rounded-2xl bg-purple-500 shadow-md relative overflow-hidden">
+          {/* Header */}
+          <div className="flex items-center justify-center bg-purple-500 text-white p-4 m-0 relative">
+            {/* Back Arrow */}
+            <button
+              onClick={() => {
+                if (showTicketDetails) {
+                  setShowTicketDetails(false);
+                  setSelectedTicket(null);
+                } else {
+                  setViewTicketsOpen(false);
+                  setTickerOpen(true); // Open raise support ticket when going back
+                }
+              }}
+              aria-label="Back to Raise Support Ticket"
+              className="absolute left-4 text-white hover:text-gray-200 flex items-center gap-2"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span className="text-sm">Back</span>
+            </button>
+            
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-bold">
+                {showTicketDetails ? 'Ticket Details' : 'My Support Tickets'}
+              </h2>
+            </div>
+            
+            <button
+              onClick={() => setViewTicketsOpen(false)}
+              aria-label="Close"
+              className="absolute right-4 text-white hover:text-gray-200"
+            >
+              <XIcon className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="p-6 space-y-5 bg-white rounded-b-2xl max-h-[calc(90vh-4rem)] overflow-y-auto">
+            {showTicketDetails ? (
+              // Simple & Clean Ticket Details View
+              <div className="max-w-2xl mx-auto">
+                {selectedTicket && (
+                  <div className="space-y-6">
+                    {/* Simple Header */}
+                    <div className="text-center pb-4 border-b border-gray-200">
+                      <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-full text-sm font-medium mb-3">
+                        <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                        {selectedTicket.status || 'Open'}
+                      </div>
+                      <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                        {selectedTicket.category || 'Support Ticket'}
+                      </h2>
+                      <p className="text-gray-500 text-sm">
+                        Created {ticketUtils.formatTicketAge(selectedTicket.createdAt)}
+                      </p>
+                    </div>
+
+                    {/* Ticket Content */}
+                    <div className="bg-gray-50 rounded-xl p-6">
+                      <h3 className="font-semibold text-gray-900 mb-3 text-lg">Query</h3>
+                      <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">
+                        {selectedTicket.subject || selectedTicket.description}
+                      </p>
+                    </div>
+
+                    {/* Simple Attachments with Image Preview */}
+                    {selectedTicket.attachments && selectedTicket.attachments.length > 0 && (
+                      <div className="bg-white border border-gray-200 rounded-xl p-6">
+                        <h3 className="font-semibold text-gray-900 mb-4 text-lg">Files</h3>
+                        <div className="space-y-4">
+                          {selectedTicket.attachments.map((file, index) => (
+                            <div key={index} className="space-y-3">
+                              {/* File Info */}
+                              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                                    <FileText className="w-4 h-4 text-blue-600" />
+                                  </div>
+                                  <div>
+                                    <p className="text-sm font-medium text-gray-900">{file.originalName || file.name}</p>
+                                    <p className="text-xs text-gray-500">
+                                      {file.fileSize ? `${(file.fileSize / 1024 / 1024).toFixed(1)} MB` : 'Unknown size'}
+                                    </p>
+                                  </div>
+                                </div>
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={async () => {
+                                      if (confirm('Delete this file?')) {
+                                        try {
+                                          await deleteAttachment(selectedTicket._id || selectedTicket.id, file._id);
+                                          toast("File deleted");
+                                          loadUserTickets();
+                                        } catch (error) {
+                                          toast("Failed to delete file");
+                                        }
+                                      }
+                                    }}
+                                    className="px-3 py-1 bg-red-500 text-white text-xs rounded-full hover:bg-red-600 transition-colors"
+                                  >
+                                    Delete
+                                  </button>
+                                </div>
+                              </div>
+                              
+                              {/* Image Preview */}
+                              {file.mimeType && file.mimeType.startsWith('image/') && file.filePath && (
+                                <div className="bg-gray-50 rounded-lg p-3">
+                                  <img 
+                                    src={file.filePath} 
+                                    alt={file.originalName || file.name}
+                                    className="w-full h-auto max-h-64 object-contain rounded-lg border border-gray-200"
+                                    onError={(e) => {
+                                      e.target.style.display = 'none';
+                                    }}
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Simple Actions */}
+                    <div className="flex gap-3 pt-6">
+                      <button
+                        onClick={() => {
+                          setViewTicketsOpen(false);
+                          setTickerOpen(true);
+                        }}
+                        className="flex-1 px-6 py-3 bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-colors font-medium"
+                      >
+                        New Ticket
+                      </button>
+                      <button
+                        onClick={async () => {
+                          if (confirm('Delete this ticket permanently?')) {
+                            try {
+                              await deleteTicket(selectedTicket._id || selectedTicket.id);
+                              toast("Ticket deleted");
+                              setShowTicketDetails(false);
+                              setSelectedTicket(null);
+                              loadUserTickets();
+                            } catch (error) {
+                              toast("Failed to delete ticket");
+                            }
+                          }
+                        }}
+                        className="px-6 py-3 bg-red-600 text-white rounded-full hover:bg-red-700 transition-colors font-medium"
+                      >
+                        Delete Ticket
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              // Ticket List View
+              <>
+                {/* Search Bar */}
+                <div className="mb-4">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="Search tickets..."
+                      className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      value={ticketSearchQuery || ''}
+                      onChange={(e) => setTicketSearchQuery(e.target.value)}
+                    />
+                    <FileSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  </div>
+                </div>
+
+                {ticketsLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
+                    <span className="ml-2 text-gray-600">Loading tickets...</span>
+                  </div>
+                ) : userTickets.filter(ticket => {
+                  if (!ticketSearchQuery) return true;
+                  const query = ticketSearchQuery.toLowerCase();
+                  return (
+                    ticket.subject?.toLowerCase().includes(query) ||
+                    ticket.description?.toLowerCase().includes(query) ||
+                    ticket.category?.toLowerCase().includes(query) ||
+                    ticket.ticketId?.toLowerCase().includes(query) ||
+                    ticket.status?.toLowerCase().includes(query)
+                  );
+                }).length === 0 ? (
+                  <div className="text-center py-8">
+                    <FileSearch className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-500">No tickets found matching your search</p>
+                    <p className="text-sm text-gray-400 mt-1">Try adjusting your search terms</p>
+                  </div>
+                ) : userTickets.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Archive className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-500">No support tickets found</p>
+                    <p className="text-sm text-gray-400 mt-1">Create a new ticket to get help</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {userTickets
+                      .filter(ticket => {
+                        if (!ticketSearchQuery) return true;
+                        const query = ticketSearchQuery.toLowerCase();
+                        return (
+                          ticket.subject?.toLowerCase().includes(query) ||
+                          ticket.description?.toLowerCase().includes(query) ||
+                          ticket.category?.toLowerCase().includes(query) ||
+                          ticket.ticketId?.toLowerCase().includes(query) ||
+                          ticket.status?.toLowerCase().includes(query)
+                        );
+                      })
+                      .map((ticket) => (
+                      <div 
+                        key={ticket._id || ticket.id} 
+                        className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer bg-white hover:bg-gray-50"
+                        onClick={() => {
+                          setSelectedTicket(ticket);
+                          setShowTicketDetails(true);
+                        }}
+                      >
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex-1">
+                            <div className="mb-1">
+                              <h3 className="font-semibold text-gray-900">{ticket.category}</h3>
+                            </div>
+                            <div className="flex items-center gap-3 text-xs text-gray-500">
+                              <span>Created: {ticketUtils.formatTicketAge(ticket.createdAt)}</span>
+                              <span className={`px-2 py-1 rounded-full text-xs font-medium ${ticketUtils.getStatusColor(ticket.status)}`}>
+                                {ticket.status}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="ml-3">
+                            <ChevronRight className="w-4 h-4 text-gray-400" />
+                          </div>
+                        </div>
+                        
+                        {ticket.attachments && ticket.attachments.length > 0 && (
+                          <div className="mt-3 pt-3 border-t border-gray-100">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-gray-500">Attachments: {ticket.attachments.length}</span>
+                              <div className="flex gap-1">
+                                {ticket.attachments.slice(0, 3).map((attachment, idx) => (
+                                  <span key={idx} className="text-xs bg-gray-200 px-2 py-1 rounded">
+                                    {attachment.originalName ? attachment.originalName.split('.').pop().toUpperCase() : 'FILE'}
+                                  </span>
+                                ))}
+                                {ticket.attachments.length > 3 && (
+                                  <span className="text-xs bg-gray-200 px-2 py-1 rounded">
+                                    +{ticket.attachments.length - 3} more
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      </DialogComponent>
 
       {/* History Modal */}
 

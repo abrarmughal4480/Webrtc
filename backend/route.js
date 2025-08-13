@@ -12,6 +12,9 @@ import Upload from './models/upload.js';
 // Company controller import
 import { createCompany, getAllCompanies, getCompanyById, updateCompany, deleteCompany, getCompanyStats, changeTemporaryPassword, checkTemporaryPasswordStatus, testCompanyController } from './controllers/companyController.js';
 
+// Support Ticket controller import
+import { createSupportTicket, getUserTickets, getTicketById, updateTicket, deleteTicket, getAllTickets, adminUpdateTicket, getTicketStats, bulkUpdateTickets, searchTickets, exportTickets, deleteAttachment } from './controllers/supportTicketController.js';
+
 router.route('/register').post(register);
 router.route('/register-resident').post(registerResident);
 router.route('/login').post(login);
@@ -271,5 +274,84 @@ router.post('/companies/change-temporary-password', isAuthenticate, changeTempor
 
 // Route for users to check their temporary password status
 router.get('/companies/check-temporary-password', isAuthenticate, checkTemporaryPasswordStatus);
+
+// Support Ticket Routes
+// User routes (authenticated users)
+router.post('/support-tickets/create', isAuthenticate, createSupportTicket);
+router.get('/support-tickets/my-tickets', isAuthenticate, getUserTickets);
+router.get('/support-tickets/ticket/:id', isAuthenticate, getTicketById);
+router.put('/support-tickets/ticket/:id', isAuthenticate, updateTicket);
+router.delete('/support-tickets/ticket/:id', isAuthenticate, deleteTicket);
+router.delete('/support-tickets/:ticketId/attachments/:attachmentId', isAuthenticate, deleteAttachment);
+
+// Admin routes (admin, superadmin, company-admin)
+router.get('/support-tickets/admin/all', isAuthenticate, (req, res, next) => {
+    if (req.user.role === 'admin' || req.user.role === 'superadmin' || req.user.role === 'company-admin') {
+        next();
+    } else {
+        res.status(401).json({
+            success: false,
+            message: 'Only admin, superadmin, or company-admin can perform this operation'
+        });
+    }
+}, getAllTickets);
+
+router.put('/support-tickets/admin/ticket/:id', isAuthenticate, (req, res, next) => {
+    if (req.user.role === 'admin' || req.user.role === 'superadmin' || req.user.role === 'company-admin') {
+        next();
+    } else {
+        res.status(401).json({
+            success: false,
+            message: 'Only admin, superadmin, or company-admin can perform this operation'
+        });
+    }
+}, adminUpdateTicket);
+
+router.get('/support-tickets/admin/stats', isAuthenticate, (req, res, next) => {
+    if (req.user.role === 'admin' || req.user.role === 'superadmin' || req.user.role === 'company-admin') {
+        next();
+    } else {
+        res.status(401).json({
+            success: false,
+            message: 'Only admin, superadmin, or company-admin can perform this operation'
+        });
+    }
+}, getTicketStats);
+
+router.put('/support-tickets/admin/bulk-update', isAuthenticate, (req, res, next) => {
+    if (req.user.role === 'admin' || req.user.role === 'superadmin' || req.user.role === 'company-admin') {
+        next();
+    } else {
+        res.status(401).json({
+            success: false,
+            message: 'Only admin, superadmin, or company-admin can perform this operation'
+        });
+    }
+}, bulkUpdateTickets);
+
+router.get('/support-tickets/admin/search', isAuthenticate, (req, res, next) => {
+    if (req.user.role === 'admin' || req.user.role === 'superadmin' || req.user.role === 'company-admin') {
+        next();
+    } else {
+        res.status(401).json({
+            success: false,
+            message: 'Only admin, superadmin, or company-admin can perform this operation'
+        });
+    }
+}, searchTickets);
+
+router.get('/support-tickets/admin/export', isAuthenticate, (req, res, next) => {
+    if (req.user.role === 'admin' || req.user.role === 'superadmin' || req.user.role === 'company-admin') {
+        next();
+    } else {
+        res.status(401).json({
+            success: false,
+            message: 'Only admin, superadmin, or company-admin can perform this operation'
+        });
+    }
+}, exportTickets);
+
+// Search route (available to all authenticated users)
+router.get('/support-tickets/search', isAuthenticate, searchTickets);
 
 export default router;

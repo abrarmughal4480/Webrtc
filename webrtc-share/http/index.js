@@ -53,3 +53,18 @@ api.interceptors.response.use(
         return Promise.reject(error);
     }
 );
+
+// Export all HTTP utilities
+export * from './authHttp.js';
+export * from './chatHttp.js';
+export * from './companyHttp.js';
+export * from './meetingHttp.js';
+export * from './uploadHttp.js';
+export * from './userHttp.js';
+
+// Support Ticket HTTP utilities
+export * from './supportTicketHttp.js';
+
+// Re-export specific functions to avoid conflicts
+export { recordVisitorAccessRequest as recordVisitorAccessRequestFromMeetings } from './meetingHttp.js';
+export { recordVisitorAccessRequest as recordVisitorAccessRequestFromUploads } from './uploadHttp.js';

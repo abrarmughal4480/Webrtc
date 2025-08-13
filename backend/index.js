@@ -2,6 +2,7 @@ import "dotenv/config";
 import express from 'express';
 import cors from 'cors';
 import http from 'http';
+import fileUpload from 'express-fileupload';
 import { SocketService } from "./services/socketService.js";
 import { v4 as uuidv4 } from 'uuid';
 import sendMessage from "./services/twilloService.js";
@@ -70,6 +71,16 @@ app.use(express.urlencoded({
     limit: MAX_SIZE,
     extended: true,
     parameterLimit: 2000
+}));
+
+// Add express-fileupload middleware for handling file uploads
+app.use(fileUpload({
+    limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+    abortOnLimit: true,
+    responseOnLimit: 'File size limit has been reached',
+    createParentPath: true,
+    useTempFiles: false,
+    debug: process.env.NODE_ENV === 'development'
 }));
 
 // Optimized timeout middleware
