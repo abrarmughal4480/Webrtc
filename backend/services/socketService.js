@@ -201,7 +201,40 @@ export const setupSocketListeners = () => {
       }
     });
 
-    // Camera control events
+    // NEW: Dedicated camera control room events for better reliability
+    socket.on('join-camera-room', (data) => {
+      const { roomId, isAdmin } = data;
+      logger.info(`Camera control socket ${socket.id} joining camera room: ${roomId}, isAdmin: ${isAdmin}`);
+      
+      socket.join(roomId);
+      
+      // Store socket info for camera control
+      if (!socket.cameraRooms) {
+        socket.cameraRooms = new Set();
+      }
+      socket.cameraRooms.add(roomId);
+      
+      // Store admin status for this socket
+      socket.isAdmin = isAdmin;
+      
+      logger.info(`Camera control socket ${socket.id} joined room ${roomId} as ${isAdmin ? 'admin' : 'user'}`);
+    });
+
+    socket.on('camera-ready', (data) => {
+      logger.info(`Camera ready signal received from ${socket.id} in room: ${data.roomId}`);
+      
+      // Forward camera ready signal to admin in the same room
+      if (data.roomId) {
+        socket.to(data.roomId).emit('camera-ready', {
+          userId: socket.id,
+          roomId: data.roomId,
+          timestamp: Date.now()
+        });
+        logger.info(`Camera ready signal forwarded to room ${data.roomId}`);
+      }
+    });
+
+    // Updated camera control events with proper routing
     socket.on('camera-zoom', (data) => {
       logger.info(`Camera zoom command received from ${socket.id}:`, data);
       
@@ -212,10 +245,12 @@ export const setupSocketListeners = () => {
       logger.info(`Socket ${socket.id} is in rooms:`, rooms);
       logger.info(`Selected room for camera zoom:`, roomId);
       
-      if (roomId) {
-        // Send camera zoom command to all other users in the same room
+      if (roomId && socket.isAdmin) {
+        // Only forward commands from admin to users
         socket.to(roomId).emit('camera-zoom', data);
-        logger.info(`Camera zoom command from ${socket.id} in room ${roomId}: ${data.direction}`);
+        logger.info(`Camera zoom command from admin ${socket.id} in room ${roomId}: ${data.direction}`);
+      } else if (!socket.isAdmin) {
+        logger.warn(`Camera zoom command from non-admin ${socket.id}, ignoring`);
       } else {
         logger.warn(`Camera zoom command from ${socket.id} but no room found`);
       }
@@ -231,38 +266,14 @@ export const setupSocketListeners = () => {
       logger.info(`Socket ${socket.id} is in rooms:`, rooms);
       logger.info(`Selected room for camera torch:`, roomId);
       
-      if (roomId) {
-        // Send camera torch command to all other users in the same room
+      if (roomId && socket.isAdmin) {
+        // Only forward commands from admin to users
         socket.to(roomId).emit('camera-torch', data);
-        logger.info(`Camera torch command from ${socket.id} in room ${roomId}: ${data.enabled ? 'ON' : 'OFF'}`);
+        logger.info(`Camera torch command from admin ${socket.id} in room ${roomId}: ${data.enabled ? 'ON' : 'OFF'}`);
+      } else if (!socket.isAdmin) {
+        logger.warn(`Camera torch command from non-admin ${socket.id}, ignoring`);
       } else {
         logger.warn(`Camera torch command from ${socket.id} but no room found`);
-      }
-    });
-
-    // NEW: Dedicated camera control room events for better reliability
-    socket.on('join-camera-room', (roomId) => {
-      logger.info(`Camera control socket ${socket.id} joining camera room: ${roomId}`);
-      socket.join(roomId);
-      
-      // Store socket info for camera control
-      if (!socket.cameraRooms) {
-        socket.cameraRooms = new Set();
-      }
-      socket.cameraRooms.add(roomId);
-    });
-
-    socket.on('camera-ready', (data) => {
-      logger.info(`Camera ready signal received from ${socket.id} in room: ${data.roomId}`);
-      
-      // Forward camera ready signal to admin in the same room
-      if (data.roomId) {
-        socket.to(data.roomId).emit('camera-ready', {
-          userId: socket.id,
-          roomId: data.roomId,
-          timestamp: Date.now()
-        });
-        logger.info(`Camera ready signal forwarded to room ${data.roomId}`);
       }
     });
 
