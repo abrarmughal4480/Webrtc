@@ -6,6 +6,7 @@ import UserManagementSection from "@/components/superadmin-sections/UserManageme
 import CompanyManagementSection from "@/components/superadmin-sections/CompanyManagementSection"
 import SystemSettingsSection from "@/components/superadmin-sections/SystemSettingsSection"
 import MonitoringSection from "@/components/superadmin-sections/MonitoringSection"
+import SupportTicketManagementSection from "@/components/superadmin-sections/SupportTicketManagementSection"
 import Image from "next/image"
 import {
   DropdownMenu,
@@ -14,6 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { logoutRequest } from "@/http/authHttp"
+import { companyHttp } from "@/http/companyHttp"
 import { useUser } from "@/provider/UserProvider"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
@@ -65,18 +67,16 @@ export default function SuperAdminPage() {
   const loadDashboardData = async () => {
     setLoading(true);
     try {
-      // Load companies from API instead of mock data
-      const companiesResponse = await fetch('/api/v1/companies/all', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
-      
-      if (companiesResponse.ok) {
-        const companiesData = await companiesResponse.json();
+      // Load companies from API using configured HTTP client
+      try {
+        const companiesData = await companyHttp.getAllCompanies();
         if (companiesData.success) {
           setCompanies(companiesData.data);
         }
+      } catch (error) {
+        console.error('Error loading companies:', error);
+        // Set empty array if companies fail to load
+        setCompanies([]);
       }
 
       // Mock data for other sections - replace with actual API calls
@@ -142,6 +142,12 @@ export default function SuperAdminPage() {
 
   // Show loading while checking authentication
   if (loading || !isAuth || !user) {
+    // If not loading and not authenticated, redirect to home page
+    if (!loading && !isAuth) {
+      router.push('/');
+      return null;
+    }
+    
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="text-center">
@@ -342,7 +348,7 @@ export default function SuperAdminPage() {
                       </button>
                     </DropdownMenuItem>
                   </DropdownMenuContent>
-                </DropdownMenu>
+                </DropdownMenu> 
               </div>
             </div>
 
@@ -353,6 +359,7 @@ export default function SuperAdminPage() {
                 { id: 'overview', label: 'Overview', icon: BarChart3 },
                 { id: 'companies', label: 'Company Management', icon: Building2 },
                 { id: 'users', label: 'User Management', icon: Users },
+                { id: 'tickets', label: 'Support Center', icon: FileText },
                 { id: 'system', label: 'System Settings', icon: Settings },
                 { id: 'monitoring', label: 'Monitoring', icon: Activity }
               ].map((tab) => (
@@ -404,6 +411,11 @@ export default function SuperAdminPage() {
             {/* System Settings Tab */}
             {activeTab === 'system' && (
               <SystemSettingsSection />
+            )}
+
+            {/* Support Tickets Tab */}
+            {activeTab === 'tickets' && (
+              <SupportTicketManagementSection />
             )}
 
             {/* Monitoring Tab */}

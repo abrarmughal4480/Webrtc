@@ -44,7 +44,7 @@ export const HeroSection = () => {
               </a> */}
             </div>
           </div>
-          <span id="about" className='absolute bottom-20'></span>
+
         </div>
       )
     },

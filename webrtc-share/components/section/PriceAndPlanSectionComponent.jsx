@@ -3,13 +3,6 @@ import React from "react"
 import { Check, Expand, Minimize2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Fragment, useState } from "react"
 import { TypeAnimation } from "react-type-animation"
 
@@ -130,9 +123,9 @@ export default function PriceAndPlan() {
     >
       <div className="container mx-auto max-w-7xl">
         <div className="text-center mb-8 md:mb-12">
-          <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold text-white mb-3 md:mb-4">Pricing and Plans</h2>
+          <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold text-white mb-3 md:mb-4">Plans</h2>
           <p className="text-white/90 text-base md:text-lg">Choose the plan that's right for you</p>
-          <div className="mt-3 md:mt-4 flex items-center justify-center flex-col">
+          {/* <div className="mt-3 md:mt-4 flex items-center justify-center flex-col">
             <p className="text-white/90 text-base md:text-lg mb-3 md:mb-4">Select an option:</p>
             <Select value={role} onValueChange={value => setRole(value)}>
               <SelectTrigger className="bg-amber-500 text-white flex items-center justify-center text-lg md:text-xl font-semibold outline-none border-none w-full max-w-xs">
@@ -144,131 +137,8 @@ export default function PriceAndPlan() {
                 <SelectItem value="landlord" className={`cursor-pointer text-sm font-medium hover:bg-amber-400`}>Social Landlord</SelectItem>
               </SelectContent>
             </Select>
-          </div>
+          </div> */}
 
-          <div className="w-full bg-amber-400 p-4 md:p-8 rounded-2xl mt-6 md:mt-8">
-            {
-              role == "landlord" ?
-                (
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6 max-w-6xl mx-auto">
-                    {/* Small Providers */}
-                    <div className="bg-white rounded-2xl p-4 md:p-6 shadow-lg">
-                      <div className="mb-2">
-                        <h3 className="text-base md:text-lg font-bold text-gray-900 mb-3 md:mb-4 text-left">Small Providers:</h3>
-                        <div className="flex justify-end gap-6 md:gap-8 text-sm md:text-md font-bold text-gray-700 mb-2">
-                          <span>Monthly</span>
-                          <span>Annual</span>
-                        </div>
-                      </div>
-
-                      <div className="space-y-0">
-                        <div className="flex justify-between items-center py-1 md:py-2">
-                          <span className="text-xs md:text-sm text-gray-700">Upto 250 homes</span>
-                          <div className="flex gap-6 md:gap-8">
-                            <span className="text-xs md:text-sm font-medium w-10 md:w-12 text-center">£108</span>
-                            <span className="text-xs md:text-sm font-medium w-10 md:w-12 text-center">£1300</span>
-                          </div>
-                        </div>
-
-                        <div className="flex justify-between items-center py-1 md:py-2">
-                          <span className="text-xs md:text-sm text-gray-700">250-500 homes</span>
-                          <div className="flex gap-6 md:gap-8">
-                            <span className="text-xs md:text-sm font-medium w-10 md:w-12 text-center">£150</span>
-                            <span className="text-xs md:text-sm font-medium w-10 md:w-12 text-center">£1800</span>
-                          </div>
-                        </div>
-
-                        <div className="flex justify-between items-center py-1 md:py-2">
-                          <span className="text-xs md:text-sm text-gray-700">500-750 homes</span>
-                          <div className="flex gap-6 md:gap-8">
-                            <span className="text-xs md:text-sm font-medium w-10 md:w-12 text-center">£191</span>
-                            <span className="text-xs md:text-sm font-medium w-10 md:w-12 text-center">£2300</span>
-                          </div>
-                        </div>
-
-                        <div className="flex justify-between items-center py-1 md:py-2">
-                          <span className="text-xs md:text-sm text-gray-700">750-1000 homes</span>
-                          <div className="flex gap-6 md:gap-8">
-                            <span className="text-xs md:text-sm font-medium w-10 md:w-12 text-center">£233</span>
-                            <span className="text-xs md:text-sm font-medium w-10 md:w-12 text-center">£2800</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Small to Medium Providers */}
-                    <div className="bg-white rounded-2xl p-4 md:p-6 shadow-lg">
-                      <div className="mb-2">
-                        <h3 className="text-base md:text-lg font-bold text-gray-900 mb-3 md:mb-4 text-left">Small to Medium Providers:</h3>
-                        <div className="flex justify-end gap-6 md:gap-8 text-sm md:text-md font-bold text-gray-700 mb-2">
-                          <span>Monthly</span>
-                          <span>Annual</span>
-                        </div>
-                      </div>
-
-                      <div className="space-y-0">
-                        <div className="flex justify-between items-center py-1 md:py-2">
-                          <span className="text-xs md:text-sm text-gray-700">1000-1250 homes</span>
-                          <div className="flex gap-6 md:gap-8">
-                            <span className="text-xs md:text-sm font-medium w-10 md:w-12 text-center">£275</span>
-                            <span className="text-xs md:text-sm font-medium w-10 md:w-12 text-center">£3300</span>
-                          </div>
-                        </div>
-
-                        <div className="flex justify-between items-center py-1 md:py-2">
-                          <span className="text-xs md:text-sm text-gray-700">1250-5000 homes</span>
-                          <div className="flex gap-6 md:gap-8">
-                            <span className="text-xs md:text-sm font-medium w-10 md:w-12 text-center">£375</span>
-                            <span className="text-xs md:text-sm font-medium w-10 md:w-12 text-center">£4500</span>
-                          </div>
-                        </div>
-
-                        <div className="flex justify-between items-center py-1 md:py-2">
-                          <span className="text-xs md:text-sm text-gray-700">5000-10000 homes</span>
-                          <div className="flex gap-6 md:gap-8">
-                            <span className="text-xs md:text-sm font-medium w-10 md:w-12 text-center">£750</span>
-                            <span className="text-xs md:text-sm font-medium w-10 md:w-12 text-center">£9000</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Large Providers */}
-                    <div className="bg-white rounded-2xl p-4 md:p-6 shadow-lg">
-                      <div className="mb-5 md:mb-7 flex justify-start items-center">
-                        <h3 className="text-base md:text-lg font-bold text-gray-900 mb-3 md:mb-4">Large Providers:</h3>
-                      </div>
-
-                      <div className="flex items-center w-full relative">
-                        <div className="space-y-0 w-[50%] border-r border-black">
-                          <div className="flex justify-between items-center py-1 md:py-2">
-                            <span className="text-xs md:text-sm text-gray-700">10000-15000 homes</span>
-                          </div>
-
-                          <div className="flex justify-between items-center py-1 md:py-2">
-                            <span className="text-xs md:text-sm text-gray-700">15000-20000 homes</span>
-                          </div>
-
-                          <div className="flex justify-between items-center py-1 md:py-2">
-                            <span className="text-xs md:text-sm text-gray-700">20000+ homes</span>
-                          </div>
-                        </div>
-
-                        <div className="flex-1 h-full pl-2 md:pl-4">
-                          <span className="text-xs md:text-sm text-left">Custom pricing, <br />Contact us.</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ) :
-                (
-                  <h1 className="text-white text-xl md:text-3xl font-medium">
-                    Custom pricing, please contact us
-                  </h1>
-                )
-            }
-
-          </div>
 
         </div>
 
@@ -300,7 +170,7 @@ export default function PriceAndPlan() {
                   plan.name === "Plus Account" 
                     ? "px-1 md:px-3 text-xs md:text-sm" 
                     : "px-3 md:px-4 text-sm md:text-base"
-                }`}>
+                }`} onClick={() => window.open('mailto:Info@videodesk.co.uk', '_blank')}>
                   {plan.buttonText}
                 </Button>
 

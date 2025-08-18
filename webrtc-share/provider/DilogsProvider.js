@@ -3163,7 +3163,7 @@ ${senderName}`;
           <div className="flex items-center justify-center bg-purple-500 text-white p-4 m-0 relative">
             <div className="flex items-center gap-2">
               <MailIcon className="w-5 h-5 text-white" />
-              <h2 className="text-lg font-bold">Raise Support Ticket</h2>
+              <h2 className="text-lg font-bold">Raise/View Support Ticket</h2>
             </div>
             <button
               onClick={() => setTickerOpen(false)}

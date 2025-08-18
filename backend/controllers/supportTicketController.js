@@ -656,6 +656,153 @@ export const searchTickets = catchAsyncError(async (req, res, next) => {
     });
 });
 
+// Admin: Update ticket with comprehensive fields
+export const adminUpdateTicketComprehensive = catchAsyncError(async (req, res, next) => {
+    const { id } = req.params;
+    const updateData = req.body;
+    const adminId = req.user.id;
+
+    // Check if user has admin privileges
+    if (!['admin', 'superadmin'].includes(req.user.role)) {
+        return next(new ErrorHandler('Access denied. Admin privileges required.', 403));
+    }
+
+    // Modern approach: Use object destructuring and spread operator
+    const {
+        status,
+        priority,
+        assignedTo,
+        internalNotes,
+        resolution,
+        estimatedResolutionTime,
+        escalationLevel
+    } = updateData;
+
+    // Build update object dynamically
+    const updates = { lastUpdatedBy: adminId };
+    
+    // Only add fields that are provided
+    if (status !== undefined) {
+        updates.status = status;
+        // Auto-set timestamps based on status
+        if (status === 'Resolved') updates.resolvedAt = new Date();
+        if (status === 'Closed') updates.closedAt = new Date();
+    }
+    
+    if (priority !== undefined) updates.priority = priority;
+    if (assignedTo !== undefined) {
+        updates.assignedTo = assignedTo;
+        updates.assignedAt = new Date();
+    }
+    if (internalNotes !== undefined) updates.internalNotes = internalNotes;
+    if (resolution !== undefined) updates.resolution = resolution;
+    if (estimatedResolutionTime !== undefined) updates.estimatedResolutionTime = new Date(estimatedResolutionTime);
+    if (escalationLevel !== undefined) updates.escalationLevel = escalationLevel;
+
+    // Use findOneAndUpdate with modern options
+    const ticket = await SupportTicket.findOneAndUpdate(
+        { _id: id, deleted: false },
+        { $set: updates },
+        { 
+            new: true, 
+            runValidators: true,
+            lean: true // Faster performance
+        }
+    ).populate([
+        { path: 'userId', select: 'email role landlordInfo.landlordName' },
+        { path: 'assignedTo', select: 'email role landlordInfo.landlordName' },
+        { path: 'companyId', select: 'name' }
+    ]);
+
+    if (!ticket) {
+        return next(new ErrorHandler('Ticket not found', 404));
+    }
+
+    res.status(200).json({
+        success: true,
+        message: 'Ticket updated successfully',
+        data: ticket
+    });
+});
+
+// Super Admin: Get ALL tickets without any restrictions
+export const getSuperAdminAllTickets = catchAsyncError(async (req, res, next) => {
+    // Only superadmin can access this
+    if (req.user.role !== 'superadmin') {
+        return next(new ErrorHandler('Access denied. Superadmin privileges required.', 403));
+    }
+
+    const { page = 1, limit = 50, status, category, priority, sortBy = 'createdAt', sortOrder = 'desc' } = req.query;
+
+    // Build filter - only filter by deleted status, no user/company restrictions
+    const filter = { deleted: false };
+    if (status) filter.status = status;
+    if (category) filter.category = category;
+    if (priority) filter.priority = priority;
+
+    // Build sort
+    const sort = {};
+    sort[sortBy] = sortOrder === 'desc' ? -1 : 1;
+
+    // Calculate pagination
+    const skip = (page - 1) * limit;
+
+    // Get ALL tickets without any user/company restrictions
+    const tickets = await SupportTicket.find(filter)
+        .sort(sort)
+        .skip(skip)
+        .limit(parseInt(limit))
+        .populate([
+            { path: 'userId', select: 'email role landlordInfo.landlordName' },
+            { path: 'assignedTo', select: 'email role landlordInfo.landlordName' },
+            { path: 'companyId', select: 'name' }
+        ]);
+
+    const total = await SupportTicket.countDocuments(filter);
+
+    res.status(200).json({
+        success: true,
+        data: tickets,
+        pagination: {
+            currentPage: parseInt(page),
+            totalPages: Math.ceil(total / limit),
+            totalTickets: total,
+            hasNextPage: page * limit < total,
+            hasPrevPage: page > 1
+        }
+    });
+});
+
+// Admin: Get dashboard statistics
+export const getDashboardStats = catchAsyncError(async (req, res, next) => {
+    if (!['admin', 'superadmin'].includes(req.user.role)) {
+        return next(new ErrorHandler('Access denied. Admin privileges required.', 403));
+    }
+
+    // Use Promise.all for parallel execution - much faster!
+    const [totalTickets, openTickets, criticalTickets, statusStats] = await Promise.all([
+        SupportTicket.countDocuments({ deleted: false }),
+        SupportTicket.countDocuments({ deleted: false, status: 'Open' }),
+        SupportTicket.countDocuments({ deleted: false, status: { $in: ['Open', 'In Progress'] }, priority: 'Critical' }),
+        SupportTicket.aggregate([
+            { $match: { deleted: false } },
+            { $group: { _id: '$status', count: { $sum: 1 } } },
+            { $sort: { count: -1 } }
+        ])
+    ]);
+
+    res.status(200).json({
+        success: true,
+        data: {
+            totalTickets,
+            openTickets,
+            criticalTickets,
+            statusBreakdown: statusStats,
+            timestamp: new Date().toISOString()
+        }
+    });
+});
+
 // Export tickets (for admin)
 export const exportTickets = catchAsyncError(async (req, res, next) => {
     const { format = 'json', filters = {} } = req.query;

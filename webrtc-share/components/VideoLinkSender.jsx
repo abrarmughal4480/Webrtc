@@ -48,6 +48,9 @@ export default function VideoLinkSender({ isOpen, onClose, onSuccess }) {
       const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
       const socketUrl = backendUrl.replace('/api/v1', '');
       
+      console.log('🔌 VideoLinkSender socket connecting to:', socketUrl);
+      console.log('🔍 Token being used:', token);
+      
       socketRef.current = io(socketUrl, {
         reconnectionAttempts: 5,
         timeout: 10000,
@@ -57,20 +60,37 @@ export default function VideoLinkSender({ isOpen, onClose, onSuccess }) {
       socketRef.current.on('connect', () => {
         console.log('📡 VideoLinkSender connected to socket');
         setSocketConnected(true);
+        console.log('🔍 Emitting admin-waiting with token:', token);
         socketRef.current.emit('admin-waiting', token);
       });
 
       socketRef.current.on('user-joined-room', (roomToken) => {
         console.log('✅ User opened the link:', roomToken);
+        console.log('🔍 Comparing roomToken:', roomToken, 'with token:', token);
         if (roomToken === token) {
+          console.log('🎉 Match found! Setting linkAccepted to true');
           setLinkAccepted(true);
           toast.success("User has opened the video link!");
+        } else {
+          console.log('❌ No match - roomToken and token are different');
         }
       });
 
       socketRef.current.on('disconnect', () => {
         console.log('📡 VideoLinkSender disconnected from socket');
         setSocketConnected(false);
+      });
+
+      socketRef.current.on('connect_error', (error) => {
+        console.error('❌ Socket connection error:', error);
+        setSocketConnected(false);
+      });
+
+      socketRef.current.on('reconnect', (attemptNumber) => {
+        console.log('🔄 Socket reconnected after', attemptNumber, 'attempts');
+        setSocketConnected(true);
+        console.log('🔍 Re-emitting admin-waiting with token:', token);
+        socketRef.current.emit('admin-waiting', token);
       });
 
       return () => {

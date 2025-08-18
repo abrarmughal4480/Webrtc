@@ -137,6 +137,39 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
   const { isAuth, loadMe, user } = useUser();
   console.log('🔍 [ChatBot] Component rendered with:', { isAuth, user });
   
+  // Helper function to safely access localStorage
+  const safeLocalStorage = {
+    getItem: (key) => {
+      if (typeof window !== 'undefined') {
+        try {
+          return localStorage.getItem(key);
+        } catch (error) {
+          console.error('Error accessing localStorage:', error);
+          return null;
+        }
+      }
+      return null;
+    },
+    setItem: (key, value) => {
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem(key, value);
+        } catch (error) {
+          console.error('Error setting localStorage:', error);
+        }
+      }
+    },
+    removeItem: (key) => {
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.removeItem(key);
+        } catch (error) {
+          console.error('Error removing from localStorage:', error);
+        }
+      }
+    }
+  };
+  
   const textareaRef = useRef(null);
   const saveInProgressRef = useRef(false);
   const messagesEndRef = useRef(null);
@@ -153,25 +186,36 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
   const [isLoading, setIsLoading] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const [n8nChatInstance, setN8nChatInstance] = useState(null);
-  // Generate proper UUID v4 format session ID
+  // Generate proper UUID v4 format session ID - Safe for SSR
   const generateUUID = () => {
-    const crypto = window.crypto || window.msCrypto;
-    if (crypto && crypto.getRandomValues) {
-      const array = new Uint8Array(16);
-      crypto.getRandomValues(array);
-      array[6] = (array[6] & 0x0f) | 0x40;
-      array[8] = (array[8] & 0x3f) | 0x80;
-      return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
-    } else {
-      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-        const r = Math.random() * 16 | 0;
-        const v = c == 'x' ? r : (r & 0x3 | 0x8);
-        return v.toString(16);
-      });
+    // Check if we're in the browser environment
+    if (typeof window !== 'undefined') {
+      const crypto = window.crypto || window.msCrypto;
+      if (crypto && crypto.getRandomValues) {
+        const array = new Uint8Array(16);
+        crypto.getRandomValues(array);
+        array[6] = (array[6] & 0x0f) | 0x40;
+        array[8] = (array[8] & 0x3f) | 0x80;
+        return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+      }
     }
+    
+    // Fallback for SSR or when crypto is not available
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+      const r = Math.random() * 16 | 0;
+      const v = c == 'x' ? r : (r & 0x3 | 0x8);
+      return v.toString(16);
+    });
   };
 
-  const [sessionId, setSessionId] = useState(generateUUID());
+  const [sessionId, setSessionId] = useState('temp-session-id');
+
+  // Initialize session ID on client side
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setSessionId(generateUUID());
+    }
+  }, []);
 
   // Chat history state
   const [showChatHistory, setShowChatHistory] = useState(false);
@@ -209,7 +253,7 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
   // Manual migration function for debugging
   const triggerMigration = async () => {
     console.log('🔧 Manual migration triggered');
-    const localChats = JSON.parse(localStorage.getItem('localChatHistory') || '[]');
+    const localChats = JSON.parse(safeLocalStorage.getItem('localChatHistory') || '[]');
     console.log('📥 Current localStorage chats:', localChats);
     
     if (localChats.length === 0) {
@@ -506,7 +550,11 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
       canvas.height = canvas.offsetHeight;
     };
     resizeCanvas();
-    window.addEventListener('resize', resizeCanvas);
+    
+    // Only add event listener if we're in the browser
+    if (typeof window !== 'undefined') {
+      window.addEventListener('resize', resizeCanvas);
+    }
 
     // Node class for neural network
     class Node {
@@ -605,7 +653,9 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
 
     // Cleanup
     return () => {
-      window.removeEventListener('resize', resizeCanvas);
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('resize', resizeCanvas);
+      }
       if (animationId) {
         cancelAnimationFrame(animationId);
       }
@@ -628,11 +678,11 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
           const response = await getChatSessions();
           console.log('📥 [loadChatHistory] Chat history response:', response);
           
-          if (response && response.data && response.data.chatSessions) {
-            console.log('✅ [loadChatHistory] Chat sessions found:', response.data.chatSessions.length);
+          if (response && response.message && response.message.chatSessions) {
+            console.log('✅ [loadChatHistory] Chat sessions found:', response.message.chatSessions.length);
             
             // Convert timestamp strings to Date objects
-            const backendSessions = response.data.chatSessions.map(session => ({
+            const backendSessions = response.message.chatSessions.map(session => ({
               ...session,
               timestamp: new Date(session.timestamp),
               isLocalStorage: false
@@ -713,9 +763,9 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
       // If not found in localStorage, try backend (for authenticated users)
       if (isAuth) {
         const response = await getChatSession(sessionId);
-        if (response.success && response.data.chatSession) {
+        if (response.success && response.message && response.message.chatSession) {
           // Convert message timestamps to Date objects
-          const messagesWithDates = response.data.chatSession.messages.map(message => ({
+          const messagesWithDates = response.message.chatSession.messages.map(message => ({
             ...message,
             timestamp: new Date(message.timestamp)
           }));
@@ -884,24 +934,6 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
   };
 
   const proceedWithNewChat = () => {
-    // Generate new session ID with proper UUID v4 format
-    const generateUUID = () => {
-      const crypto = window.crypto || window.msCrypto;
-      if (crypto && crypto.getRandomValues) {
-        const array = new Uint8Array(16);
-        crypto.getRandomValues(array);
-        array[6] = (array[6] & 0x0f) | 0x40;
-        array[8] = (array[8] & 0x3f) | 0x80;
-        return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
-      } else {
-        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-          const r = Math.random() * 16 | 0;
-          const v = c == 'x' ? r : (r & 0x3 | 0x8);
-          return v.toString(16);
-        });
-      }
-    };
-    
     // Clear messages and set new session
     setMessages([
       {
@@ -911,7 +943,14 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
         timestamp: new Date()
       }
     ]);
-    setSessionId(generateUUID());
+    
+    // Generate new session ID safely
+    if (typeof window !== 'undefined') {
+      setSessionId(generateUUID());
+    } else {
+      setSessionId('temp-session-id');
+    }
+    
     setInputMessage('');
     setIsLoading(false);
     setIsTyping(false);
@@ -1381,7 +1420,7 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
       // Direct API call to webhook
       console.log('Making direct API call to webhook...');
       
-      const webhookUrl = "https://mannanr.app.n8n.cloud/webhook/a889d2ae-2159-402f-b326-5f61e90f602e/chat";
+      const webhookUrl = "https://videodesk.app.n8n.cloud/webhook/f9a9e234-7014-4936-8e9d-8d8540156afb/chat";
       console.log('Webhook URL:', webhookUrl);
       
       // Use the correct payload format as specified

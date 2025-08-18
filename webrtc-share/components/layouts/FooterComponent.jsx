@@ -206,11 +206,20 @@ export function Footer() {
     setIsLoading(true);
     
     try {
-      const response = await bookDemoMeetingRequest(meetingFormData);
+      console.log('📅 Submitting demo meeting request...');
+      
+      const response = await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/demo-meetings`, {
+        name: meetingFormData.name,
+        email: meetingFormData.email,
+        date: meetingFormData.date,
+        hour: meetingFormData.hour,
+        minute: meetingFormData.minute,
+        message: meetingFormData.message
+      });
       
       if (response.data.success) {
-        toast.success("Demo meeting request sent successfully!");
-        console.log('✅ Demo meeting booked successfully');
+        toast.success("Demo meeting request submitted successfully!");
+        console.log('✅ Demo meeting request submitted successfully');
         
         // Reset form
         setMeetingFormData({
@@ -225,7 +234,7 @@ export function Footer() {
       }
     } catch (error) {
       console.error('❌ Demo meeting request error:', error);
-      toast.error(error.response?.data?.message || "Failed to send demo meeting request");
+      toast.error(error.response?.data?.message || "Failed to submit demo meeting request");
     } finally {
       setIsLoading(false);
     }
@@ -244,11 +253,20 @@ export function Footer() {
     try {
       console.log('📞 Sending callback request...');
       
-      const response = await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/request-callback`, callbackFormData);
+      const response = await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/callback-requests`, {
+        name: callbackFormData.name,
+        email: callbackFormData.email,
+        phone: callbackFormData.phone,
+        day: callbackFormData.day,
+        customDate: callbackFormData.customDate,
+        customHour: callbackFormData.customHour,
+        customMinute: callbackFormData.customMinute,
+        message: callbackFormData.message
+      });
       
       if (response.data.success) {
-        toast.success("Callback request sent successfully!");
-        console.log('✅ Callback request sent successfully');
+        toast.success("Callback request submitted successfully!");
+        console.log('✅ Callback request submitted successfully');
         
         // Reset form
         setCallbackFormData({
@@ -266,7 +284,7 @@ export function Footer() {
       }
     } catch (error) {
       console.error('❌ Callback request error:', error);
-      toast.error(error.response?.data?.message || "Failed to send callback request");
+      toast.error(error.response?.data?.message || "Failed to submit callback request");
     } finally {
       setCallbackLoading(false);
     }
@@ -315,7 +333,7 @@ export function Footer() {
                 Launch new video link
               </a>
               <a href="#pricing" className="block text-gray-600 hover:text-gray-900 transition-colors">
-                Pricing and Plans
+                Plans
               </a>
             </div>
 

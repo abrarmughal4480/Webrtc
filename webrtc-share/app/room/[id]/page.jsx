@@ -165,8 +165,10 @@ const page = ({params}) => {
   
   // Notify admin when user opens the link
   useEffect(() => {
-    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4000';
+    const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
     const socketUrl = backendUrl.replace('/api/v1', '');
+    
+    console.log('🔌 Room socket connecting to:', socketUrl);
     
     // Create separate socket for notifications
     notificationSocketRef.current = io(socketUrl, {
@@ -178,6 +180,27 @@ const page = ({params}) => {
     notificationSocketRef.current.on('connect', () => {
       console.log('📡 Room notification socket connected');
       // Notify that user has opened this room
+      console.log('🔍 Emitting user-opened-link with room ID:', id);
+      notificationSocketRef.current.emit('user-opened-link', id);
+    });
+
+    notificationSocketRef.current.on('connect_error', (error) => {
+      console.error('❌ Room socket connection error:', error);
+      console.error('🔍 Error details:', {
+        message: error.message,
+        type: error.type,
+        description: error.description
+      });
+    });
+
+    notificationSocketRef.current.on('disconnect', (reason) => {
+      console.log('📡 Room socket disconnected:', reason);
+    });
+
+    notificationSocketRef.current.on('reconnect', (attemptNumber) => {
+      console.log('🔄 Room socket reconnected after', attemptNumber, 'attempts');
+      // Re-emit user-opened-link when reconnected
+      console.log('🔍 Re-emitting user-opened-link with room ID:', id);
       notificationSocketRef.current.emit('user-opened-link', id);
     });
 

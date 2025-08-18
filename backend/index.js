@@ -41,8 +41,6 @@ const logger = pino({
   }
 });
 
-logger.info('🚀 Starting server initialization...');
-
 connectDB();
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -98,7 +96,7 @@ app.use((req, res, next) => {
     // Set shorter timeout for better performance
     req.setTimeout(operationTimeout, () => {
         const duration = Date.now() - startTime;
-        logger.error(`❌ Request timeout after ${duration}ms - ${req.method} ${req.path}`);
+        logger.error(`Request timeout after ${duration}ms - ${req.method} ${req.path}`);
         if (!res.headersSent) {
             res.status(408).json({
                 success: false,
@@ -110,7 +108,7 @@ app.use((req, res, next) => {
     
     res.setTimeout(operationTimeout, () => {
         const duration = Date.now() - startTime;
-        logger.error(`❌ Response timeout after ${duration}ms`);
+        logger.error(`Response timeout after ${duration}ms`);
         if (!res.headersSent) {
             res.status(408).json({
                 success: false,
@@ -119,16 +117,13 @@ app.use((req, res, next) => {
         }
     });
     
-    // Log request with timestamp
-    const contentLength = req.get('Content-Length');
-    logger.info(`📊 [${new Date().toISOString()}] ${req.method} ${req.path} - Size: ${contentLength ? (contentLength / 1024 / 1024).toFixed(2) + 'MB' : 'unknown'} - Timeout: ${operationTimeout}ms`);
     next();
 });
 
 // Enhanced error handling middleware for payload issues
 app.use((error, req, res, next) => {
     if (error.type === 'entity.too.large') {
-        logger.error('❌ Payload too large error:', {
+        logger.error('Payload too large error:', {
             url: req.path,
             method: req.method,
             contentLength: req.get('Content-Length')
@@ -141,7 +136,7 @@ app.use((error, req, res, next) => {
     }
     
     if (error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT') {
-        logger.error('❌ Connection error:', error.code);
+        logger.error('Connection error:', error.code);
         return res.status(408).json({
             success: false,
             message: 'Connection timeout. Please try again with a stable internet connection.'
@@ -158,8 +153,6 @@ server.timeout = TIMEOUT;
 server.keepAliveTimeout = TIMEOUT - 1000;
 server.headersTimeout = TIMEOUT + 1000;
 
-logger.info(`🔧 Server timeouts configured: ${TIMEOUT}ms`);
-
 // --- CLUSTERING: Use all CPU cores in production ---
 if (
   process.env.NODE_ENV === 'development' ||
@@ -168,25 +161,24 @@ if (
   // Clustering logic for local/dev or if explicitly enabled
   if (cluster.isPrimary) {
     const numCPUs = os.cpus().length;
-    logger.info(`🚦 Primary process running. Forking ${numCPUs} workers...`);
     for (let i = 0; i < numCPUs; i++) {
       cluster.fork();
     }
     cluster.on('exit', (worker, code, signal) => {
-      logger.error(`❌ Worker ${worker.process.pid} died. Restarting...`);
+      logger.error(`Worker ${worker.process.pid} died. Restarting...`);
       cluster.fork();
     });
     // Do not start server in primary
   } else {
     // Worker process: start server
     server.listen(PORT, () => {
-      logger.info(`🚀 Server running on port ${PORT}`);
+      logger.info(`Server running on port ${PORT}`);
     });
   }
 } else {
   // Production/cloud: single process
   server.listen(PORT, () => {
-    logger.info(`🚀 Server running on port ${PORT}`);
+    logger.info(`Server running on port ${PORT}`);
   });
 }
 
@@ -222,13 +214,9 @@ const getButtonColorFromTailwind = (tailwindClass) => {
         'bg-yellow-500': { bg: '#eab308', hover: '#ca8a04' }
     };
     
-    logger.info(`🎨 Button color requested: "${tailwindClass}"`);
-    
     if (colorMap[tailwindClass]) {
-        logger.info(`✅ Button color found: ${tailwindClass} -> ${colorMap[tailwindClass].bg}`);
         return colorMap[tailwindClass];
     } else {
-        logger.warn(`⚠️ Button color not found: "${tailwindClass}", falling back to bg-green-800`);
         return colorMap['bg-green-800']; // Default to green
     }
 };
@@ -248,9 +236,6 @@ const getLogoSvg = () => {
 app.get('/send-token', async (req, res) => {
     try {
         const { number, email, senderId } = req.query;
-        logger.info('📞 Received token request:', { number, email, senderId });
-        // Log the original senderId (user's real MongoDB _id)
-        logger.info('[send-token] Original senderId (user _id):', senderId);
         
         if (!number && !email) {
             return res.status(400).json({ error: 'Either phone number or email is required' });
@@ -259,7 +244,6 @@ app.get('/send-token', async (req, res) => {
             return res.status(400).json({ error: 'Sender ID is required' });
         }
         const token = uuidv4();
-        logger.info('🎫 Generated meeting token:', token);
 
         // Encrypt senderId
         const encryptedSenderId = encryptUserId(senderId);
@@ -289,7 +273,6 @@ app.get('/send-token', async (req, res) => {
         // Send SMS
         if (number) {
             const normalizedNumber = normalizeUKPhoneNumber(number);
-            logger.info('📱 Sending SMS to:', normalizedNumber);
             const textMessage = `Please click on the link below to connect: ${url}`;
             // Respond to user immediately
             res.json({ token, url });
@@ -302,7 +285,6 @@ app.get('/send-token', async (req, res) => {
         }
         // Send Email with previous HTML template and branding
         if (email) {
-            logger.info('📧 Sending enhanced HTML email to:', email);
             const subject = "Video Call from Your Landlord";
             // Fetch user and button color
             let buttonColor = getButtonColorFromTailwind('bg-green-800'); // default
@@ -364,7 +346,7 @@ app.get('/send-token', async (req, res) => {
                         </div>
                     </div>
                     <div style="background-color: #f8f9fa; padding: 20px; text-align: center; border-top: 1px solid #eaeaea;">
-                        <p style="margin: 0; color: #777; font-size: 13px;">© 2024 Videodesk. All rights reserved.</p>
+                        <p style="margin: 0; color: #777; font-size: 13px;">© 2025 Videodesk. All rights reserved.</p>
                     </div>
                 </div>
             `;
@@ -379,7 +361,7 @@ app.get('/send-token', async (req, res) => {
             });
         }
     } catch (error) {
-        logger.error('❌ Error in send-token:', error);
+        logger.error('Error in send-token:', error);
         res.status(500).json({ error: 'Internal server error', message: error.message });
     }
 });
@@ -388,7 +370,6 @@ app.get('/send-token', async (req, res) => {
 app.get('/resend-token', async (req, res) => {
     try {
         const { number, email, token, senderId } = req.query;
-        logger.info('📞 Received resend token request:', { number, email, token, senderId });
         
         if (!number && !email) {
             return res.status(400).json({ error: 'Either phone number or email is required' });
@@ -398,8 +379,6 @@ app.get('/resend-token', async (req, res) => {
         }
 
         // Use the existing token instead of generating a new one
-        logger.info('🎫 Using existing meeting token:', token);
-
         // Build URL with existing token and senderId
         let url = `${process.env.FRONTEND_URL}/room/${token}`;
         
@@ -407,9 +386,6 @@ app.get('/resend-token', async (req, res) => {
         if (senderId) {
             const encryptedSenderId = encryptUserId(senderId);
             url += `?sid=${encodeURIComponent(encryptedSenderId)}`;
-            logger.info('🔗 Resend URL with senderId:', url);
-        } else {
-            logger.warn('⚠️ No senderId provided for resend, URL:', url);
         }
 
         // --- UK Phone Normalization Helper ---
@@ -435,7 +411,6 @@ app.get('/resend-token', async (req, res) => {
         // Send SMS
         if (number) {
             const normalizedNumber = normalizeUKPhoneNumber(number);
-            logger.info('📱 Resending SMS to:', normalizedNumber);
             const textMessage = `Please click on the link below to connect: ${url}`;
             // Respond to user immediately
             res.json({ success: true, message: 'Link resent successfully', token, url });
@@ -449,7 +424,6 @@ app.get('/resend-token', async (req, res) => {
 
         // Send Email
         if (email) {
-            logger.info('📧 Resending email to:', email);
             const subject = "Video Call from Your Landlord";
             
             // Fetch user and button color if senderId is provided
@@ -509,7 +483,7 @@ app.get('/resend-token', async (req, res) => {
                         </div>
                     </div>
                     <div style="background-color: #f8f9fa; padding: 20px; text-align: center; border-top: 1px solid #eaeaea;">
-                        <p style="margin: 0; color: #777; font-size: 13px;">© 2024 Videodesk. All rights reserved.</p>
+                        <p style="margin: 0; color: #777; font-size: 13px;">© 2025 Videodesk. All rights reserved.</p>
                     </div>
                 </div>
             `;
@@ -524,7 +498,7 @@ app.get('/resend-token', async (req, res) => {
             });
         }
     } catch (error) {
-        logger.error('❌ Error in resend-token:', error);
+        logger.error('Error in resend-token:', error);
         res.status(500).json({ error: 'Internal server error', message: error.message });
     }
 });
@@ -536,17 +510,16 @@ app.use(ErrorMiddleware);
 let redis;
 if (process.env.REDIS_URL) {
   redis = new Redis(process.env.REDIS_URL);
-  logger.info('🔗 Connected to Redis for caching.');
 } else {
-  logger.warn('⚠️ No REDIS_URL set. Caching is disabled.');
+  logger.warn('No REDIS_URL set. Caching is disabled.');
 }
 // Example usage: await redis.set('key', 'value'); await redis.get('key');
 
 // --- GRACEFUL SHUTDOWN LOGIC ---
 function shutdown(signal) {
-  logger.info(`🛑 Received ${signal}. Shutting down gracefully...`);
+  logger.info(`Received ${signal}. Shutting down gracefully...`);
   server.close(() => {
-    logger.info('✅ HTTP server closed.');
+    logger.info('HTTP server closed.');
     if (redis) redis.quit();
     process.exit(0);
   }, 10000);
@@ -556,32 +529,27 @@ process.on('SIGINT', () => shutdown('SIGINT'));
 
 // --- CRON JOB: Auto-delete trashed meetings after 10 days (for auto-delete) ---
 cron.schedule('* * * * *', async () => {
-  logger.info('⏰ [CRON] Auto-delete job running at', new Date().toLocaleString());
   try {
     const now = new Date();
     // 10 days ago (for auto-delete)
     const threshold = new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000);
     // Find meetings in trash older than threshold
     const expiredMeetings = await Meeting.find({ deleted: true, deletedAt: { $lte: threshold } });
-    if (expiredMeetings.length > 0) {
-      logger.info(`🗑️ Auto-deleting ${expiredMeetings.length} trashed meetings...`);
-    }
     for (const meeting of expiredMeetings) {
       // Use the controller logic for permanent delete
       // Simulate req/res/next for controller
       await Meeting.deleteOne({ _id: meeting._id }); // Remove from DB
       // If you want to reuse S3 cleanup, you can refactor permanentDeleteMeeting logic into a service and call it here
       // For now, just log
-      logger.info(`✅ Permanently deleted trashed meeting: ${meeting._id}`);
+      logger.info(`Permanently deleted trashed meeting: ${meeting._id}`);
     }
   } catch (err) {
-    logger.error('❌ Error in auto-delete cron job:', err);
+    logger.error('Error in auto-delete cron job:', err);
   }
 });
 
 // --- CRON JOB: Auto-delete trashed users after 10 days ---
 cron.schedule('* * * * *', async () => {
-  logger.info('⏰ [CRON] User auto-delete job running at', new Date().toLocaleString());
   try {
     const now = new Date();
     // 10 days ago (for auto-delete)
@@ -594,21 +562,17 @@ cron.schedule('* * * * *', async () => {
       deletedAt: { $lte: threshold }
     });
     
-    if (expiredUsers.length > 0) {
-      logger.info(`🗑️ Auto-deleting ${expiredUsers.length} trashed users...`);
-    }
-    
     for (const user of expiredUsers) {
       try {
         // Simply delete the user (data will remain in other collections)
         await UserModel.findByIdAndDelete(user._id);
-        logger.info(`✅ Auto-deleted trashed user: ${user._id} (${user.email})`);
+        logger.info(`Auto-deleted trashed user: ${user._id} (${user.email})`);
       } catch (err) {
-        logger.error(`❌ Error auto-deleting user ${user._id}:`, err);
+        logger.error(`Error auto-deleting user ${user._id}:`, err);
       }
     }
   } catch (err) {
-    logger.error('❌ Error in user auto-delete cron job:', err);
+    logger.error('Error in user auto-delete cron job:', err);
   }
 });
 

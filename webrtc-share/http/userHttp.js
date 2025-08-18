@@ -66,3 +66,58 @@ export const getUserById = async (userId) => {
     throw error;
   }
 };
+
+// Freeze user account
+export const freezeUser = async (userId) => {
+  try {
+    const response = await api.put(`/users/${userId}/freeze`);
+    return response.data;
+  } catch (error) {
+    console.error('Error freezing user:', error);
+    throw error;
+  }
+};
+
+// Suspend user account
+export const suspendUser = async (userId) => {
+  try {
+    const response = await api.put(`/users/${userId}/suspend`);
+    return response.data;
+  } catch (error) {
+    console.error('Error suspending user:', error);
+    throw error;
+  }
+};
+
+// Activate user account
+export const activateUser = async (userId) => {
+  try {
+    const response = await api.put(`/users/${userId}/activate`);
+    return response.data;
+  } catch (error) {
+    console.error('Error activating user:', error);
+    throw error;
+  }
+};
+
+// Update user details (for edit functionality)
+export const updateUserDetails = async (userId, userData) => {
+  try {
+    const response = await api.put(`/users/${userId}/details`, userData);
+    return response.data;
+  } catch (error) {
+    console.error('Error updating user details:', error);
+    throw error;
+  }
+};
+
+// Get user statistics
+export const getUserStats = async (userId) => {
+  try {
+    const response = await api.get(`/users/${userId}/stats`);
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching user stats:', error);
+    throw error;
+  }
+};

@@ -25,6 +25,19 @@ const userSchema = new mongoose.Schema({
         enum:['landlord', 'resident', 'admin', 'company-admin', 'superadmin'], 
         default: 'landlord'
     },
+    status: {
+        type: String,
+        enum: ['active', 'inactive', 'frozen', 'suspended'],
+        default: 'active'
+    },
+    company: {
+        type: String,
+        default: undefined
+    },
+    lastLogin: {
+        type: Date,
+        default: undefined
+    },
     OTP: {
         type: String,
         default: undefined

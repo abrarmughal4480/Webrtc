@@ -1,8 +1,10 @@
-import { UserPlus, User, Edit, Trash, Eye, Users, Building, Home, Search, ChevronDown, Undo2 } from "lucide-react";
+import { UserPlus, User, Edit, Trash2 as Trash, Eye, Users, Building, Home, Search, ChevronDown, Undo2, X, Save, Mail, Shield, Archive, FileText, Filter, SortAsc, SortDesc, Clock, Activity, Calendar, Crown, Zap, CheckCircle, Pause, Snowflake, Ban, Globe, TrendingUp, CalendarDays, Clock3, AlertCircle, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import moment from "moment/moment";
 import { useState, useEffect } from "react";
-import { getAllUsers, deleteUser, restoreUser, permanentDeleteUser } from "@/http/userHttp";
+import { getAllUsers, deleteUser, restoreUser, permanentDeleteUser, freezeUser, suspendUser, activateUser, updateUserDetails } from "@/http/userHttp";
+import UserEditDialog from "./UserEditDialog";
+import { useUser } from "@/provider/UserProvider";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,12 +12,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
+import { io } from "socket.io-client";
 
-export default function UserManagementSection({ 
-  handleUserAction,
-  getRoleBadgeColor,
-  getStatusBadgeColor
-}) {
+export default function UserManagementSection() {
+  const { user: currentUser } = useUser();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -29,25 +29,200 @@ export default function UserManagementSection({
   const [showPermanentDeleteDialog, setShowPermanentDeleteDialog] = useState(false);
   const [userToDelete, setUserToDelete] = useState(null);
   const [multipleDeleteMode, setMultipleDeleteMode] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showDetailsDialog, setShowDetailsDialog] = useState(false);
+  const [selectedUserForDialog, setSelectedUserForDialog] = useState(null);
+  const [userStats, setUserStats] = useState(null);
+  const [loadingStats, setLoadingStats] = useState(false);
+  
+  // New filter and sort states
+  const [showFilters, setShowFilters] = useState(false);
+  const [roleFilter, setRoleFilter] = useState('all');
+  const [companyFilter, setCompanyFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [activityFilter, setActivityFilter] = useState('all');
+  const [sortBy, setSortBy] = useState('newest');
+  const [sortOrder, setSortOrder] = useState('desc');
 
+  // Date filter states
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
+
+  // Online users tracking
+  const [onlineUsers, setOnlineUsers] = useState(new Set());
+  const [onlineUsersLoading, setOnlineUsersLoading] = useState(false);
+  const [socket, setSocket] = useState(null);
+
+  // Get unique companies for filter dropdown
+  const uniqueCompanies = [...new Set(users.map(user => user.company).filter(Boolean))].sort();
+
+  // Enhanced filtering logic
   const filteredUsers = users.filter(user => {
     const matchesSearch = user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          (user.company && user.company.toLowerCase().includes(searchTerm.toLowerCase()));
-    return matchesSearch;
+    
+    const matchesRole = roleFilter === 'all' || user.role === roleFilter;
+    const matchesCompany = companyFilter === 'all' || user.company === companyFilter;
+    const matchesStatus = statusFilter === 'all' || user.status === statusFilter;
+    
+    // Activity filtering
+    let matchesActivity = true;
+    if (activityFilter !== 'all') {
+      const now = new Date();
+      const lastLogin = user.lastLogin ? new Date(user.lastLogin) : null;
+      
+      switch (activityFilter) {
+        case 'online':
+          // Users logged in within last 15 minutes
+          matchesActivity = lastLogin && (now - lastLogin) < 15 * 60 * 1000;
+          break;
+        case 'today':
+          // Users logged in today
+          matchesActivity = lastLogin && lastLogin.toDateString() === now.toDateString();
+          break;
+        case 'week':
+          // Users logged in within last 7 days
+          matchesActivity = lastLogin && (now - lastLogin) < 7 * 24 * 60 * 60 * 1000;
+          break;
+        case 'month':
+          // Users logged in within last 30 days
+          matchesActivity = lastLogin && (now - lastLogin) < 30 * 24 * 60 * 60 * 1000;
+          break;
+        case 'never':
+          // Users who never logged in
+          matchesActivity = !lastLogin;
+          break;
+        case 'inactive':
+          // Users not logged in for more than 30 days
+          matchesActivity = lastLogin && (now - lastLogin) > 30 * 24 * 60 * 60 * 1000;
+          break;
+      }
+    }
+    
+    // Date range filtering
+    let matchesDateRange = true;
+    if (fromDate || toDate) {
+      const lastLogin = user.lastLogin ? new Date(user.lastLogin) : null;
+      
+      if (fromDate && toDate) {
+        // Both dates selected - check if lastLogin falls within range
+        const fromDateObj = new Date(fromDate);
+        const toDateObj = new Date(toDate);
+        toDateObj.setHours(23, 59, 59, 999); // End of day
+        
+        if (lastLogin) {
+          matchesDateRange = lastLogin >= fromDateObj && lastLogin <= toDateObj;
+        } else {
+          // If user never logged in, check if account creation falls within range
+          const createdAt = new Date(user.createdAt);
+          matchesDateRange = createdAt >= fromDateObj && createdAt <= toDateObj;
+        }
+      } else if (fromDate) {
+        // Only from date selected
+        const fromDateObj = new Date(fromDate);
+        if (lastLogin) {
+          matchesDateRange = lastLogin >= fromDateObj;
+        } else {
+          const createdAt = new Date(user.createdAt);
+          matchesDateRange = createdAt >= fromDateObj;
+        }
+      } else if (toDate) {
+        // Only to date selected
+        const toDateObj = new Date(toDate);
+        toDateObj.setHours(23, 59, 59, 999); // End of day
+        if (lastLogin) {
+          matchesDateRange = lastLogin <= toDateObj;
+        } else {
+          const createdAt = new Date(user.createdAt);
+          matchesDateRange = createdAt <= toDateObj;
+        }
+      }
+    }
+    
+    return matchesSearch && matchesRole && matchesCompany && matchesStatus && matchesActivity && matchesDateRange;
+  });
+
+  // Enhanced sorting logic
+  const sortedUsers = [...filteredUsers].sort((a, b) => {
+    let comparison = 0;
+    
+    switch (sortBy) {
+      case 'alphabetical':
+        comparison = a.email.localeCompare(b.email);
+        break;
+      case 'newest':
+        comparison = new Date(b.createdAt) - new Date(a.createdAt);
+        break;
+      case 'oldest':
+        comparison = new Date(a.createdAt) - new Date(b.createdAt);
+        break;
+      case 'lastLogin':
+        const aLogin = a.lastLogin ? new Date(a.lastLogin) : new Date(0);
+        const bLogin = b.lastLogin ? new Date(b.lastLogin) : new Date(0);
+        comparison = bLogin - aLogin;
+        break;
+      case 'mostActive':
+        // Sort by last login (most recent first), then by creation date
+        const aLoginSort = a.lastLogin ? new Date(a.lastLogin) : new Date(0);
+        const bLoginSort = b.lastLogin ? new Date(b.lastLogin) : new Date(0);
+        comparison = bLoginSort - aLoginSort;
+        if (comparison === 0) {
+          comparison = new Date(b.createdAt) - new Date(a.createdAt);
+        }
+        break;
+      case 'role':
+        // Sort by role priority: superadmin > admin > company-admin > landlord > resident
+        const rolePriority = { 'superadmin': 5, 'admin': 4, 'company-admin': 3, 'landlord': 2, 'resident': 1 };
+        comparison = (rolePriority[b.role] || 0) - (rolePriority[a.role] || 0);
+        if (comparison === 0) {
+          comparison = a.email.localeCompare(b.email);
+        }
+        break;
+      case 'company':
+        comparison = (a.company || '').localeCompare(b.company || '');
+        if (comparison === 0) {
+          comparison = a.email.localeCompare(b.email);
+        }
+        break;
+      case 'status':
+        // Sort by status priority: active > inactive > frozen > suspended
+        const statusPriority = { 'active': 4, 'inactive': 3, 'frozen': 2, 'suspended': 1 };
+        comparison = (statusPriority[b.status] || 0) - (statusPriority[a.status] || 0);
+        if (comparison === 0) {
+          comparison = a.email.localeCompare(b.email);
+        }
+        break;
+      default:
+        comparison = 0;
+    }
+    
+    return sortOrder === 'desc' ? comparison : -comparison;
   });
 
   // Calculate pagination
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentUsers = filteredUsers.slice(indexOfFirstItem, indexOfLastItem);
-  const totalPages = Math.ceil(filteredUsers.length / itemsPerPage);
+  const currentUsers = sortedUsers.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(sortedUsers.length / itemsPerPage);
 
-  // Reset to first page when search changes
+  // Reset to first page when filters change
   useEffect(() => {
     setCurrentPage(1);
     setSelectedUsers([]);
     setSelectAll(false);
-  }, [searchTerm]);
+    
+    // Refresh online users when filters change
+    if (currentUser?.role === 'superadmin' && socket) {
+      refreshOnlineUsersOnFilterToggle();
+    }
+  }, [searchTerm, roleFilter, companyFilter, statusFilter, activityFilter, sortBy, sortOrder]);
+
+  // Separate effect for date filters to avoid dependency array size changes
+  useEffect(() => {
+    setCurrentPage(1);
+    setSelectedUsers([]);
+    setSelectAll(false);
+  }, [fromDate, toDate]);
 
   // Update select all when individual selections change
   useEffect(() => {
@@ -61,6 +236,52 @@ export default function UserManagementSection({
   useEffect(() => {
     fetchUsers();
   }, [viewMode]);
+
+  // Fetch online users for superadmin
+  useEffect(() => {
+    if (currentUser?.role === 'superadmin') {
+      // Clear previous online users
+      setOnlineUsers(new Set());
+      setOnlineUsersLoading(true);
+      
+      // Initialize socket
+      initializeSocket();
+      
+      // Cleanup socket on unmount
+      return () => {
+        if (socket) {
+          socket.disconnect();
+          setSocket(null);
+        }
+        setOnlineUsers(new Set());
+        setOnlineUsersLoading(false);
+      };
+    }
+  }, [currentUser]);
+
+  // Periodic refresh of online users to ensure accuracy
+  useEffect(() => {
+    if (currentUser?.role === 'superadmin' && socket && showFilters) {
+      // Refresh every 10 seconds when filters are active
+      const interval = setInterval(() => {
+        refreshOnlineUsers();
+      }, 10000);
+      
+      return () => clearInterval(interval);
+    }
+  }, [currentUser, socket, showFilters]);
+
+  // Handle current user logout
+  useEffect(() => {
+    if (!currentUser && socket) {
+      // Current user logged out, disconnect socket and clear online users
+      socket.disconnect();
+      setSocket(null);
+      setOnlineUsers(new Set());
+      setOnlineUsersLoading(false);
+    }
+  }, [currentUser]);
+
 
   const fetchUsers = async () => {
     try {
@@ -268,6 +489,363 @@ export default function UserManagementSection({
     }
   };
 
+  // Helper functions for badge colors
+  const getRoleBadgeColor = (role) => {
+    switch (role) {
+      case 'landlord':
+        return 'bg-blue-100 text-blue-800';
+      case 'resident':
+        return 'bg-green-100 text-green-800';
+      case 'company-admin':
+        return 'bg-purple-100 text-purple-800';
+      case 'admin':
+        return 'bg-red-100 text-red-800';
+      case 'superadmin':
+        return 'bg-gray-100 text-gray-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getStatusBadgeColor = (status) => {
+    switch (status) {
+      case 'active':
+        return 'bg-green-100 text-green-800';
+      case 'inactive':
+        return 'bg-gray-100 text-gray-800';
+      case 'frozen':
+        return 'bg-orange-100 text-orange-800';
+      case 'suspended':
+        return 'bg-red-100 text-red-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  // Online users functions
+  const isUserOnline = (userId) => {
+    // Never show current user as online
+    if (userId === currentUser?._id) {
+      return false;
+    }
+    return onlineUsers.has(userId);
+  };
+
+  const initializeSocket = () => {
+    if (currentUser?.role !== 'superadmin') return;
+    
+    // Disconnect existing socket if any
+    if (socket) {
+      socket.disconnect();
+      setSocket(null);
+    }
+    
+    const newSocket = io(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000', {
+      withCredentials: true,
+      transports: ['websocket', 'polling']
+    });
+
+    newSocket.on('connect', () => {
+      console.log('Socket connected for online users tracking');
+      
+      // Authenticate user with socket
+      newSocket.emit('user-authenticated', {
+        userId: currentUser._id,
+        email: currentUser.email,
+        role: currentUser.role,
+        company: currentUser.company
+      });
+
+      // Request current online users
+      newSocket.emit('get-online-users', { role: currentUser.role });
+    });
+
+    // Listen for online users updates
+    newSocket.on('online-users-update', (data) => {
+      console.log('Received online users update:', data);
+      if (data.users && Array.isArray(data.users)) {
+        // Filter out the current user and remove duplicates
+        const filteredUsers = data.users.filter(user => 
+          user.userId !== currentUser._id && 
+          user.userId && 
+          user.email
+        );
+        
+        // Remove duplicates based on userId
+        const uniqueUsers = filteredUsers.filter((user, index, self) => 
+          index === self.findIndex(u => u.userId === user.userId)
+        );
+        
+        const onlineUserIds = new Set(uniqueUsers.map(user => user.userId));
+        setOnlineUsers(onlineUserIds);
+        setOnlineUsersLoading(false);
+        
+        console.log('Filtered online users:', {
+          total: data.totalOnline,
+          filtered: filteredUsers.length,
+          unique: uniqueUsers.length,
+          currentUser: currentUser._id,
+          onlineUsers: Array.from(onlineUserIds)
+        });
+      }
+    });
+
+    // Listen for user coming online
+    newSocket.on('user-came-online', (userData) => {
+      console.log('User came online:', userData);
+      // Don't add current user to online list
+      if (userData.userId !== currentUser._id) {
+        setOnlineUsers(prev => new Set([...prev, userData.userId]));
+      }
+    });
+
+    // Listen for user going offline
+    newSocket.on('user-went-offline', (userData) => {
+      console.log('User went offline:', userData);
+      setOnlineUsers(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(userData.userId);
+        return newSet;
+      });
+    });
+
+    // Handle socket errors
+    newSocket.on('connect_error', (error) => {
+      console.error('Socket connection error:', error);
+      setOnlineUsersLoading(false);
+    });
+
+    // Handle socket disconnection
+    newSocket.on('disconnect', () => {
+      console.log('Socket disconnected');
+      setOnlineUsersLoading(false);
+    });
+
+    setSocket(newSocket);
+  };
+
+  // Function to manually refresh online users
+  const refreshOnlineUsers = () => {
+    if (currentUser?.role === 'superadmin' && socket) {
+      setOnlineUsersLoading(true);
+      socket.emit('get-online-users', { role: currentUser.role });
+    }
+  };
+
+  // Refresh online users when filters are toggled
+  const refreshOnlineUsersOnFilterToggle = () => {
+    if (currentUser?.role === 'superadmin' && socket) {
+      refreshOnlineUsers();
+    }
+  };
+
+  const fetchOnlineUsers = async () => {
+    if (currentUser?.role !== 'superadmin') return;
+    
+    try {
+      setOnlineUsersLoading(true);
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/users/online`, {
+        credentials: 'include'
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.data && data.data.users) {
+          const onlineUserIds = new Set(data.data.users.map(user => user.userId));
+          setOnlineUsers(onlineUserIds);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching online users:', error);
+    } finally {
+      setOnlineUsersLoading(false);
+    }
+  };
+
+  // Handle dialog actions
+  const openEditDialog = (user) => {
+    setSelectedUserForDialog(user);
+    setShowEditDialog(true);
+  };
+
+  const openDetailsDialog = async (user) => {
+    setSelectedUserForDialog(user);
+    setShowDetailsDialog(true);
+    // Disable body scrolling when popup is open
+    document.body.style.overflow = 'hidden';
+    
+    // Fetch user statistics
+    await fetchUserStats(user._id);
+  };
+
+  const closeDialogs = () => {
+    setShowEditDialog(false);
+    setShowDetailsDialog(false);
+    setSelectedUserForDialog(null);
+    setUserStats(null);
+    // Re-enable body scrolling when popup is closed
+    document.body.style.overflow = 'auto';
+  };
+
+  const fetchUserStats = async (userId) => {
+    try {
+      setLoadingStats(true);
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/users/${userId}/stats`, {
+        credentials: 'include'
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        
+        if (data.success) {
+          setUserStats(data.data.stats);
+        } else {
+          console.error('Failed to fetch user stats:', data.message);
+          setUserStats(null);
+        }
+      } else {
+        console.error('Failed to fetch user stats:', response.status);
+        setUserStats(null);
+      }
+    } catch (error) {
+      console.error('Error fetching user stats:', error);
+      setUserStats(null);
+    } finally {
+      setLoadingStats(false);
+    }
+  };
+
+  const handleUserUpdate = (updatedUser) => {
+    setUsers(prevUsers => 
+      prevUsers.map(user => 
+        user._id === updatedUser._id ? updatedUser : user
+      )
+    );
+  };
+
+  // Handle user actions (edit, view, freeze, suspend)
+  const handleUserAction = async (action, userId) => {
+    try {
+      switch (action) {
+        case 'edit':
+          openEditDialog(users.find(u => u._id === userId));
+          break;
+        case 'view':
+          openDetailsDialog(users.find(u => u._id === userId));
+          break;
+        case 'freeze':
+          const freezeResponse = await freezeUser(userId);
+          if (freezeResponse.success) {
+            // Update local state immediately
+            setUsers(prevUsers => 
+              prevUsers.map(user => 
+                user._id === userId 
+                  ? { ...user, status: 'frozen' }
+                  : user
+              )
+            );
+            toast.success('User account frozen successfully');
+          } else {
+            toast.error(freezeResponse.message || 'Failed to freeze user');
+          }
+          break;
+        case 'suspend':
+          const suspendResponse = await suspendUser(userId);
+          if (suspendResponse.success) {
+            // Update local state immediately
+            setUsers(prevUsers => 
+              prevUsers.map(user => 
+                user._id === userId 
+                  ? { ...user, status: 'suspended' }
+                  : user
+              )
+            );
+            toast.success('User account suspended successfully');
+          } else {
+            toast.error(suspendResponse.message || 'Failed to suspend user');
+          }
+          break;
+        case 'activate':
+          const activateResponse = await activateUser(userId);
+          if (activateResponse.success) {
+            // Update local state immediately
+            setUsers(prevUsers => 
+              prevUsers.map(user => 
+                user._id === userId 
+                  ? { ...user, status: 'active' }
+                  : user
+              )
+            );
+            toast.success('User account activated successfully');
+          } else {
+            toast.error(activateResponse.message || 'Failed to activate user');
+          }
+          break;
+        default:
+          toast.error('Unknown action');
+      }
+    } catch (error) {
+      console.error(`Error in handleUserAction (${action}):`, error);
+      toast.error(`Failed to ${action} user: ${error.message || 'Unknown error'}`);
+    }
+  };
+
+  // Handle bulk user actions
+  const handleBulkUserAction = async (action, userIds) => {
+    if (userIds.length === 0) {
+      toast.error('Please select users to perform this action');
+      return;
+    }
+
+    try {
+      let successCount = 0;
+      let failureCount = 0;
+      const newStatus = action === 'freeze' ? 'frozen' : action === 'suspend' ? 'suspended' : 'active';
+
+      for (const userId of userIds) {
+        try {
+          let response;
+          if (action === 'freeze') {
+            response = await freezeUser(userId);
+          } else if (action === 'suspend') {
+            response = await suspendUser(userId);
+          } else if (action === 'activate') {
+            response = await activateUser(userId);
+          }
+
+          if (response && response.success) {
+            successCount++;
+            // Update local state immediately
+            setUsers(prevUsers => 
+              prevUsers.map(user => 
+                user._id === userId 
+                  ? { ...user, status: newStatus }
+                  : user
+              )
+            );
+          } else {
+            failureCount++;
+          }
+        } catch (err) {
+          failureCount++;
+        }
+      }
+
+      if (successCount > 0) {
+        toast.success(`Successfully ${action}ed ${successCount} user(s)`);
+        // Clear selection after successful bulk action
+        setSelectedUsers([]);
+        setSelectAll(false);
+      }
+      if (failureCount > 0) {
+        toast.error(`${failureCount} ${action}(s) failed`);
+      }
+    } catch (error) {
+      console.error(`Error in bulk ${action}:`, error);
+      toast.error(`Failed to ${action} users: ${error.message || 'Unknown error'}`);
+    }
+  };
+
   if (loading) {
     return (
       <div className="space-y-6">
@@ -444,6 +1022,11 @@ export default function UserManagementSection({
             <div className="ml-3 sm:ml-4">
               <p className="text-xs sm:text-sm font-medium text-gray-600">Total Users</p>
               <p className="text-xl sm:text-2xl font-bold text-gray-900">{users.length}</p>
+              {showFilters && (
+                <p className="text-xs text-gray-500 mt-1">
+                  Showing {sortedUsers.length} filtered
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -458,6 +1041,11 @@ export default function UserManagementSection({
               <p className="text-xl sm:text-2xl font-bold text-gray-900">
                 {users.filter(user => user.status === 'active').length}
               </p>
+              {showFilters && (
+                <p className="text-xs text-gray-500 mt-1">
+                  {sortedUsers.filter(user => user.status === 'active').length} in view
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -472,6 +1060,11 @@ export default function UserManagementSection({
               <p className="text-xl sm:text-2xl font-bold text-gray-900">
                 {users.filter(user => user.role === 'company-admin').length}
               </p>
+              {showFilters && (
+                <p className="text-xs text-gray-500 mt-1">
+                  {sortedUsers.filter(user => user.role === 'company-admin').length} in view
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -486,6 +1079,11 @@ export default function UserManagementSection({
               <p className="text-xl sm:text-2xl font-bold text-gray-900">
                 {users.filter(user => user.role === 'landlord').length}
               </p>
+              {showFilters && (
+                <p className="text-xs text-gray-500 mt-1">
+                  {sortedUsers.filter(user => user.role === 'landlord').length} in view
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -510,7 +1108,7 @@ export default function UserManagementSection({
                 </span>
               ) : (
                 <span className="text-sm text-gray-500">
-                  {filteredUsers.length} of {users.length} {users.length === 1 ? 'user' : 'users'}
+                  {sortedUsers.length} of {users.length} {users.length === 1 ? 'user' : 'users'}
                   {searchTerm && ` matching "${searchTerm}"`}
                 </span>
               )}
@@ -546,20 +1144,20 @@ export default function UserManagementSection({
                 ) : (
                   <>
                     <button
-                      onClick={() => handleUserAction('freeze', selectedUsers)}
+                       onClick={() => handleBulkUserAction('freeze', selectedUsers)}
                       className="text-orange-600 hover:text-orange-800 text-xs sm:text-sm flex items-center gap-1 hover:bg-orange-50 px-2 py-1 rounded"
                       title="Freeze selected users"
                     >
-                      <span className="text-xs">❄️</span>
+                      <Snowflake className="w-3 h-3" />
                       <span className="hidden sm:inline">Freeze Selected</span>
                       <span className="sm:hidden">Freeze</span>
                     </button>
                     <button
-                      onClick={() => handleUserAction('suspend', selectedUsers)}
+                      onClick={() => handleBulkUserAction('suspend', selectedUsers)}
                       className="text-red-600 hover:text-red-800 text-xs sm:text-sm flex items-center gap-1 hover:bg-red-50 px-2 py-1 rounded"
                       title="Suspend selected users"
                     >
-                      <span className="text-xs">🚫</span>
+                      <Ban className="w-3 h-3" />
                       <span className="hidden sm:inline">Suspend Selected</span>
                       <span className="sm:hidden">Suspend</span>
                     </button>
@@ -588,7 +1186,7 @@ export default function UserManagementSection({
             )}
           </div>
           
-          {/* Search Box */}
+          {/* Search and Filter Controls */}
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 w-full sm:w-auto">
             {/* Trash View Toggle */}
             <Button
@@ -607,6 +1205,8 @@ export default function UserManagementSection({
               </span>
             </Button>
             
+
+            
             <div className="relative w-full sm:w-auto">
               <Search className="absolute left-3 sm:left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
               <input
@@ -619,6 +1219,214 @@ export default function UserManagementSection({
             </div>
           </div>
         </div>
+
+        {/* Quick Filter Buttons */}
+        <div className="bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-xl p-4 mx-4 sm:mx-6 mb-4 shadow-sm hover:shadow-md transition-all duration-300">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <div className="p-2 bg-purple-100 rounded-lg">
+                <Filter className="w-4 h-4 text-purple-600" />
+              </div>
+              <span className="text-sm font-semibold text-purple-800">Quick Filters</span>
+              {loading && (
+                <div className="flex items-center gap-1 text-purple-600">
+                  <div className="w-2 h-2 bg-purple-600 rounded-full animate-bounce"></div>
+                  <div className="w-2 h-2 bg-purple-600 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                  <div className="w-2 h-2 bg-purple-600 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                </div>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-purple-600 bg-purple-100 px-2 py-1 rounded-full font-medium">
+                {filteredUsers.length} of {users.length} users
+              </span>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => {
+                if (roleFilter === 'landlord' && companyFilter === 'all' && statusFilter === 'all' && activityFilter === 'all') {
+                  // Clear filter if already active
+                  setRoleFilter('all');
+                  setCompanyFilter('all');
+                  setStatusFilter('all');
+                  setActivityFilter('all');
+                } else {
+                  // Set filter
+                  setRoleFilter('landlord');
+                  setCompanyFilter('all');
+                  setStatusFilter('all');
+                  setActivityFilter('all');
+                }
+              }}
+              className={`px-4 py-2 text-xs font-medium rounded-full transition-all duration-200 flex items-center gap-2 shadow-sm hover:shadow-md active:scale-95 ${
+                roleFilter === 'landlord' && companyFilter === 'all' && statusFilter === 'all' && activityFilter === 'all'
+                  ? 'bg-blue-500 text-white border-2 border-blue-600 shadow-lg transform scale-105'
+                  : 'bg-white text-gray-700 hover:bg-blue-50 hover:text-blue-700 border-2 border-blue-200 hover:border-blue-300'
+              }`}
+            >
+              <Home className="w-3 h-3" />
+              <span>Landlords</span>
+            </button>
+            <button
+              onClick={() => {
+                if (roleFilter === 'resident' && companyFilter === 'all' && statusFilter === 'all' && activityFilter === 'all') {
+                  // Clear filter if already active
+                  setRoleFilter('all');
+                  setCompanyFilter('all');
+                  setStatusFilter('all');
+                  setActivityFilter('all');
+                } else {
+                  // Set filter
+                  setRoleFilter('resident');
+                  setCompanyFilter('all');
+                  setStatusFilter('all');
+                  setActivityFilter('all');
+                }
+              }}
+              className={`px-4 py-2 text-xs font-medium rounded-full transition-all duration-200 flex items-center gap-2 shadow-sm hover:shadow-md active:scale-95 ${
+                roleFilter === 'resident' && companyFilter === 'all' && statusFilter === 'all' && activityFilter === 'all'
+                  ? 'bg-green-500 text-white border-2 border-green-600 shadow-lg transform scale-105'
+                  : 'bg-white text-gray-700 hover:bg-green-50 hover:text-green-700 border-2 border-green-200 hover:border-green-300'
+              }`}
+            >
+              <User className="w-3 h-3" />
+              <span>Residents</span>
+            </button>
+            <button
+              onClick={() => {
+                if (roleFilter === 'company-admin' && companyFilter === 'all' && statusFilter === 'all' && activityFilter === 'all') {
+                  // Clear filter if already active
+                  setRoleFilter('all');
+                  setCompanyFilter('all');
+                  setStatusFilter('all');
+                  setActivityFilter('all');
+                } else {
+                  // Set filter
+                  setRoleFilter('company-admin');
+                  setCompanyFilter('all');
+                  setStatusFilter('all');
+                  setActivityFilter('all');
+                }
+              }}
+              className={`px-4 py-2 text-xs font-medium rounded-full transition-all duration-200 flex items-center gap-2 shadow-sm hover:shadow-md active:scale-95 ${
+                roleFilter === 'company-admin' && companyFilter === 'all' && statusFilter === 'all' && activityFilter === 'all'
+                  ? 'bg-purple-500 text-white border-2 border-purple-600 shadow-lg transform scale-105'
+                  : 'bg-white text-gray-700 hover:bg-purple-50 hover:text-purple-700 border-2 border-purple-200 hover:border-purple-300'
+              }`}
+            >
+              <Building className="w-3 h-3" />
+              <span>Company Admins</span>
+            </button>
+            <button
+              onClick={() => {
+                if (roleFilter === 'all' && companyFilter === 'all' && statusFilter === 'active' && activityFilter === 'all') {
+                  // Clear filter if already active
+                  setRoleFilter('all');
+                  setCompanyFilter('all');
+                  setStatusFilter('all');
+                  setActivityFilter('all');
+                } else {
+                  // Set filter
+                  setRoleFilter('all');
+                  setCompanyFilter('all');
+                  setStatusFilter('active');
+                  setActivityFilter('all');
+                }
+              }}
+              className={`px-4 py-2 text-xs font-medium rounded-full transition-all duration-200 flex items-center gap-2 shadow-sm hover:shadow-md active:scale-95 ${
+                roleFilter === 'all' && companyFilter === 'all' && statusFilter === 'active' && activityFilter === 'all'
+                  ? 'bg-emerald-500 text-white border-2 border-emerald-600 shadow-lg transform scale-105'
+                  : 'bg-white text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 border-2 border-emerald-200 hover:border-emerald-300'
+              }`}
+            >
+              <CheckCircle className="w-3 h-3" />
+              <span>Active Users</span>
+            </button>
+            <button
+              onClick={() => {
+                if (roleFilter === 'all' && companyFilter === 'all' && statusFilter === 'all' && activityFilter === 'online') {
+                  // Clear filter if already active
+                  setRoleFilter('all');
+                  setCompanyFilter('all');
+                  setStatusFilter('all');
+                  setActivityFilter('all');
+                } else {
+                  // Set filter
+                  setRoleFilter('all');
+                  setCompanyFilter('all');
+                  setStatusFilter('all');
+                  setActivityFilter('online');
+                }
+              }}
+              className={`px-4 py-2 text-xs font-medium rounded-full transition-all duration-200 flex items-center gap-2 shadow-sm hover:shadow-md active:scale-95 ${
+                roleFilter === 'all' && companyFilter === 'all' && statusFilter === 'all' && activityFilter === 'online'
+                  ? 'bg-indigo-500 text-white border-2 border-indigo-600 shadow-lg transform scale-105'
+                  : 'bg-white text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 border-2 border-indigo-200 hover:border-indigo-300'
+              }`}
+            >
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+              <span>Online Now</span>
+            </button>
+            <button
+              onClick={() => {
+                if (roleFilter === 'all' && companyFilter === 'all' && statusFilter === 'all' && activityFilter === 'never') {
+                  // Clear filter if already active
+                  setRoleFilter('all');
+                  setCompanyFilter('all');
+                  setStatusFilter('all');
+                  setActivityFilter('all');
+                } else {
+                  // Set filter
+                  setRoleFilter('all');
+                  setCompanyFilter('all');
+                  setStatusFilter('all');
+                  setActivityFilter('never');
+                }
+              }}
+              className={`px-4 py-2 text-xs font-medium rounded-full transition-all duration-200 flex items-center gap-2 shadow-sm hover:shadow-md active:scale-95 ${
+                roleFilter === 'all' && companyFilter === 'all' && statusFilter === 'all' && activityFilter === 'never'
+                  ? 'bg-red-500 text-white border-2 border-red-600 shadow-lg transform scale-105'
+                  : 'bg-white text-gray-700 hover:bg-red-50 hover:text-red-700 border-2 border-red-200 hover:border-red-300'
+              }`}
+            >
+              <AlertCircle className="w-3 h-3" />
+              <span>Never Logged In</span>
+            </button>
+            {/* Date Range Filters */}
+            <div className="flex items-center gap-2">
+              <input
+                type="date"
+                value={fromDate}
+                onChange={(e) => setFromDate(e.target.value)}
+                className="px-3 py-2 text-xs border-l-2 border-t-2 border-b-2 border-gray-300 rounded-l-full focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none"
+                placeholder="From Date"
+              />
+              <span className="text-xs text-gray-500">to</span>
+              <input
+                type="date"
+                value={toDate}
+                onChange={(e) => setToDate(e.target.value)}
+                className="px-3 py-2 text-xs border-r-2 border-t-2 border-b-2 border-gray-300 rounded-r-full focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none"
+                placeholder="To Date"
+              />
+              {(fromDate || toDate) && (
+                <button
+                  onClick={() => {
+                    setFromDate('');
+                    setToDate('');
+                  }}
+                  className="px-2 py-2 text-xs text-red-600 hover:text-red-800 hover:bg-red-50 rounded-full transition-colors"
+                  title="Clear date filters"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+
+
 
         {/* Trash View Info - Only show in trash view */}
         {viewMode === 'trash' && (
@@ -643,6 +1451,7 @@ export default function UserManagementSection({
                   <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
                   <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Company</th>
                   <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                  
                   <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Login</th>
                   <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
               </tr>
@@ -716,6 +1525,7 @@ export default function UserManagementSection({
                            user.status}
                     </span>
                   </td>
+
                       <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {user.lastLogin ? moment(user.lastLogin).format('MMM DD, YYYY') : 'Never'}
                   </td>
@@ -747,7 +1557,7 @@ export default function UserManagementSection({
                           ) : (
                             <>
                               <button
-                                onClick={() => handleUserAction('edit', user._id)}
+                                onClick={() => openEditDialog(user)}
                                 className="flex items-center justify-center gap-1 text-green-600 hover:text-green-800 text-sm transition-all duration-200 hover:bg-green-50 px-2 py-1.5 rounded-lg"
                                 title="Edit user"
                               >
@@ -782,18 +1592,24 @@ export default function UserManagementSection({
                                   align="end"
                                   sideOffset={5}
                                 >
-                                  <DropdownMenuItem onClick={() => handleUserAction('view', user._id)}>
+                                  <DropdownMenuItem onClick={() => openDetailsDialog(user)}>
                                     <Eye className="w-4 h-4 mr-2 text-blue-600" />
                                     <span>View Details</span>
                                   </DropdownMenuItem>
                                   <DropdownMenuItem onClick={() => handleUserAction('freeze', user._id)}>
-                                    <span className="text-orange-600 mr-2">❄️</span>
+                                    <Snowflake className="w-4 h-4 mr-2 text-orange-600" />
                                     <span>Freeze Account</span>
                                   </DropdownMenuItem>
                                   <DropdownMenuItem onClick={() => handleUserAction('suspend', user._id)}>
-                                    <span className="text-red-600 mr-2">🚫</span>
+                                    <Ban className="w-4 h-4 mr-2 text-red-600" />
                                     <span>Suspend Account</span>
                                   </DropdownMenuItem>
+                                  {(user.status === 'frozen' || user.status === 'suspended') && (
+                                    <DropdownMenuItem onClick={() => handleUserAction('activate', user._id)}>
+                                      <CheckCircle2 className="w-4 h-4 mr-2 text-green-600" />
+                                      <span>Activate Account</span>
+                                    </DropdownMenuItem>
+                                  )}
                                 </DropdownMenuContent>
                               </DropdownMenu>
                             </>
@@ -903,6 +1719,7 @@ export default function UserManagementSection({
                         </span>
                         <span className="text-xs text-gray-500 mt-1">Status</span>
                       </div>
+
                     </div>
                   </div>
 
@@ -944,14 +1761,14 @@ export default function UserManagementSection({
                             </>
                           ) : (
                             <>
-                              <button
-                                onClick={() => handleUserAction('edit', user._id)}
-                                className="flex items-center justify-center gap-1 text-green-600 hover:text-green-800 transition-all duration-200 hover:bg-green-50 px-2 py-1.5 rounded-lg"
-                                title="Edit user"
-                              >
-                                <Edit className="w-3 h-3" />
-                                <span className="text-xs">Edit</span>
-                              </button>
+                                                          <button
+                              onClick={() => openEditDialog(user)}
+                              className="flex items-center justify-center gap-1 text-green-600 hover:text-green-800 transition-all duration-200 hover:bg-green-50 px-2 py-1.5 rounded-lg"
+                              title="Edit user"
+                            >
+                              <Edit className="w-3 h-3" />
+                              <span className="text-xs">Edit</span>
+                            </button>
                               <button
                                 onClick={() => handleDeleteUser(user._id)}
                                 disabled={deletingUsers.has(user._id)}
@@ -973,7 +1790,7 @@ export default function UserManagementSection({
                         {viewMode !== 'trash' && (
                           <div className="flex items-center gap-3">
                             <button
-                              onClick={() => handleUserAction('view', user._id)}
+                              onClick={() => openDetailsDialog(user)}
                               className="flex items-center justify-center gap-1 text-blue-600 hover:text-blue-800 transition-all duration-200 hover:bg-blue-50 px-2 py-1.5 rounded-lg"
                               title="View Details"
                             >
@@ -985,7 +1802,7 @@ export default function UserManagementSection({
                               className="flex items-center justify-center gap-1 text-orange-600 hover:text-orange-800 transition-all duration-200 hover:bg-orange-50 px-2 py-1.5 rounded-lg"
                               title="Freeze Account"
                             >
-                              <span className="text-xs">❄️</span>
+                              <Snowflake className="w-3 h-3" />
                               <span className="text-xs">Freeze</span>
                             </button>
                             <button
@@ -993,9 +1810,19 @@ export default function UserManagementSection({
                               className="flex items-center justify-center gap-1 text-red-600 hover:text-red-800 transition-all duration-200 hover:bg-red-50 px-2 py-1.5 rounded-lg"
                               title="Suspend Account"
                             >
-                              <span className="text-xs">🚫</span>
+                              <Ban className="w-3 h-3" />
                               <span className="text-xs">Suspend</span>
                             </button>
+                            {(user.status === 'frozen' || user.status === 'suspended') && (
+                              <button
+                                onClick={() => handleUserAction('activate', user._id)}
+                                className="flex items-center justify-center gap-1 text-green-600 hover:text-green-800 transition-all duration-200 hover:bg-green-50 px-2 py-1.5 rounded-lg"
+                                title="Activate Account"
+                              >
+                                <CheckCircle2 className="w-3 h-3" />
+                                <span className="text-xs">Activate</span>
+                              </button>
+                            )}
                           </div>
                         )}
                       </div>
@@ -1076,6 +1903,338 @@ export default function UserManagementSection({
         )}
       </div>
 
+      {/* Edit User Dialog */}
+      {showEditDialog && selectedUserForDialog && (
+        <UserEditDialog
+          user={selectedUserForDialog}
+          isOpen={showEditDialog}
+          onClose={closeDialogs}
+          onUpdate={handleUserUpdate}
+        />
+      )}
+
+      {/* User Details Dialog */}
+      {showDetailsDialog && selectedUserForDialog && (
+        <>
+          <style jsx global>{`
+            body { overflow: hidden; }
+          `}</style>
+          <div className="fixed top-0 left-0 right-0 bottom-0 w-full h-full bg-black/40 backdrop-blur-sm z-[9999] pointer-events-none"></div>
+          <div className="fixed inset-0 z-[10000] flex items-center justify-center p-2">
+            <div className="min-w-[0] max-w-[85vw] w-full sm:w-[800px] bg-white rounded-2xl shadow-2xl pointer-events-auto flex flex-col mx-0">
+              {/* Purple header strip above modal */}
+              <div className="flex items-center justify-center bg-purple-500 text-white p-3 sm:p-4 m-0 rounded-t-2xl relative">
+                <div className="flex-1 flex items-center justify-center">
+                  <span className="text-sm sm:text-lg font-bold text-center flex items-center gap-2">
+                    <User className="w-4 h-4 sm:w-5 sm:h-5" />
+                    User Details
+                  </span>
+                </div>
+                <button
+                  onClick={closeDialogs}
+                  className="absolute right-2 sm:right-4 bg-purple-500 hover:bg-purple-700 text-white transition p-1.5 sm:p-2 rounded-full shadow"
+                  aria-label="Close"
+                >
+                  <X className="w-4 h-4 sm:w-5 sm:h-5" />
+                </button>
+              </div>
+              
+              <div className="w-full bg-white rounded-b-2xl shadow-2xl border border-gray-200 p-3 sm:p-6 flex flex-col pointer-events-auto max-h-[85vh] sm:max-h-[80vh] overflow-y-auto">
+                {selectedUserForDialog ? (
+                  <div className="space-y-4 sm:space-y-6">
+                    {/* User Header with Status */}
+                    <div className="text-center pb-4 border-b border-gray-200">
+                      <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-full text-sm font-medium mb-3">
+                        <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                        {selectedUserForDialog.status === 'frozen' ? 'Frozen' : 
+                         selectedUserForDialog.status === 'suspended' ? 'Suspended' : 
+                         selectedUserForDialog.status === 'active' ? 'Active' : 
+                         selectedUserForDialog.status === 'inactive' ? 'Inactive' : 
+                         selectedUserForDialog.status}
+                      </div>
+                      <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">
+                        {selectedUserForDialog.email}
+                      </h2>
+                      <p className="text-gray-500 text-sm">
+                        Created {moment(selectedUserForDialog.createdAt).format('MMM DD, YYYY')}
+                      </p>
+                    </div>
+
+                    {/* User Information Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+                      {/* Left Column */}
+                      <div className="space-y-4">
+                        <div className="bg-gray-50 rounded-xl p-4">
+                          <h3 className="font-semibold text-gray-900 mb-3 text-lg">Basic Information</h3>
+                          <div className="space-y-2 text-sm">
+                            <div className="flex justify-between">
+                              <span className="font-medium text-gray-600">Email:</span>
+                              <span className="text-gray-900">{selectedUserForDialog.email}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="font-medium text-gray-600">Role:</span>
+                              <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getRoleBadgeColor(selectedUserForDialog.role)}`}>
+                                {selectedUserForDialog.role === 'landlord' ? 'Landlord' : 
+                                 selectedUserForDialog.role === 'resident' ? 'Resident' : 
+                                 selectedUserForDialog.role === 'company-admin' ? 'Company Admin' : 
+                                 selectedUserForDialog.role}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="font-medium text-gray-600">Company:</span>
+                              <span className="text-gray-900">{selectedUserForDialog.company || 'Unassigned'}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="font-medium text-gray-600">Status:</span>
+                              <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getStatusBadgeColor(selectedUserForDialog.status)}`}>
+                                {selectedUserForDialog.status === 'frozen' ? 'Frozen' : 
+                                 selectedUserForDialog.status === 'suspended' ? 'Suspended' : 
+                                 selectedUserForDialog.status === 'active' ? 'Active' : 
+                                 selectedUserForDialog.status === 'inactive' ? 'Inactive' : 
+                                 selectedUserForDialog.status}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="font-medium text-gray-600">Last Login:</span>
+                              <span className="text-gray-900">{selectedUserForDialog.lastLogin ? moment(selectedUserForDialog.lastLogin).format('MMM DD, YYYY HH:mm') : 'Never'}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="font-medium text-gray-600">Created:</span>
+                              <span className="text-gray-900">{moment(selectedUserForDialog.createdAt).format('MMM DD, YYYY')}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Right Column */}
+                      <div className="space-y-4">
+                        {/* User Statistics */}
+                        <div className="bg-white border border-gray-200 rounded-xl p-4 h-full">
+                          <h3 className="font-semibold text-gray-900 mb-2 text-lg">User Statistics</h3>
+                          <div className="bg-gray-50 rounded-lg p-3">
+                            <div className="space-y-2">
+                              <div className="flex justify-between items-center bg-white/60 p-2 rounded">
+                                <span className="text-gray-700 text-sm">Account Age:</span>
+                                <span className="font-bold text-gray-900 bg-white px-2 py-1 rounded text-sm">
+                                  {moment().diff(moment(selectedUserForDialog.createdAt), 'days')} days
+                                </span>
+                              </div>
+                              <div className="flex justify-between items-center bg-white/60 p-2 rounded">
+                                <span className="text-gray-700 text-sm">Profile Complete:</span>
+                                <span className="font-bold text-gray-900 bg-white px-2 py-1 rounded text-sm">
+                                  {selectedUserForDialog.landlordInfo?.landlordName ? 'Yes' : 'No'}
+                                </span>
+                              </div>
+                              <div className="flex justify-between items-center bg-white/60 p-2 rounded">
+                                <span className="text-gray-700 text-sm">Last Activity:</span>
+                                <span className="font-bold text-gray-900 bg-white px-2 py-1 rounded text-sm">
+                                  {selectedUserForDialog.lastLogin ? moment(selectedUserForDialog.lastLogin).fromNow() : 'Never'}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+
+
+                    {/* Detailed Statistics Section */}
+                    <div className="bg-white border border-gray-200 rounded-xl p-4">
+                      <h3 className="font-semibold text-gray-900 mb-4 text-lg">Detailed Statistics</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {/* Landlord Statistics */}
+                        {selectedUserForDialog.role === 'landlord' && (
+                          <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-4 rounded-lg border border-blue-200">
+                            <h4 className="font-semibold text-blue-900 mb-3 flex items-center gap-2">
+                              <Home className="w-4 h-4" />
+                              Landlord Statistics
+                            </h4>
+                            <div className="space-y-3">
+                              <div className="flex justify-between items-center bg-white/60 p-2 rounded">
+                                <span className="text-blue-700 text-sm">Total Meetings:</span>
+                                <span className="font-bold text-blue-900 bg-white px-2 py-1 rounded text-sm">
+                                  {loadingStats ? '...' : (userStats?.landlordStats?.totalMeetings || 0)}
+                                </span>
+                              </div>
+                              <div className="flex justify-between items-center bg-white/60 p-2 rounded">
+                                <span className="text-blue-700 text-sm">Active Meetings:</span>
+                                <span className="font-bold text-blue-900 bg-white px-2 py-1 rounded text-sm">
+                                  {loadingStats ? '...' : (userStats?.landlordStats?.activeMeetings || 0)}
+                                </span>
+                              </div>
+                              <div className="flex justify-between items-center bg-white/60 p-2 rounded">
+                                <span className="text-blue-700 text-sm">Total Recordings:</span>
+                                <span className="font-bold text-blue-900 bg-white px-2 py-1 rounded text-sm">
+                                  {loadingStats ? '...' : (userStats?.landlordStats?.totalRecordings || 0)}
+                                </span>
+                              </div>
+                              <div className="flex justify-between items-center bg-white/60 p-2 rounded">
+                                <span className="text-blue-700 text-sm">Total Screenshots:</span>
+                                <span className="font-bold text-blue-900 bg-white px-2 py-1 rounded text-sm">
+                                  {loadingStats ? '...' : (userStats?.landlordStats?.totalScreenshots || 0)}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Resident Statistics */}
+                        {selectedUserForDialog.role === 'resident' && (
+                          <div className="bg-gradient-to-br from-green-50 to-green-100 p-4 rounded-lg border border-green-200">
+                            <h4 className="font-semibold text-green-900 mb-3 flex items-center gap-2">
+                              <User className="w-4 h-4" />
+                              Resident Statistics
+                            </h4>
+                            <div className="space-y-3">
+                              <div className="flex justify-between items-center bg-white/60 p-2 rounded">
+                                <span className="text-green-700 text-sm">Total Uploads:</span>
+                                <span className="font-bold text-green-900 bg-white px-2 py-1 rounded text-sm">
+                                  {loadingStats ? '...' : (userStats?.residentStats?.totalUploads || 0)}
+                                </span>
+                              </div>
+                              <div className="flex justify-between items-center bg-white/60 p-2 rounded">
+                                <span className="text-green-700 text-sm">Total Access:</span>
+                                <span className="font-bold text-green-900 bg-white px-2 py-1 rounded text-sm">
+                                  {loadingStats ? '...' : (userStats?.residentStats?.totalAccess || 0)}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Company Admin Statistics */}
+                        {selectedUserForDialog.role === 'company-admin' && (
+                          <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-4 rounded-lg border border-purple-200">
+                            <h4 className="font-semibold text-purple-900 mb-3 flex items-center gap-2">
+                              <Building className="w-4 h-4" />
+                              Company Admin Statistics
+                            </h4>
+                            <div className="space-y-3">
+                              <div className="flex justify-between items-center bg-white/60 p-2 rounded">
+                                <span className="text-purple-700 text-sm">Company Users:</span>
+                                <span className="font-bold text-purple-900 bg-white px-2 py-1 rounded text-sm">
+                                  {loadingStats ? '...' : (userStats?.companyStats?.companyUsers || 0)}
+                                </span>
+                              </div>
+                              <div className="flex justify-between items-center bg-white/60 p-2 rounded">
+                                <span className="text-purple-700 text-sm">Company Meetings:</span>
+                                <span className="font-bold text-purple-900 bg-white px-2 py-1 rounded text-sm">
+                                  {loadingStats ? '...' : (userStats?.companyStats?.companyMeetings || 0)}
+                                </span>
+                              </div>
+                              <div className="flex justify-between items-center bg-white/60 p-2 rounded">
+                                <span className="text-purple-700 text-sm">Company Uploads:</span>
+                                <span className="font-bold text-purple-900 bg-white px-2 py-1 rounded text-sm">
+                                  {loadingStats ? '...' : (userStats?.companyStats?.companyUploads || 0)}
+                                </span>
+                              </div>
+                              <div className="flex justify-between items-center bg-white/60 p-2 rounded">
+                                <span className="text-purple-700 text-sm">Company Revenue:</span>
+                                <span className="font-bold text-purple-900 bg-white px-2 py-1 rounded text-sm">
+                                  ${loadingStats ? '...' : (userStats?.companyStats?.companyRevenue || 0)}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Archive & Trash Statistics */}
+                        <div className="bg-gradient-to-br from-orange-50 to-orange-100 p-4 rounded-lg border border-orange-200">
+                          <h4 className="font-semibold text-orange-900 mb-3 flex items-center gap-2">
+                            <Archive className="w-4 h-4" />
+                            Archive & Trash
+                          </h4>
+                          <div className="space-y-3">
+                            <div className="flex justify-between items-center bg-white/60 p-2 rounded">
+                              <span className="text-orange-700 text-sm">Archived Items:</span>
+                              <span className="font-bold text-orange-900 bg-white px-2 py-1 rounded text-sm">
+                                {loadingStats ? '...' : (userStats?.archiveTrashStats?.archivedItems || 0)}
+                              </span>
+                            </div>
+                            <div className="flex justify-between items-center bg-white/60 p-2 rounded">
+                              <span className="text-orange-700 text-sm">Trash Items:</span>
+                              <span className="font-bold text-orange-900 bg-white px-2 py-1 rounded text-sm">
+                                {loadingStats ? '...' : (userStats?.archiveTrashStats?.trashItems || 0)}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Media Statistics */}
+                        <div className="bg-gradient-to-br from-indigo-50 to-indigo-100 p-4 rounded-lg border border-indigo-200">
+                          <h4 className="font-semibold text-indigo-900 mb-3 flex items-center gap-2">
+                            <FileText className="w-4 h-4" />
+                            Media
+                          </h4>
+                          <div className="space-y-3">
+                            <div className="flex justify-between items-center bg-white/60 p-2 rounded">
+                              <span className="text-indigo-700 text-sm">Total Screenshots:</span>
+                              <span className="font-bold text-indigo-900 bg-white px-2 py-1 rounded text-sm">
+                                {loadingStats ? '...' : (userStats?.mediaStats?.totalScreenshots || 0)}
+                              </span>
+                            </div>
+                            <div className="flex justify-between items-center bg-white/60 p-2 rounded">
+                              <span className="text-indigo-700 text-sm">Total Videos:</span>
+                              <span className="font-bold text-indigo-900 bg-white px-2 py-1 rounded text-sm">
+                                {loadingStats ? '...' : (userStats?.mediaStats?.totalVideos || 0)}
+                              </span>
+                            </div>
+                            <div className="flex justify-between items-center bg-white/60 p-2 rounded">
+                              <span className="text-indigo-700 text-sm">Storage Used:</span>
+                              <span className="font-bold text-indigo-900 bg-white px-2 py-1 rounded text-sm">
+                                {loadingStats ? '...' : `${userStats?.mediaStats?.storageUsed || 0} ${userStats?.mediaStats?.storageUnit || 'MB'}`}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Company Information */}
+                        {selectedUserForDialog.company && (
+                          <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 p-4 rounded-lg border border-emerald-200">
+                            <h4 className="font-semibold text-emerald-900 mb-3 flex items-center gap-2">
+                              <Building className="w-4 h-4" />
+                              Company Details
+                            </h4>
+                            <div className="space-y-3">
+                              <div className="flex justify-between items-center bg-white/60 p-2 rounded">
+                                <span className="text-emerald-700 text-sm">Company Name:</span>
+                                <span className="font-bold text-emerald-900 bg-white px-2 py-1 rounded text-sm">
+                                  {selectedUserForDialog.company}
+                                </span>
+                              </div>
+                              <div className="flex justify-between items-center bg-white/60 p-2 rounded">
+                                <span className="text-emerald-700 text-sm">Join Date:</span>
+                                <span className="font-bold text-emerald-900 bg-white px-2 py-1 rounded text-sm">
+                                  {moment(selectedUserForDialog.createdAt).format('MMM DD, YYYY')}
+                                </span>
+                              </div>
+                              <div className="flex justify-between items-center bg-white/60 p-2 rounded">
+                                <span className="text-emerald-700 text-sm">Company Role:</span>
+                                <span className="font-bold text-emerald-900 bg-white px-2 py-1 rounded text-sm">
+                                  {selectedUserForDialog.role === 'company-admin' ? 'Admin' : 
+                                   selectedUserForDialog.role === 'landlord' ? 'Landlord' : 
+                                   selectedUserForDialog.role === 'resident' ? 'Resident' : 
+                                   selectedUserForDialog.role}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    <p>No user selected.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
       {/* Permanent Delete Confirmation Dialog */}
       {showPermanentDeleteDialog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/30 backdrop-blur-sm">
@@ -1128,6 +2287,8 @@ export default function UserManagementSection({
           </div>
         </div>
       )}
+
+
     </div>
   );
 }

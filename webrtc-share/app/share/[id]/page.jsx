@@ -1258,7 +1258,8 @@ export default function SharePage({ params }) {
           </div>
         </div>
 
-        {/* Enhanced Special Notes Section with Full Width */}
+        {/* Enhanced Special Notes Section with Full Width - Only show if notes exist */}
+        {((meetingData?.structured_special_notes && typeof meetingData.structured_special_notes === 'object' && Object.keys(meetingData.structured_special_notes).length > 0) || specialNotes) && (
         <div className="bg-white rounded-3xl shadow-xl p-6 sm:p-8 mb-6 md:mb-8 border-2 border-gray-200">
           <div className="bg-yellow-50 border-2 border-yellow-200 rounded-2xl p-4 md:p-6">
             <div className="font-bold text-yellow-900 text-lg md:text-xl mb-3 md:mb-4 flex items-center justify-between">
@@ -1481,6 +1482,7 @@ export default function SharePage({ params }) {
             </div>
           </div>
         </div>
+        )}
 
         {/* Enhanced Video & Image Section */}
         <div className="bg-white rounded-3xl shadow-xl p-4 sm:p-8 border-2 border-gray-200 mb-6 md:mb-8 media-section">

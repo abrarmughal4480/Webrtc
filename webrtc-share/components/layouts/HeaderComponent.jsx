@@ -27,30 +27,71 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Button } from '../ui/button';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { evaluatePasswordStrength } from '@/lib/utils';
-import useIntersectionObserver from '@/hooks/useInserctionObserver';
 import CustomDialog from '../dialogs/CustomDialog';
 import { useDialog } from "@/provider/DilogsProvider";
 
+// Simple and fast scroll function
+const smoothScrollTo = (targetId) => {
+  const element = document.getElementById(targetId);
+  if (element) {
+    const headerHeight = document.querySelector('header')?.offsetHeight || 0;
+    const elementTop = element.offsetTop - headerHeight;
+    
+    // Use native smooth scroll with better performance
+    element.scrollIntoView({
+      behavior: 'smooth',
+      block: 'start',
+      inline: 'nearest'
+    });
+    
+    // Fallback for browsers that don't support smooth scroll
+    if (!('scrollBehavior' in document.documentElement.style)) {
+      window.scrollTo({
+        top: elementTop,
+        behavior: 'auto'
+      });
+    }
+    
+    // Additional adjustment to ensure proper positioning
+    setTimeout(() => {
+      const currentScrollTop = window.pageYOffset || document.documentElement.scrollTop;
+      const targetScrollTop = elementTop;
+      if (Math.abs(currentScrollTop - targetScrollTop) > 10) {
+        window.scrollTo({
+          top: targetScrollTop,
+          behavior: 'auto'
+        });
+      }
+    }, 100);
+  }
+};
 
-const NavLink = ({ targetId, label, rootMargin = "0px" }) => {
-  const { isIntersecting } = useIntersectionObserver(targetId, { rootMargin: rootMargin });
-  // Always show purple left border, only change bg/text on hover/active
+// Simple NavLink component without complex intersection logic
+const NavLink = ({ targetId, label, isActive = false }) => {
+  const handleClick = (e) => {
+    e.preventDefault();
+    smoothScrollTo(targetId);
+  };
+  
   return (
     <a
       href={`#${targetId}`}
+      onClick={handleClick}
       className={`
         text-gray-700
         pl-6
         pr-5
         border-r-2
         border-purple
-        transition-colors
+        transition-all
+        duration-200
         hover:bg-amber-500
         hover:!text-black
         focus:bg-amber-500
         focus:!text-black
-        ${isIntersecting ? "bg-amber-500 !text-black" : "bg-transparent"}
+        ${isActive ? "bg-amber-500 !text-black" : "bg-transparent"}
       `}
       style={{ minWidth: 0 }}
     >
@@ -60,6 +101,7 @@ const NavLink = ({ targetId, label, rootMargin = "0px" }) => {
 }
 
 export const Header = () => {
+  const router = useRouter();
   const [signUpOpen, setSignUpOpen] = useState(false);
   const [signInOpen, setSignInOpen] = useState(false);
   const [isForgotOpen, setIsForgotOpen] = useState(false);
@@ -82,6 +124,28 @@ export const Header = () => {
   const [signUpPasswordTimer, setSignUpPasswordTimer] = useState(null);
   const [signInPasswordTimer, setSignInPasswordTimer] = useState(null);
   const { isCallbackOpen, setIsCallbackOpen, isMeetingOpen, setISMeetingOpen } = useDialog();
+  const [activeSection, setActiveSection] = useState('about');
+
+  // Basic scroll spy for main navigation sections
+  useEffect(() => {
+    const sections = ['about', 'benefit', 'how-it-works', 'launch-link', 'pricing'];
+    const headerHeight = document.querySelector('header')?.offsetHeight || 0;
+    
+    const handleScroll = () => {
+      const scrollPosition = window.scrollY + headerHeight + 100;
+      
+      for (let i = sections.length - 1; i >= 0; i--) {
+        const element = document.getElementById(sections[i]);
+        if (element && element.offsetTop <= scrollPosition) {
+          setActiveSection(sections[i]);
+          break;
+        }
+      }
+    };
+    
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   // Reset resend states when OTP dialog opens
   useEffect(() => {
@@ -99,6 +163,28 @@ export const Header = () => {
       localStorage.removeItem('openLoginPopup');
     }
   }, []);
+
+  // Handle clicking outside dropdown to close it
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (mobileMenuOpen) {
+        const dropdown = document.querySelector('.desktop-dropdown');
+        const hamburgerButton = document.querySelector('.hamburger-button');
+        const profileAvatar = document.querySelector('.profile-avatar-button');
+        
+        if (dropdown && !dropdown.contains(event.target) && 
+            hamburgerButton && !hamburgerButton.contains(event.target) &&
+            profileAvatar && !profileAvatar.contains(event.target)) {
+          setMobileMenuOpen(false);
+        }
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [mobileMenuOpen]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -438,12 +524,13 @@ const handleLogout = async () => {
           </div>
 
           <nav className="hidden md:flex items-center gap-1">
-            <NavLink label={"About"} targetId={"about"} rootMargin={"-10% 0px -90% 0px"} />
-            <NavLink label={"Benefits"} targetId={"benefit"} rootMargin={"-20% 0px -80% 0px"} />
-            <NavLink label={"How it works"} targetId={"how-it-works"} rootMargin={"-20% 0px -80% 0px"} />
-            <NavLink label={"Launch new video link"} targetId={"launch-link"} rootMargin={"-20% 0px -80% 0px"} />
-            <NavLink label={"Pricing and Plans"} targetId={"pricing"} rootMargin={"-20% 0px -80% 0px"} />
+            <NavLink label={"About"} targetId={"about"} isActive={activeSection === 'about'} />
+            <NavLink label={"Benefits"} targetId={"benefit"} isActive={activeSection === 'benefit'} />
+            <NavLink label={"How it works"} targetId={"how-it-works"} isActive={activeSection === 'how-it-works'} />
+            <NavLink label={"Launch new video link"} targetId={"launch-link"} isActive={activeSection === 'launch-link'} />
+            <NavLink label={"Plans"} targetId={"pricing"} isActive={activeSection === 'pricing'} />
             <span className="inline-block w-3 md:w-4"></span>
+            
             <button
               className="bg-purple-500 hover:bg-purple-600 text-white font-medium py-2 px-4 rounded-full transition-colors mr-2"
               type="button"
@@ -451,30 +538,22 @@ const handleLogout = async () => {
             >
               Request a Callback
             </button>
-            <button
-              className="bg-purple-500 hover:bg-purple-600 text-white font-medium py-2 px-4 rounded-full transition-colors"
-              type="button"
-              onClick={() => setISMeetingOpen(true)}
-            >
-              Book a Demo Meeting
-            </button>
 
-            {
-              isAuth == false && <>
-                <button href="#login" className="bg-green-500 hover:bg-green-600 text-white font-medium py-2 px-4 rounded-full transition-colors" onClick={() => setSignInOpen(true)}>
-                  Log In
-                </button>
-                {/*
-                <button
-                  href="#signup"
-                  className="bg-amber-500 hover:bg-amber-600 text-white font-medium py-2 px-4 rounded-full transition-colors"
-                  onClick={() => setSignUpOpen(true)}
-                >
-                  Sign up in 3 easy steps!
-                </button>
-                */}
-              </>
-            }
+            {/* Desktop Hamburger Menu - Only show when not logged in */}
+            {!isAuth && (
+              <button 
+                className="hamburger-button md:block text-gray-700 p-2 ml-2"
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  {mobileMenuOpen ? (
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  ) : (
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                  )}
+                </svg>
+              </button>
+            )}
 
             {
               isAuth == true && <>
@@ -484,29 +563,17 @@ const handleLogout = async () => {
                     <h2 className='text-sm font-bold text-black'>{user?.email?.split("@")[0]}</h2>
                     <h2 className='text-xs'>{user?.email}</h2>
                   </div>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Avatar className="cursor-pointer">
-                        {user?.landlordInfo?.landlordLogo ? (
-                          <AvatarImage src={user.landlordInfo.officerImage} alt="Landlord Logo" />
-                        ) : null}
-                        <AvatarFallback className={'bg-gray-200 text-black rounded-md'}>{user?.email?.slice(0, 2)}</AvatarFallback>
-                      </Avatar>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent className={'bg-white border-none shadow-sm'}>
-                      <DropdownMenuLabel>My Account</DropdownMenuLabel>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem>
-                        <Link href={"/dashboard"}>Dashboard</Link>
-                      </DropdownMenuItem>
-                      {/* <DropdownMenuItem>Billing</DropdownMenuItem>
-                      <DropdownMenuItem>Team</DropdownMenuItem>
-                      <DropdownMenuItem>Subscription</DropdownMenuItem> */}
-                      <DropdownMenuItem>
-                        <button className='bg-none border-none cursor-pointer' onClick={handleLogout}>Logout</button>
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  <button 
+                    className="cursor-pointer profile-avatar-button"
+                    onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                  >
+                    <Avatar>
+                      {user?.landlordInfo?.landlordLogo ? (
+                        <AvatarImage src={user.landlordInfo.officerImage} alt="Landlord Logo" />
+                      ) : null}
+                      <AvatarFallback className={'bg-gray-200 text-black rounded-md'}>{user?.email?.slice(0, 2)}</AvatarFallback>
+                    </Avatar>
+                  </button>
 
                 </div>
               </>
@@ -531,21 +598,79 @@ const handleLogout = async () => {
         {mobileMenuOpen && (
           <div className="md:hidden bg-white border-t shadow-lg">
             <div className="px-4 py-2 space-y-2">
-              <a href="#about" className="block py-2 text-gray-700 hover:text-amber-500 transition-colors" onClick={() => setMobileMenuOpen(false)}>
+              <a href="#about" className="block py-2 text-gray-700 hover:text-amber-500 transition-colors" onClick={(e) => { 
+                e.preventDefault();
+                setMobileMenuOpen(false);
+                smoothScrollTo('about');
+              }}>
                 About
               </a>
-              <a href="#benefit" className="block py-2 text-gray-700 hover:text-amber-500 transition-colors" onClick={() => setMobileMenuOpen(false)}>
+              <a href="#benefit" className="block py-2 text-gray-700 hover:text-amber-500 transition-colors" onClick={(e) => { 
+                e.preventDefault();
+                setMobileMenuOpen(false);
+                smoothScrollTo('benefit');
+              }}>
                 Benefits
               </a>
-              <a href="#how-it-works" className="block py-2 text-gray-700 hover:text-amber-500 transition-colors" onClick={() => setMobileMenuOpen(false)}>
+              <a href="#how-it-works" className="block py-2 text-gray-700 hover:text-amber-500 transition-colors" onClick={(e) => { 
+                e.preventDefault();
+                setMobileMenuOpen(false);
+                smoothScrollTo('how-it-works');
+              }}>
                 How it works
               </a>
-              <a href="#launch-link" className="block py-2 text-gray-700 hover:text-amber-500 transition-colors" onClick={() => setMobileMenuOpen(false)}>
+              <a href="#launch-link" className="block py-2 text-gray-700 hover:text-amber-500 transition-colors" onClick={(e) => { 
+                e.preventDefault();
+                setMobileMenuOpen(false);
+                smoothScrollTo('launch-link');
+              }}>
                 Launch new video link
               </a>
-              <a href="#pricing" className="block py-2 text-gray-700 hover:text-amber-500 transition-colors" onClick={() => setMobileMenuOpen(false)}>
-                Pricing and Plans
+              <a href="#pricing" className="block py-2 text-gray-700 hover:text-amber-500 transition-colors" onClick={(e) => { 
+                e.preventDefault();
+                setMobileMenuOpen(false);
+                smoothScrollTo('pricing');
+              }}>
+                Plans
               </a>
+              
+              {/* AI Tools */}
+              <div className="space-y-2 pt-2 border-t">
+                <button 
+                  className="w-full text-left py-2 text-gray-700 hover:text-amber-500 transition-colors" 
+                  onClick={() => { 
+                    setMobileMenuOpen(false);
+                    router.push('/chat-karla');
+                  }}
+                >
+                  AI Damp and Mould Assistant
+                </button>
+                <button 
+                  className="w-full text-left py-2 text-gray-700 hover:text-amber-500 transition-colors" 
+                  onClick={() => { 
+                    setMobileMenuOpen(false);
+                    router.push('/damp-mould-analyzer');
+                  }}
+                >
+                  AI Image Analyser
+                </button>
+              </div>
+              
+              {/* Action Buttons */}
+              <div className="space-y-2 pt-2 border-t">
+                <button 
+                  className="w-full bg-purple-500 hover:bg-purple-600 text-white font-medium py-2 px-4 rounded-full transition-colors" 
+                  onClick={() => { setIsCallbackOpen(true); setMobileMenuOpen(false); }}
+                >
+                  Request a Callback
+                </button>
+                <button 
+                  className="w-full bg-purple-500 hover:bg-purple-600 text-white font-medium py-2 px-4 rounded-full transition-colors" 
+                  onClick={() => { setISMeetingOpen(true); setMobileMenuOpen(false); }}
+                >
+                  Book a Demo Meeting
+                </button>
+              </div>
               
               {!isAuth && (
                 <div className="space-y-2 pt-2 border-t">
@@ -572,11 +697,68 @@ const handleLogout = async () => {
                     <h2 className="text-sm font-bold text-black">{user?.email?.split("@")[0]}</h2>
                     <h2 className="text-xs text-gray-600">{user?.email}</h2>
                   </div>
-                  <Link href="/dashboard" className="block py-2 text-gray-700 hover:text-amber-500 transition-colors" onClick={() => setMobileMenuOpen(false)}>
+                  <Link href={user?.role === 'superadmin' ? "/dashboard/superadmin" : "/dashboard"} className="block py-2 text-gray-700 hover:text-amber-500 transition-colors" onClick={() => setMobileMenuOpen(false)}>
                     Dashboard
                   </Link>
                   <button 
                     className="block w-full text-left py-2 text-gray-700 hover:text-red-500 transition-colors" 
+                    onClick={() => { handleLogout(); setMobileMenuOpen(false); }}
+                  >
+                    Logout
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Desktop Dropdown Menu */}
+        {mobileMenuOpen && (
+          <div className="desktop-dropdown hidden md:block absolute top-full right-2 -mt-10 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
+            <div className="px-4 py-2 space-y-1">
+              {!isAuth && (
+                <button 
+                  className="w-full text-left py-1.5 text-gray-700 hover:text-amber-500 transition-colors font-medium" 
+                  onClick={() => { setSignInOpen(true); setMobileMenuOpen(false); }}
+                >
+                  Log In
+                </button>
+              )}
+              
+              <button 
+                className="w-full text-left py-1.5 text-gray-700 hover:text-amber-500 transition-colors font-medium" 
+                onClick={() => { 
+                  setMobileMenuOpen(false);
+                  router.push('/chat-karla');
+                }}
+              >
+                AI Damp and<br/>Mould Assistant
+              </button>
+
+              <button 
+                className="w-full text-left py-1.5 text-gray-700 hover:text-amber-500 transition-colors font-medium" 
+                onClick={() => { 
+                  setMobileMenuOpen(false);
+                  router.push('/damp-mould-analyzer');
+                }}
+              >
+                AI Image Analyser
+              </button>
+
+              <button 
+                className="w-full text-left py-1.5 text-gray-700 hover:text-amber-500 transition-colors font-medium" 
+                onClick={() => { setISMeetingOpen(true); setMobileMenuOpen(false); }}
+              >
+                Book a Demo Meeting
+              </button>
+              
+              {isAuth && (
+                <div className="space-y-1 pt-1 border-t">
+                  <Link href={user?.role === 'superadmin' ? "/dashboard/superadmin" : "/dashboard"} className="block py-1.5 text-gray-700 hover:text-amber-500 transition-colors text-left">
+                    Dashboard
+                  </Link>
+                  <button 
+                    className="block w-full py-1.5 text-gray-700 hover:text-red-500 transition-colors text-left" 
                     onClick={() => { handleLogout(); setMobileMenuOpen(false); }}
                   >
                     Logout
@@ -887,6 +1069,7 @@ const handleLogout = async () => {
           </form>
         </div>
       </CustomDialog>
+
     </>
   );
 };

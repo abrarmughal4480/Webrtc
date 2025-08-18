@@ -1958,9 +1958,7 @@ export default function Page() {
                       currentMeetings.map((item, index) => {
                         const actualIndex = indexOfFirstItem + index;
                         
-                        console.log('🔍 [Table Render] Item:', item);
-                        console.log('🔍 [Table Render] Item isFolder:', item.isFolder);
-                        console.log('🔍 [Table Render] ViewMode:', viewMode);
+
                         
                         // Handle folders in trash view
                         if (viewMode === 'trash' && item.isFolder) {

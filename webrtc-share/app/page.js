@@ -15,7 +15,7 @@ import PriceAndPlan from '@/components/section/PriceAndPlanSectionComponent'
 import SendFriendSectionComponent from '@/components/section/SendFriendSectionComponent'
 import FloatingResendButton from '@/components/FloatingResendButton'
 import EnterShareCodeDialog from '@/components/EnterShareCodeDialog'
-import ChatKarla from '@/components/section/Chat_Karla'
+
 
 const FeedbackDialog = () => {
   const [showFeedback, setShowFeedback] = useState(false);
@@ -308,8 +308,7 @@ const PageContent = () => {
       <LaunchLinkSection />
       <PriceAndPlan/>
       <SendFriendSectionComponent/>
-      <ChatKarla />
-      <Footer />
+              <Footer />
 
       <Suspense fallback={null}>
         <FeedbackDialog />

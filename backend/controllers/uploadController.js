@@ -205,7 +205,7 @@ export const createUploadSession = catchAsyncError(async (req, res, next) => {
   console.log(`🚀 Created upload session: ${sessionId} for access code: ${accessCode}`);
   console.log(`📊 Expected files: ${totalImages} images, ${totalVideos} videos`);
 
-  sendResponse(res, 201, true, { sessionId }, 'Upload session created successfully');
+      sendResponse(res, 201, true, 'Upload session created successfully', { sessionId });
 });
 
 // Upload individual file
@@ -258,13 +258,13 @@ export const uploadFile = catchAsyncError(async (req, res, next) => {
 
     console.log(`✅ ${fileType} ${fileIndex + 1} uploaded successfully: ${uploadResult.key}`);
 
-    sendResponse(res, 200, true, { 
+    sendResponse(res, 200, true, `${fileType} uploaded successfully`, { 
       uploaded: true, 
       fileType, 
       fileIndex,
       totalUploaded: session.uploadedImages.length + session.uploadedVideos.length,
       totalExpected: session.totalImages + session.totalVideos
-    }, `${fileType} uploaded successfully`);
+    });
   } catch (error) {
     console.error(`❌ Failed to upload ${fileType} ${fileIndex + 1}:`, error);
     return next(new ErrorHandler(`Failed to upload ${fileType}: ${error.message}`, 500));
@@ -301,7 +301,7 @@ export const completeUpload = catchAsyncError(async (req, res, next) => {
     console.log(`✅ Upload completed successfully. AccessCode: ${upload.accessCode}`);
     console.log(`🎉 Total files uploaded: ${session.uploadedImages.length} images, ${session.uploadedVideos.length} videos`);
 
-    sendResponse(res, 201, true, { upload, alreadyUploaded: !!alreadyUploaded }, 'Upload completed successfully');
+    sendResponse(res, 201, true, 'Upload completed successfully', { upload, alreadyUploaded: !!alreadyUploaded });
   } catch (error) {
     console.error(`❌ Failed to complete upload:`, error);
     return next(new ErrorHandler(`Failed to complete upload: ${error.message}`, 500));
@@ -322,13 +322,13 @@ export const getUploadProgress = catchAsyncError(async (req, res, next) => {
   const totalExpected = session.totalImages + session.totalVideos;
   const progress = totalExpected > 0 ? Math.round((totalUploaded / totalExpected) * 100) : 0;
 
-  sendResponse(res, 200, true, { 
+  sendResponse(res, 200, true, 'Upload progress retrieved successfully', { 
     progress, 
     totalUploaded, 
     totalExpected,
     uploadedImages: session.uploadedImages.length,
     uploadedVideos: session.uploadedVideos.length
-  }, 'Upload progress retrieved successfully');
+  });
 });
 
 export const createUpload = catchAsyncError(async (req, res, next) => {
@@ -417,7 +417,7 @@ export const createUpload = catchAsyncError(async (req, res, next) => {
   console.log(`✅ Upload successful in DB. AccessCode: ${upload.accessCode}`);
   console.log(`🎉 Total files uploaded: ${uploadedImages.length} images, ${uploadedVideos.length} videos`);
 
-  sendResponse(res, 201, true, { upload, alreadyUploaded: !!alreadyUploaded }, 'Upload created successfully');
+      sendResponse(res, 201, true, 'Upload created successfully', { upload, alreadyUploaded: !!alreadyUploaded });
 });
 
 export const getUploadByAccessCode = catchAsyncError(async (req, res, next) => {
@@ -426,7 +426,7 @@ export const getUploadByAccessCode = catchAsyncError(async (req, res, next) => {
   if (!upload) {
     return next(new ErrorHandler('No upload found for this access code.', 404));
   }
-  sendResponse(res, 200, true, { upload }, 'Upload fetched successfully');
+  sendResponse(res, 200, true, 'Upload fetched successfully', { upload });
 }); 
 
 export const getMyUploads = catchAsyncError(async (req, res, next) => {
@@ -450,7 +450,7 @@ export const getMyUploads = catchAsyncError(async (req, res, next) => {
   if (role === 'resident') {
     console.log(`[getMyUploads] Uploads found for resident: ${uploadsWithVisitors.length}`);
   }
-  sendResponse(res, 200, true, { uploads: uploadsWithVisitors }, 'User uploads fetched successfully');
+  sendResponse(res, 200, true, 'User uploads fetched successfully', { uploads: uploadsWithVisitors });
 }); 
 
 export const getMyLatestUpload = catchAsyncError(async (req, res, next) => {
@@ -459,7 +459,7 @@ export const getMyLatestUpload = catchAsyncError(async (req, res, next) => {
     return sendResponse(res, 400, false, null, 'No email found for user');
   }
   const latestUpload = await Upload.findOne({ email, deleted: { $ne: true } }).sort({ createdAt: -1 });
-  sendResponse(res, 200, true, { upload: latestUpload }, 'Latest upload fetched successfully');
+  sendResponse(res, 200, true, 'Latest upload fetched successfully', { upload: latestUpload });
 }); 
 
 export const deleteUpload = catchAsyncError(async (req, res, next) => {
@@ -476,7 +476,7 @@ export const deleteUpload = catchAsyncError(async (req, res, next) => {
   upload.deletedAt = new Date();
   await upload.save();
 
-  sendResponse(res, 200, true, { upload }, 'Upload moved to trash successfully');
+  sendResponse(res, 200, true, 'Upload moved to trash successfully', { upload });
 });
 
 export const restoreUpload = catchAsyncError(async (req, res, next) => {
@@ -493,7 +493,7 @@ export const restoreUpload = catchAsyncError(async (req, res, next) => {
   upload.deletedAt = undefined;
   await upload.save();
 
-  sendResponse(res, 200, true, { upload }, 'Upload restored successfully');
+  sendResponse(res, 200, true, 'Upload restored successfully', { upload });
 });
 
 export const permanentDeleteUpload = catchAsyncError(async (req, res, next) => {
@@ -557,7 +557,7 @@ export const getMyTrashedUploads = catchAsyncError(async (req, res, next) => {
     return uploadObj;
   });
   
-  sendResponse(res, 200, true, { uploads: uploadsWithVisitors }, 'Trashed uploads fetched successfully');
+  sendResponse(res, 200, true, 'Trashed uploads fetched successfully', { uploads: uploadsWithVisitors });
 });
 
 // --- SEARCH UPLOADS ENDPOINT ---
@@ -624,7 +624,7 @@ export const searchUploads = catchAsyncError(async (req, res, next) => {
     return uploadObj;
   });
 
-  sendResponse(res, 200, true, { uploads: uploadsWithVisitors }, 'Uploads search completed successfully');
+  sendResponse(res, 200, true, 'Uploads search completed successfully', { uploads: uploadsWithVisitors });
 });
 
 export const markNotificationSent = catchAsyncError(async (req, res, next) => {
@@ -678,7 +678,7 @@ Videodesk Share Code Team
     }
   }
 
-  sendResponse(res, 200, true, { notificationSent: upload.notificationSent }, 'Notification status updated');
+  sendResponse(res, 200, true, 'Notification status updated', { notificationSent: upload.notificationSent });
 });
 
 export const checkNotificationStatus = catchAsyncError(async (req, res, next) => {

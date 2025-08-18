@@ -222,6 +222,61 @@ export const exportTickets = async (format = 'json', filters = {}) => {
     }
 };
 
+// Admin functions for super admin
+export const updateTicketByAdmin = async (ticketId, updateData) => {
+    try {
+        const response = await api.put(`${SUPPORT_TICKET_BASE_URL}/admin/update/${ticketId}`, updateData);
+        return response.data;
+    } catch (error) {
+        throw error.response?.data || error.message;
+    }
+};
+
+export const assignTicket = async (ticketId, assignedTo) => {
+    try {
+        const response = await api.put(`${SUPPORT_TICKET_BASE_URL}/admin/assign/${ticketId}`, { assignedTo });
+        return response.data;
+    } catch (error) {
+        throw error.response?.data || error.message;
+    }
+};
+
+// Get dashboard statistics for admin
+export const getDashboardStats = async () => {
+    try {
+        const response = await api.get(`${SUPPORT_TICKET_BASE_URL}/admin/fast-stats`);
+        return response.data;
+    } catch (error) {
+        throw error.response?.data || error.message;
+    }
+};
+
+// Super admin: Get ALL tickets without restrictions
+export const getSuperAdminAllTickets = async (params = {}) => {
+    try {
+        const queryParams = new URLSearchParams();
+        
+        // Add pagination params
+        if (params.page) queryParams.append('page', params.page);
+        if (params.limit) queryParams.append('limit', params.limit);
+        
+        // Add filter params
+        if (params.status) queryParams.append('status', params.status);
+        if (params.category) queryParams.append('category', params.category);
+        if (params.priority) queryParams.append('priority', params.priority);
+        
+        // Add sorting params
+        if (params.sortBy) queryParams.append('sortBy', params.sortBy);
+        if (params.sortOrder) queryParams.append('sortOrder', params.sortOrder);
+        
+        const url = `${SUPPORT_TICKET_BASE_URL}/superadmin/all?${queryParams.toString()}`;
+        const response = await api.get(url);
+        return response.data;
+    } catch (error) {
+        throw error.response?.data || error.message;
+    }
+};
+
 // Utility functions for ticket management
 export const ticketUtils = {
     // Get priority color class

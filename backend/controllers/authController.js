@@ -196,7 +196,9 @@ export const register = catchAsyncError(async (req, res) => {
 	});
 	
 	const OTP = generateOTP()
-	console.log('Generated OTP (register):', OTP);
+	
+	// Log the OTP for debugging
+	console.log('🔐 [REGISTER] Generated OTP:', OTP, 'for email:', email);
 	
     // Get the logo SVG
     const logoSvg = getLogoSvg();
@@ -222,7 +224,7 @@ export const register = catchAsyncError(async (req, res) => {
                 <p style="color: #777; font-size: 14px;">If you didn't create an account with Videodesk, please ignore this email.</p>
             </div>
             <div style="background-color: #f8f9fa; padding: 20px; text-align: center; border-top: 1px solid #eaeaea;">
-                <p style="margin: 0; color: #777; font-size: 13px;">© 2024 Videodesk. All rights reserved.</p>
+                <p style="margin: 0; color: #777; font-size: 13px;">© 2025 Videodesk. All rights reserved.</p>
             </div>
         </div>
     `;
@@ -252,7 +254,9 @@ export const login = catchAsyncError(async (req, res, next) => {
 		return sendResponse(res, 401, false, null, 'Incorrect Email or Password');
 	
 	const OTP = generateOTP();
-	console.log('Generated OTP (login):', OTP);
+	
+	// Log the OTP for debugging
+	console.log('🔐 [LOGIN] Generated OTP:', OTP, 'for email:', email);
 	
     // Get the logo SVG
     const logoSvg = getLogoSvg();
@@ -278,7 +282,7 @@ export const login = catchAsyncError(async (req, res, next) => {
                 <p style="color: #777; font-size: 14px;">If you didn't attempt to login, please secure your account immediately.</p>
             </div>
             <div style="background-color: #f8f9fa; padding: 20px; text-align: center; border-top: 1px solid #eaeaea;">
-                <p style="margin: 0; color: #777; font-size: 13px;">© 2024 Videodesk. All rights reserved.</p>
+                <p style="margin: 0; color: #777; font-size: 13px;">© 2025 Videodesk. All rights reserved.</p>
             </div>
         </div>
     `;
@@ -308,7 +312,6 @@ export const verify = catchAsyncError(async (req, res, next) => {
     // Shift current login time to previous login time
     if (user.currentLoginTime) {
         user.previousLoginTime = user.currentLoginTime;
-        console.log('📅 Previous login time updated:', user.previousLoginTime);
     }
     // else{
     //     user.previousLoginTime = currentTime;
@@ -317,15 +320,12 @@ export const verify = catchAsyncError(async (req, res, next) => {
     // Set new current login time
     const currentTime = new Date();
     user.currentLoginTime = currentTime;
-    console.log('📅 Current login time updated:', user.currentLoginTime);
     
     // Clear OTP after successful verification
     user.OTP = undefined;
     
     // Save the updated user
     await user.save();
-    
-    console.log('✅ Login times successfully updated for user:', user.email);
   
     sendToken(res, user, `Welcome back, ${user.email}`, 200);
 });
@@ -336,7 +336,7 @@ export const verify = catchAsyncError(async (req, res, next) => {
 export const loadme = catchAsyncError(async (req, res, next) => {
     const user = await UserModel.findById(req.user._id);
     if (user) {
-        console.log('Dashboard loadme: user role is', user.role);
+        // User found
     }
     res.status(200).json({
         success: true,
@@ -388,22 +388,18 @@ export const changePassword = catchAsyncError(async (req, res, next) => {
 // forgot password 
 export const forgotPassword = catchAsyncError(async (req, res, next) => {
     const { email } = req.body;
-    console.log("[forgotPassword] Request for:", email);
 
     if (!email) {
-        console.log("[forgotPassword] No email provided");
         return next(new ErrorHandler("Email is required", 400));
     }
 
     const user = await UserModel.findOne({ email });
     if (!user) {
-        console.log("[forgotPassword] User not found for email:", email);
         return next(new ErrorHandler("User not found", 400));
     }
 
     const resetToken = await user.getResetToken();
     await user.save();
-    console.log("[forgotPassword] Reset token generated and user saved");
 
     // Auto-detect frontend URL if not set in env
     let frontendUrl = process.env.FRONTEND_URL;
@@ -436,7 +432,7 @@ export const forgotPassword = catchAsyncError(async (req, res, next) => {
                 <p style="color: #777; font-size: 14px;">This link will expire in 10 minutes.</p>
             </div>
             <div style="background-color: #f8f9fa; padding: 20px; text-align: center; border-top: 1px solid #eaeaea;">
-                <p style="margin: 0; color: #777; font-size: 13px;">© 2024 Videodesk. All rights reserved.</p>
+                <p style="margin: 0; color: #777; font-size: 13px;">© 2025 Videodesk. All rights reserved.</p>
             </div>
         </div>
     `;
@@ -445,10 +441,9 @@ export const forgotPassword = catchAsyncError(async (req, res, next) => {
     
     try {
         await sendMail(email, "Password Reset Request", textContent, htmlContent);
-        console.log("[forgotPassword] sendMail completed");
         sendResponse(res, 200, true, null, `Reset link has been sent to ${user.email}`);
     } catch (error) {
-        console.log("[forgotPassword] Error in sendMail:", error);
+        console.error("[forgotPassword] Error in sendMail:", error);
         user.resetPasswordToken = undefined;
         await user.save();
         return next(new ErrorHandler("Email could not be sent", 500));
@@ -517,325 +512,13 @@ export const resetPasswordFromDashboard = catchAsyncError(async (req, res, next)
     	sendResponse(res, 200, true, null, "Password updated successfully");
 });
 
-// Send friend link
-export const sendFriendLink = catchAsyncError(async (req, res, next) => {
-    const { fromName, fromEmail, toEmail, message, websiteLink } = req.body;
-    
-    if (!fromName || !fromEmail || !toEmail || !message) {
-        return next(new ErrorHandler("All fields are required", 400));
-    }
-    
-    // Get the logo SVG
-    const logoSvg = getLogoSvg();
-    
-    const htmlContent = `
-        <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
-            <div style="background: linear-gradient(135deg, #9452FF 0%, #8a42fc 100%); color: white; padding: 30px 20px; text-align: center;">
-                <div style="margin-bottom: 15px;">
-                    ${logoSvg}
-                </div>
-                <p style="margin: 5px auto; display: inline-block; background-color: white; color: #9452FF; padding: 5px 15px; border-radius: 50px; font-size: 16px; letter-spacing: 1px; font-weight: 500;">videodesk.co.uk</p>
-            </div>
-            <div style="padding: 40px 30px; background-color: #ffffff;">
-                <h2 style="color: #333; margin-bottom: 20px; font-weight: 600; font-size: 24px; text-align: center;">You've been invited to check out Videodesk!</h2>
-                <p style="color: #555; line-height: 1.6; font-size: 16px;">Hi there,</p>
-                <p style="color: #555; line-height: 1.6; font-size: 16px;"><strong>${fromName}</strong> (${fromEmail}) wanted to share Videodesk with you.</p>
-                <div style="background-color: #f7f4ff; padding: 20px; border-radius: 12px; margin: 25px 0; border-left: 4px solid #9452FF;">
-                    <p style="font-style: italic; margin: 0; color: #333; font-size: 16px;">"${message}"</p>
-                </div>
-                <p style="color: #555; line-height: 1.6; font-size: 16px;">Videodesk is a revolutionary video calling platform that makes remote communication easier than ever.</p>
-                <div style="text-align: center; margin: 30px 0;">
-                    <a href="${websiteLink}" style="background: linear-gradient(135deg, #9452FF 0%, #8a42fc 100%); color: white; padding: 14px 30px; text-decoration: none; border-radius: 50px; display: inline-block; font-weight: bold; box-shadow: 0 4px 10px rgba(148,82,255,0.3); transition: all 0.3s;">Visit Videodesk</a>
-                </div>
-                <p style="color: #555; line-height: 1.6; font-size: 16px;">Best regards,<br>The Videodesk Team</p>
-            </div>
-            <div style="background-color: #f8f9fa; padding: 20px; text-align: center; border-top: 1px solid #eaeaea;">
-                <p style="margin: 0; color: #777; font-size: 13px;">© 2024 Videodesk. All rights reserved.</p>
-            </div>
-        </div>
-    `;
-    
-    const textContent = `${fromName} (${fromEmail}) invited you to check out Videodesk: ${message}. Visit: ${websiteLink}`;
-    
-    try {
-        await sendMail(toEmail, `${fromName} invited you to check out Videodesk`, textContent, htmlContent);
-        	sendResponse(res, 200, true, null, `Link sent successfully to ${toEmail}`);
-    } catch (error) {
-        return next(new ErrorHandler("Email could not be sent", 500));
-    }
-});
 
-// Send Feedback
-export const sendFeedback = catchAsyncError(async (req, res, next) => {
-    const { feedback } = req.body;
-    
-    if (!feedback || feedback.trim() === '') {
-        return next(new ErrorHandler("Feedback message is required", 400));
-    }
-    
-    const user = req.user;
-    
-    // Get the logo SVG
-    const logoSvg = getLogoSvg();
-    
-    const htmlContent = `
-        <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
-            <div style="background: linear-gradient(135deg, #9452FF 0%, #8a42fc 100%); color: white; padding: 30px 20px; text-align: center;">
-                <div style="margin-bottom: 15px;">
-                    ${logoSvg}
-                </div>
-                <p style="margin: 5px auto; display: inline-block; background-color: white; color: #9452FF; padding: 5px 15px; border-radius: 50px; font-size: 16px; letter-spacing: 1px; font-weight: 500;">videodesk.co.uk</p>
-                <h2 style="margin: 15px 0 0 0; font-size: 20px;">📝 New Feedback Received</h2>
-            </div>
-            <div style="padding: 40px 30px; background-color: #ffffff;">
-                <h3 style="color: #333; margin-bottom: 15px; font-weight: 600;">User Information:</h3>
-                <div style="background-color: #f7f4ff; padding: 20px; border-radius: 12px; margin-bottom: 25px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
-                    <p style="margin: 8px 0; font-size: 15px;"><strong>Email:</strong> ${user.email}</p>
-                    <p style="margin: 8px 0; font-size: 15px;"><strong>Role:</strong> ${user.role}</p>
-                    <p style="margin: 8px 0; font-size: 15px;"><strong>Date:</strong> ${new Date().toLocaleString()}</p>
-                </div>
-                
-                <h3 style="color: #333; margin-bottom: 15px; font-weight: 600;">Feedback Message:</h3>
-                <div style="background-color: #f7f4ff; padding: 20px; border-radius: 12px; border-left: 4px solid #9452FF; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
-                    <p style="font-size: 16px; line-height: 1.6; margin: 0; color: #555;">${feedback}</p>
-                </div>
-            </div>
-            <div style="background-color: #f8f9fa; padding: 20px; text-align: center; border-top: 1px solid #eaeaea;">
-                <p style="margin: 0; color: #777; font-size: 13px;">This feedback was sent from Videodesk platform</p>
-                <p style="margin: 5px 0 0 0; color: #777; font-size: 13px;">© 2024 Videodesk. All rights reserved.</p>
-            </div>
-        </div>
-    `;
-    
-    const textContent = `New Feedback from ${user.email} (${user.role}): ${feedback}`;
-    
-    try {
-        await sendMail(process.env.FEEDBACK_EMAIL, `New Feedback from ${user.email}`, textContent, htmlContent);
-        	sendResponse(res, 200, true, null, "Feedback sent successfully");
-    } catch (error) {
-        return next(new ErrorHandler("Failed to send feedback", 500));
-    }
-});
 
-// Raise Support Ticket
-export const raiseSupportTicket = catchAsyncError(async (req, res, next) => {
-    const { category, query } = req.body;
-    
-    if (!category || category.trim() === '') {
-        return next(new ErrorHandler("Support category is required", 400));
-    }
-    
-    if (!query || query.trim() === '') {
-        return next(new ErrorHandler("Support query is required", 400));
-    }
-    
-    const user = req.user;
-    const ticketId = `TICKET-${Date.now()}-${Math.random().toString(36).substr(2, 5).toUpperCase()}`;
-    
-    // Get the logo SVG
-    const logoSvg = getLogoSvg();
-    
-    const htmlContent = `
-        <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
-            <div style="background: linear-gradient(135deg, #9452FF 0%, #8a42fc 100%); color: white; padding: 30px 20px; text-align: center;">
-                <div style="margin-bottom: 15px;">
-                    ${logoSvg}
-                </div>
-                <p style="margin: 5px auto; display: inline-block; background-color: white; color: #9452FF; padding: 5px 15px; border-radius: 50px; font-size: 16px; letter-spacing: 1px; font-weight: 500;">videodesk.co.uk</p>
-                <h2 style="margin: 15px 0 0 0; font-size: 22px;">🎫 New Support Ticket</h2>
-                <p style="margin: 10px 0 0 0; font-size: 18px; font-weight: bold;">${ticketId}</p>
-            </div>
-            <div style="padding: 40px 30px; background-color: #ffffff;">
-                <h3 style="color: #333; margin-bottom: 15px; font-weight: 600;">Customer Information:</h3>
-                <div style="background-color: #f7f4ff; padding: 20px; border-radius: 12px; margin-bottom: 25px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
-                    <p style="margin: 8px 0; font-size: 15px;"><strong>Email:</strong> ${user.email}</p>
-                    <p style="margin: 8px 0; font-size: 15px;"><strong>Role:</strong> ${user.role}</p>
-                    <p style="margin: 8px 0; font-size: 15px;"><strong>Ticket Created:</strong> ${new Date().toLocaleString()}</p>
-                    <p style="margin: 8px 0; font-size: 15px;"><strong>Priority:</strong> <span style="color: #F59E0B; font-weight: bold;">Normal</span></p>
-                </div>
-                
-                <h3 style="color: #333; margin-bottom: 15px; font-weight: 600;">Support Category:</h3>
-                <div style="background-color: #e0f2fe; padding: 15px; border-radius: 12px; margin-bottom: 25px; border-left: 4px solid #0288d1; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
-                    <p style="font-size: 16px; margin: 0; color: #0277bd; font-weight: 600;">${category}</p>
-                </div>
-                
-                <h3 style="color: #333; margin-bottom: 15px; font-weight: 600;">Support Query:</h3>
-                <div style="background-color: #f7f4ff; padding: 20px; border-radius: 12px; border-left: 4px solid #9452FF; box-shadow: 0 2px 5px rgba(0,0,0,0.05); margin-bottom: 25px;">
-                    <p style="font-size: 16px; line-height: 1.6; margin: 0; color: #555;">${query}</p>
-                </div>
-                
-                <div style="margin-top: 25px; padding: 20px; background-color: #f0f7ff; border-radius: 12px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
-                    <h4 style="color: #3b82f6; margin: 0 0 15px 0; font-weight: 600;">Next Steps:</h4>
-                    <ul style="margin: 0; padding-left: 20px; color: #555;">
-                        <li style="margin-bottom: 8px;">Our support team will review this ticket within 24 hours</li>
-                        <li style="margin-bottom: 8px;">You will receive a response at ${user.email}</li>
-                        <li>Ticket Reference: ${ticketId}</li>
-                    </ul>
-                </div>
-            </div>
-            <div style="background-color: #f8f9fa; padding: 20px; text-align: center; border-top: 1px solid #eaeaea;">
-                <p style="margin: 0; color: #777; font-size: 13px;">This support ticket was generated from Videodesk platform</p>
-                <p style="margin: 5px 0 0 0; color: #777; font-size: 13px;">© 2024 Videodesk. All rights reserved.</p>
-            </div>
-        </div>
-    `;
-    
-    const textContent = `New Support Ticket ${ticketId} from ${user.email} (${user.role})
-    
-Category: ${category}
-Query: ${query}`;
-    
-    try {
-        await sendMail(process.env.SUPPORT_TICKET_EMAIL, `Support Ticket ${ticketId} - ${category} - ${user.email}`, textContent, htmlContent);
-        	sendResponse(res, 200, true, null, `Support ticket ${ticketId} created successfully`);
-    } catch (error) {
-        return next(new ErrorHandler("Failed to create support ticket", 500));
-    }
-});
 
-// Book Demo Meeting with Video Link Integration
-export const bookDemoMeeting = catchAsyncError(async (req, res, next) => {
-    const { name, email, date, hour, minute, message } = req.body;
-    if (!name || !email || !date || !hour || !minute) {
-        return next(new ErrorHandler("Name, email, date and time are required", 400));
-    }
-    // Format the date and time
-    const selectedDate = new Date(date);
-    const formattedDate = selectedDate.toLocaleDateString('en-GB', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
-    });
-    const formattedTime = `${hour}:${minute}`;
-    const meetingId = `DEMO-${Date.now()}-${Math.random().toString(36).substr(2, 5).toUpperCase()}`;
-    // Get the logo SVG
-    const logoSvg = getLogoSvg();
-    // Admin email content without video link
-    const adminHtmlContent = `
-        <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 700px; margin: 0 auto; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
-            <div style="background: linear-gradient(135deg, #9452FF 0%, #8a42fc 100%); color: white; padding: 30px 20px; text-align: center;">
-                <div style="margin-bottom: 15px;">
-                    ${logoSvg}
-                </div>
-                <p style="margin: 5px auto; display: inline-block; background-color: white; color: #9452FF; padding: 5px 15px; border-radius: 50px; font-size: 16px; letter-spacing: 1px; font-weight: 500;">videodesk.co.uk</p>
-                <h2 style="margin: 15px 0 0 0; font-size: 24px;">🎯 New Demo Meeting Request</h2>
-                <p style="margin: 10px 0 0 0; font-size: 18px; font-weight: bold; background-color: rgba(255,255,255,0.2); padding: 8px 16px; border-radius: 25px; display: inline-block;">${meetingId}</p>
-            </div>
-            <div style="padding: 40px 30px; background-color: #ffffff;">
-                <h3 style="color: #333; margin-bottom: 20px; font-weight: 600; font-size: 20px; text-align: center;">📋 Meeting Request Details</h3>
-                <div style="background: linear-gradient(135deg, #f8f9ff 0%, #f0f4ff 100%); padding: 25px; border-radius: 12px; margin-bottom: 25px; border: 2px solid #e5e7ff; box-shadow: 0 2px 8px rgba(148,82,255,0.1);">
-                    <div style="display: grid; gap: 15px;">
-                        <div style="display: flex; align-items: center; padding: 12px 0; border-bottom: 1px solid #e5e7ff;">
-                            <span style="font-size: 18px; margin-right: 12px;">👤</span>
-                            <div>
-                                <strong style="color: #333; font-size: 15px;">Client Name:</strong>
-                                <p style="margin: 2px 0 0 0; font-size: 16px; color: #9452FF; font-weight: 600;">${name}</p>
-                            </div>
-                        </div>
-                        <div style="display: flex; align-items: center; padding: 12px 0; border-bottom: 1px solid #e5e7ff;">
-                            <span style="font-size: 18px; margin-right: 12px;">📧</span>
-                            <div>
-                                <strong style="color: #333; font-size: 15px;">Email Address:</strong>
-                                <p style="margin: 2px 0 0 0; font-size: 16px; color: #0066cc; font-weight: 500;">${email}</p>
-                            </div>
-                        </div>
-                        <div style="display: flex; align-items: center; padding: 12px 0; border-bottom: 1px solid #e5e7ff;">
-                            <span style="font-size: 18px; margin-right: 12px;">📅</span>
-                            <div>
-                                <strong style="color: #333; font-size: 15px;">Preferred Date:</strong>
-                                <p style="margin: 2px 0 0 0; font-size: 16px; color: #333; font-weight: 600;">${formattedDate}</p>
-                            </div>
-                        </div>
-                        <div style="display: flex; align-items: center; padding: 12px 0;">
-                            <span style="font-size: 18px; margin-right: 12px;">🕐</span>
-                            <div>
-                                <strong style="color: #333; font-size: 15px;">Preferred Time:</strong>
-                                <p style="margin: 2px 0 0 0; font-size: 16px; color: #333; font-weight: 600;">${formattedTime}</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                ${message ? `
-                <h3 style="color: #333; margin-bottom: 15px; font-weight: 600; font-size: 18px;">💬 Additional Message:</h3>
-                <div style="background-color: #f7f4ff; padding: 20px; border-radius: 12px; border-left: 4px solid #9452FF; box-shadow: 0 2px 5px rgba(0,0,0,0.05); margin-bottom: 25px;">
-                    <p style="font-size: 16px; line-height: 1.6; margin: 0; color: #555; font-style: italic;">"${message}"</p>
-                </div>
-                ` : ''}
-                <div style="text-align: center; margin-top: 30px;">
-                    <div style="background-color: #fff3cd; border: 1px solid #ffeaa7; border-radius: 8px; padding: 15px; margin-bottom: 20px;">
-                        <p style="margin: 0; color: #856404; font-size: 14px; font-weight: 500;">
-                            <strong>⏰ Request submitted on:</strong> ${new Date().toLocaleString('en-GB', {
-                                weekday: 'long',
-                                year: 'numeric',
-                                month: 'long',
-                                day: 'numeric',
-                                hour: '2-digit',
-                                minute: '2-digit'
-                            })}
-                        </p>
-                    </div>
-                </div>
-            </div>
-            <div style="background-color: #f8f9fa; padding: 20px; text-align: center; border-top: 1px solid #eaeaea;">
-                <p style="margin: 0; color: #777; font-size: 13px;">© 2024 Videodesk. All rights reserved.</p>
-            </div>
-        </div>
-    `;
-    // User confirmation email content without video link
-    const userHtmlContent = `
-        <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
-            <div style="background: linear-gradient(135deg, #9452FF 0%, #8a42fc 100%); color: white; padding: 30px 20px; text-align: center;">
-                <div style="margin-bottom: 15px;">
-                    ${logoSvg}
-                </div>
-                <p style="margin: 5px auto; display: inline-block; background-color: white; color: #9452FF; padding: 5px 15px; border-radius: 50px; font-size: 16px; letter-spacing: 1px; font-weight: 500;">videodesk.co.uk</p>
-                <h2 style="margin: 15px 0 0 0; font-size: 24px;">✅ Demo Meeting Request Received</h2>
-            </div>
-            <div style="padding: 40px 30px; background-color: #ffffff;">
-                <h2 style="color: #333; margin-bottom: 20px; font-weight: 600; font-size: 24px; text-align: center;">Thank you, ${name}!</h2>
-                <p style="color: #555; line-height: 1.6; font-size: 16px; margin-bottom: 25px;">We have successfully received your demo meeting request. Our team will review your request and contact you shortly to confirm the meeting details.</p>
-                <div style="background-color: #f0f7ff; padding: 20px; border-radius: 12px; border-left: 4px solid #3b82f6; margin-bottom: 25px;">
-                    <h4 style="color: #1e40af; margin: 0 0 12px 0; font-weight: 600;">🔍 What happens next?</h4>
-                    <ul style="margin: 0; padding-left: 20px; color: #555; line-height: 1.6;">
-                        <li style="margin-bottom: 6px;">Our team will review your request within 24 hours</li>
-                        <li style="margin-bottom: 6px;">We'll contact you to confirm the meeting time and send joining details</li>
-                        <li>You'll receive a calendar invitation with the meeting link</li>
-                    </ul>
-                </div>
-                <p style="color: #555; line-height: 1.6; font-size: 16px; text-align: center;">If you have any questions, feel free to reply to this email or contact our support team.</p>
-                <div style="text-align: center; margin-top: 25px;">
-                    <p style="color: #777; font-size: 14px; margin: 0;">We're excited to show you what Videodesk can do!</p>
-                </div>
-            </div>
-            <div style="background-color: #f8f9fa; padding: 20px; text-align: center; border-top: 1px solid #eaeaea;">
-                <p style="margin: 0; color: #777; font-size: 13px;">© 2024 Videodesk. All rights reserved.</p>
-            </div>
-        </div>
-    `;
-    const adminTextContent = `New Demo Meeting Request - ${meetingId}
-    Client Details:
-    Name: ${name}
-    Email: ${email}
-    Preferred Schedule:
-    Date: ${formattedDate}
-    Time: ${formattedTime}
-    ${message ? `Message: ${message}` : ''}
-    Please contact ${email} to confirm and schedule the demo meeting.`;
-    const userTextContent = `Demo Meeting Request Confirmation - ${meetingId}
-    Thank you ${name}! We have received your demo meeting request.
-    Our team will contact you shortly to confirm the meeting details.
-    Reference: ${meetingId}`;
-    try {
-        // Send email to admin
-        await sendMail(process.env.DEMO_MEETING_EMAIL, `🎯 Demo Meeting Request ${meetingId} - ${name}`, adminTextContent, adminHtmlContent);
-        // Send confirmation email to user
-        await sendMail(email, `✅ Demo Meeting Request Confirmed - ${meetingId}`, userTextContent, userHtmlContent);
-        	sendResponse(res, 200, true, null, `Demo meeting request sent successfully! Reference: ${meetingId}`);
-    } catch (error) {
-        return next(new ErrorHandler("Failed to send demo meeting request", 500));
-    }
-});
+
+
+
+
 
 // Update user logo
 export const updateUserLogo = catchAsyncError(async (req, res, next) => {
@@ -1045,160 +728,7 @@ export const updateLandlordInfo = catchAsyncError(async (req, res, next) => {
     });
 });
 
-// Request Callback
-export const requestCallback = catchAsyncError(async (req, res, next) => {
-    const { name, email, phone, day, customDate, timeSlot, customHour, customMinute, message } = req.body;
-    
-    if (!name || name.trim() === '') {
-        return next(new ErrorHandler("Name is required", 400));
-    }
-    
-    if (!email || email.trim() === '') {
-        return next(new ErrorHandler("Email is required", 400));
-    }
-    
-    if (!phone || phone.trim() === '') {
-        return next(new ErrorHandler("Phone number is required", 400));
-    }
-    
-    const callbackId = `CALLBACK-${Date.now()}-${Math.random().toString(36).substr(2, 5).toUpperCase()}`;
-    
-    // Format the preferred time
-    let preferredTime = '';
-    if (day === 'today') {
-        preferredTime = 'Today';
-    } else if (day === 'tomorrow') {
-        preferredTime = 'Tomorrow';
-    } else if (customDate) {
-        const date = new Date(customDate);
-        preferredTime = date.toLocaleDateString('en-GB', {
-            weekday: 'long',
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric'
-        });
-    }
-    
-    if (timeSlot) {
-        const timeSlotMap = {
-            'morning': '9:00 AM - 12:00 PM',
-            'lunch': '12:00 PM - 2:00 PM',
-            'afternoon': '2:00 PM - 5:00 PM',
-            'evening': '5:00 PM - 6:00 PM'
-        };
-        preferredTime += ` at ${timeSlotMap[timeSlot]}`;
-    } else if (customHour && customMinute) {
-        preferredTime += ` at ${customHour}:${customMinute}`;
-    }
-    
-    // Get the logo SVG
-    const logoSvg = getLogoSvg();
-    
-    const htmlContent = `
-        <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
-            <div style="background: linear-gradient(135deg, #9452FF 0%, #8a42fc 100%); color: white; padding: 30px 20px; text-align: center;">
-                <div style="margin-bottom: 15px;">
-                    ${logoSvg}
-                </div>
-                <p style="margin: 5px auto; display: inline-block; background-color: white; color: #9452FF; padding: 5px 15px; border-radius: 50px; font-size: 16px; letter-spacing: 1px; font-weight: 500;">videodesk.co.uk</p>
-                <h2 style="margin: 15px 0 0 0; font-size: 22px;">📞 New Callback Request</h2>
-                <p style="margin: 10px 0 0 0; font-size: 18px; font-weight: bold;">${callbackId}</p>
-            </div>
-            <div style="padding: 40px 30px; background-color: #ffffff;">
-                <h3 style="color: #333; margin-bottom: 20px; font-weight: 600; font-size: 20px; text-align: center;">📋 Callback Request Details</h3>
-                
-                <div style="background: linear-gradient(135deg, #f8f9ff 0%, #f0f4ff 100%); padding: 25px; border-radius: 12px; margin-bottom: 25px; border: 2px solid #e5e7ff; box-shadow: 0 2px 8px rgba(148,82,255,0.1);">
-                    <div style="display: grid; gap: 15px;">
-                        <div style="display: flex; align-items: center; padding: 12px 0; border-bottom: 1px solid #e5e7ff;">
-                            <span style="font-size: 18px; margin-right: 12px;">👤</span>
-                            <div>
-                                <strong style="color: #333; font-size: 15px;">Name:</strong>
-                                <p style="margin: 2px 0 0 0; font-size: 16px; color: #9452FF; font-weight: 600;">${name}</p>
-                            </div>
-                        </div>
-                        
-                        <div style="display: flex; align-items: center; padding: 12px 0; border-bottom: 1px solid #e5e7ff;">
-                            <span style="font-size: 18px; margin-right: 12px;">📧</span>
-                            <div>
-                                <strong style="color: #333; font-size: 15px;">Email:</strong>
-                                <p style="margin: 2px 0 0 0; font-size: 16px; color: #0066cc; font-weight: 500;">${email}</p>
-                            </div>
-                        </div>
-                        
-                        <div style="display: flex; align-items: center; padding: 12px 0; border-bottom: 1px solid #e5e7ff;">
-                            <span style="font-size: 18px; margin-right: 12px;">📱</span>
-                            <div>
-                                <strong style="color: #333; font-size: 15px;">Phone:</strong>
-                                <p style="margin: 2px 0 0 0; font-size: 16px; color: #333; font-weight: 600;">${phone}</p>
-                            </div>
-                        </div>
-                        
-                        <div style="display: flex; align-items: center; padding: 12px 0;">
-                            <span style="font-size: 18px; margin-right: 12px;">🕐</span>
-                            <div>
-                                <strong style="color: #333; font-size: 15px;">Preferred Time:</strong>
-                                <p style="margin: 2px 0 0 0; font-size: 16px; color: #333; font-weight: 600;">${preferredTime || 'Not specified'}</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                ${message ? `
-                <h3 style="color: #333; margin-bottom: 15px; font-weight: 600;">💬 Additional Message:</h3>
-                <div style="background-color: #f7f4ff; padding: 20px; border-radius: 12px; border-left: 4px solid #9452FF; box-shadow: 0 2px 5px rgba(0,0,0,0.05); margin-bottom: 25px;">
-                    <p style="font-size: 16px; line-height: 1.6; margin: 0; color: #555; font-style: italic;">"${message}"</p>
-                </div>
-                ` : ''}
-                
-                <div style="margin-top: 25px; padding: 20px; background-color: #f0f7ff; border-radius: 12px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
-                    <h4 style="color: #3b82f6; margin: 0 0 15px 0; font-weight: 600;">📞 Next Steps:</h4>
-                    <ul style="margin: 0; padding-left: 20px; color: #555;">
-                        <li style="margin-bottom: 8px;">Our team will contact ${name} at ${phone}</li>
-                        <li style="margin-bottom: 8px;">Preferred contact time: ${preferredTime || 'Any time'}</li>
-                        <li style="margin-bottom: 8px;">Backup email contact: ${email}</li>
-                        <li>Reference: ${callbackId}</li>
-                    </ul>
-                </div>
-                
-                <div style="text-align: center; margin-top: 30px;">
-                    <div style="background-color: #fff3cd; border: 1px solid #ffeaa7; border-radius: 8px; padding: 15px;">
-                        <p style="margin: 0; color: #856404; font-size: 14px; font-weight: 500;">
-                            <strong>⏰ Request submitted on:</strong> ${new Date().toLocaleString('en-GB', {
-                                weekday: 'long',
-                                year: 'numeric',
-                                month: 'long',
-                                day: 'numeric',
-                                hour: '2-digit',
-                                minute: '2-digit'
-                            })}
-                        </p>
-                    </div>
-                </div>
-            </div>
-            <div style="background-color: #f8f9fa; padding: 20px; text-align: center; border-top: 1px solid #eaeaea;">
-                <p style="margin: 0; color: #777; font-size: 13px;">This callback request was generated from Videodesk platform</p>
-                <p style="margin: 5px 0 0 0; color: #777; font-size: 13px;">© 2024 Videodesk. All rights reserved.</p>
-            </div>
-        </div>
-    `;
-    
-    const textContent = `New Callback Request ${callbackId}
-    
-Name: ${name}
-Email: ${email}
-Phone: ${phone}
-Preferred Time: ${preferredTime || 'Not specified'}
-${message ? `Message: ${message}` : ''}
 
-Please contact ${name} at ${phone} at their preferred time.`;
-    
-    try {
-        await sendMail(process.env.CALLBACK_REQUEST_EMAIL || process.env.DEMO_MEETING_EMAIL, `📞 Callback Request ${callbackId} - ${name}`, textContent, htmlContent);
-        	sendResponse(res, 200, true, null, `Callback request ${callbackId} sent successfully`);
-    } catch (error) {
-        return next(new ErrorHandler("Failed to send callback request", 500));
-    }
-});
 
 // Update message settings
 export const updateMessageSettings = catchAsyncError(async (req, res, next) => {
@@ -1216,9 +746,6 @@ export const updateMessageSettings = catchAsyncError(async (req, res, next) => {
     };
     
     await user.save();
-    
-    console.log('✅ Message settings updated for user:', user.email);
-    console.log('📝 Message settings:', user.messageSettings);
     
     res.status(200).json({
         success: true,
@@ -1246,11 +773,9 @@ export const getMessageSettings = catchAsyncError(async (req, res, next) => {
 
 // Folder Management Functions
 export const createFolder = catchAsyncError(async (req, res) => {
-    console.log('📁 [createFolder] Request received:', { body: req.body, user: req.user._id });
     const { name } = req.body;
     
     if (!name || name.trim() === '') {
-        console.log('❌ [createFolder] Validation failed: empty name');
         return res.status(400).json({
             success: false,
             message: 'Folder name is required'
@@ -1259,7 +784,6 @@ export const createFolder = catchAsyncError(async (req, res) => {
 
     const user = await UserModel.findById(req.user._id);
     if (!user) {
-        console.log('❌ [createFolder] User not found:', req.user._id);
         return res.status(404).json({
             success: false,
             message: 'User not found'
@@ -1272,7 +796,6 @@ export const createFolder = catchAsyncError(async (req, res) => {
     );
     
     if (existingFolder) {
-        console.log('❌ [createFolder] Folder already exists:', name);
         return res.status(400).json({
             success: false,
             message: 'Folder with this name already exists'
@@ -1288,7 +811,6 @@ export const createFolder = catchAsyncError(async (req, res) => {
     user.folders.push(newFolder);
     await user.save();
 
-    console.log('✅ [createFolder] Folder created successfully:', newFolder);
     res.status(201).json({
         success: true,
         message: 'Folder created successfully',
@@ -1414,17 +936,12 @@ export const moveFolderToTrash = catchAsyncError(async (req, res) => {
     
     // Get all meeting IDs assigned to this folder
     const meetingFolders = user.meetingFolders.toObject();
-    console.log('🔍 [moveFolderToTrash] Meeting folders:', meetingFolders);
-    console.log('🔍 [moveFolderToTrash] Looking for folderId:', folderId);
     
     const recordsInFolder = Object.entries(meetingFolders)
         .filter(([meetingId, assignedFolderId]) => {
-            console.log(`🔍 [moveFolderToTrash] Checking: meetingId=${meetingId}, assignedFolderId=${assignedFolderId}, folderId=${folderId}, match=${assignedFolderId === folderId}`);
             return assignedFolderId === folderId;
         })
         .map(([meetingId]) => meetingId);
-    
-    console.log('🔍 [moveFolderToTrash] Records in folder:', recordsInFolder);
 
     await user.save();
 
@@ -1471,17 +988,12 @@ export const restoreFolderFromTrash = catchAsyncError(async (req, res) => {
     
     // Get all meeting IDs assigned to this folder
     const meetingFolders = user.meetingFolders.toObject();
-    console.log('🔍 [restoreFolderFromTrash] Meeting folders:', meetingFolders);
-    console.log('🔍 [restoreFolderFromTrash] Looking for folderId:', folderId);
     
     const recordsInFolder = Object.entries(meetingFolders)
         .filter(([meetingId, assignedFolderId]) => {
-            console.log(`🔍 [restoreFolderFromTrash] Checking: meetingId=${meetingId}, assignedFolderId=${assignedFolderId}, folderId=${folderId}, match=${assignedFolderId === folderId}`);
             return assignedFolderId === folderId;
         })
         .map(([meetingId]) => meetingId);
-    
-    console.log('🔍 [restoreFolderFromTrash] Records in folder:', recordsInFolder);
 
     await user.save();
 
@@ -1504,17 +1016,14 @@ export const restoreFolderFromTrash = catchAsyncError(async (req, res) => {
 });
 
 export const getFolders = catchAsyncError(async (req, res) => {
-    console.log('📁 [getFolders] Request received from user:', req.user._id);
     const user = await UserModel.findById(req.user._id);
     if (!user) {
-        console.log('❌ [getFolders] User not found:', req.user._id);
         return res.status(404).json({
             success: false,
             message: 'User not found'
         });
     }
 
-    console.log('✅ [getFolders] Returning folders:', user.folders?.length || 0);
     res.json({
         success: true,
         folders: user.folders || []
@@ -1606,9 +1115,6 @@ export const updatePaginationSettings = catchAsyncError(async (req, res) => {
     
     await user.save();
     
-    console.log('✅ Pagination settings updated for user:', user.email);
-    console.log('📊 Items per page set to:', itemsPerPage);
-    
     res.status(200).json({
         success: true,
         message: "Pagination settings saved successfully",
@@ -1637,7 +1143,6 @@ export const getPaginationSettings = catchAsyncError(async (req, res) => {
 
 export const registerResident = catchAsyncError(async (req, res) => {
     const { email, password } = req.body;
-    console.log('registerResident typeof res.status:', typeof res.status);
     if (!email || !password) {
         return sendResponse(res, 400, false, null, 'Email and password are required');
     }
@@ -1649,8 +1154,6 @@ export const registerResident = catchAsyncError(async (req, res) => {
         password,
         role: 'resident'
     });
-    console.log('About to call sendToken. typeof res.status:', typeof res.status);
-    console.log('About to call sendToken. typeof user.getJWTToken:', typeof user.getJWTToken);
     // Log the user in immediately and return token
     sendToken(res, user, 'Resident account created successfully', 201);
 });
@@ -1675,13 +1178,16 @@ export const getAllUsersByRole = catchAsyncError(async (req, res) => {
         const users = await UserModel.find(filter).select('-password -OTP -resetPasswordToken -resetPasswordExpire');
         const usersWithStatus = users.map(user => {
             const userObj = user.toObject();
-            if (user.currentLoginTime) {
-                const lastLogin = new Date(user.currentLoginTime);
-                const thirtyDaysAgo = new Date();
-                thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-                userObj.status = lastLogin > thirtyDaysAgo ? 'active' : 'inactive';
-            } else {
-                userObj.status = 'inactive';
+            // Use the stored status if it exists, otherwise calculate based on login time
+            if (!userObj.status || userObj.status === 'active') {
+                if (user.currentLoginTime) {
+                    const lastLogin = new Date(user.currentLoginTime);
+                    const thirtyDaysAgo = new Date();
+                    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+                    userObj.status = lastLogin > thirtyDaysAgo ? 'active' : 'inactive';
+                } else {
+                    userObj.status = 'inactive';
+                }
             }
             userObj.lastLogin = user.currentLoginTime || user.createdAt;
             return userObj;
@@ -1716,18 +1222,21 @@ export const getUserById = catchAsyncError(async (req, res) => {
 
         // Add status field
         const userObj = user.toObject();
-        if (user.currentLoginTime) {
-            const lastLogin = new Date(user.currentLoginTime);
-            const thirtyDaysAgo = new Date();
-            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-            
-            if (lastLogin > thirtyDaysAgo) {
-                userObj.status = 'active';
+        // Use the stored status if it exists, otherwise calculate based on login time
+        if (!userObj.status || userObj.status === 'active') {
+            if (user.currentLoginTime) {
+                const lastLogin = new Date(user.currentLoginTime);
+                const thirtyDaysAgo = new Date();
+                thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+                
+                if (lastLogin > thirtyDaysAgo) {
+                    userObj.status = 'active';
+                } else {
+                    userObj.status = 'inactive';
+                }
             } else {
                 userObj.status = 'inactive';
             }
-        } else {
-            userObj.status = 'inactive';
         }
 
         userObj.lastLogin = user.currentLoginTime || user.createdAt;
@@ -1848,4 +1357,415 @@ export const permanentDeleteUser = catchAsyncError(async (req, res) => {
     }
 });
 
+// Freeze user account
+export const freezeUser = catchAsyncError(async (req, res) => {
+    try {
+        if (req.user.role !== 'superadmin' && req.user.role !== 'admin') {
+            return res.status(403).json({ success: false, message: 'Access denied. Only superadmin and admin can freeze users.' });
+        }
 
+        const { id } = req.params;
+
+        // Prevent self-freezing
+        if (id === req.user._id.toString()) {
+            return res.status(400).json({ success: false, message: 'You cannot freeze your own account.' });
+        }
+
+        const userToFreeze = await UserModel.findById(id);
+        if (!userToFreeze) {
+            return res.status(404).json({ success: false, message: 'User not found.' });
+        }
+
+        if (userToFreeze.role === 'superadmin') {
+            return res.status(400).json({ success: false, message: 'Superadmin accounts cannot be frozen.' });
+        }
+
+        // Update user status to frozen
+        userToFreeze.status = 'frozen';
+        await userToFreeze.save();
+
+        sendResponse(res, 200, true, { userId: id, status: 'frozen' }, "User account frozen successfully");
+    } catch (error) {
+        console.error('Error in freezeUser:', error);
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+});
+
+// Suspend user account
+export const suspendUser = catchAsyncError(async (req, res) => {
+    try {
+        if (req.user.role !== 'superadmin' && req.user.role !== 'admin') {
+            return res.status(403).json({ success: false, message: 'Access denied. Only superadmin and admin can suspend users.' });
+        }
+
+        const { id } = req.params;
+
+        // Prevent self-suspension
+        if (id === req.user._id.toString()) {
+            return res.status(400).json({ success: false, message: 'You cannot suspend your own account.' });
+        }
+
+        const userToSuspend = await UserModel.findById(id);
+        if (!userToSuspend) {
+            return res.status(404).json({ success: false, message: 'User not found.' });
+        }
+
+        if (userToSuspend.role === 'superadmin') {
+            return res.status(400).json({ success: false, message: 'Superadmin accounts cannot be suspended.' });
+        }
+
+        // Update user status to suspended
+        userToSuspend.status = 'suspended';
+        await userToSuspend.save();
+
+        sendResponse(res, 200, true, { userId: id, status: 'suspended' }, "User account suspended successfully");
+    } catch (error) {
+        console.error('Error in suspendUser:', error);
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+});
+
+// Activate user account
+export const activateUser = catchAsyncError(async (req, res) => {
+    try {
+        if (req.user.role !== 'superadmin' && req.user.role !== 'admin') {
+            return res.status(403).json({ success: false, message: 'Access denied. Only superadmin and admin can activate users.' });
+        }
+
+        const { id } = req.params;
+
+        const userToActivate = await UserModel.findById(id);
+        if (!userToActivate) {
+            return res.status(404).json({ success: false, message: 'User not found.' });
+        }
+
+        // Update user status to active
+        userToActivate.status = 'active';
+        await userToActivate.save();
+
+        sendResponse(res, 200, true, { userId: id, status: 'active' }, "User account activated successfully");
+    } catch (error) {
+        console.error('Error in activateUser:', error);
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+});
+
+// Update user details (for edit functionality)
+export const updateUserDetails = catchAsyncError(async (req, res) => {
+    try {
+        if (req.user.role !== 'superadmin' && req.user.role !== 'admin') {
+            return res.status(403).json({ success: false, message: 'Access denied. Only superadmin and admin can update users.' });
+        }
+
+        const { id } = req.params;
+        const { email, role, company, status } = req.body;
+
+        // Prevent self-update of role
+        if (id === req.user._id.toString() && role) {
+            return res.status(400).json({ success: false, message: 'You cannot change your own role.' });
+        }
+
+        const userToUpdate = await UserModel.findById(id);
+        if (!userToUpdate) {
+            return res.status(404).json({ success: false, message: 'User not found.' });
+        }
+
+        // Prevent role changes for superadmin
+        if (userToUpdate.role === 'superadmin' && role && role !== 'superadmin') {
+            return res.status(400).json({ success: false, message: 'Superadmin role cannot be changed.' });
+        }
+
+        // Update user fields
+        const updateData = {};
+        if (email) updateData.email = email;
+        if (role) updateData.role = role;
+        if (company !== undefined) updateData.company = company;
+        if (status) updateData.status = status;
+
+        const updatedUser = await UserModel.findByIdAndUpdate(
+            id,
+            updateData,
+            { new: true, runValidators: true }
+        ).select('-password -OTP -resetPasswordToken -resetPasswordExpire');
+
+        sendResponse(res, 200, true, { user: updatedUser }, "User updated successfully");
+    } catch (error) {
+        console.error('Error in updateUserDetails:', error);
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+});
+
+// Get user statistics
+export const getUserStats = catchAsyncError(async (req, res) => {
+    try {
+        if (req.user.role !== 'superadmin' && req.user.role !== 'admin') {
+            return res.status(403).json({ success: false, message: 'Access denied. Only superadmin and admin can view user statistics.' });
+        }
+
+        const { id } = req.params;
+        const user = await UserModel.findById(id);
+        
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'User not found.' });
+        }
+
+        // Import models for statistics
+        const Meeting = (await import('../models/meetings.js')).default;
+        const Upload = (await import('../models/upload.js')).default;
+
+        let stats = {
+            userId: id,
+            role: user.role,
+            basicStats: {
+                accountAge: Math.floor((Date.now() - new Date(user.createdAt)) / (1000 * 60 * 60 * 24)),
+                lastActivity: user.currentLoginTime ? Math.floor((Date.now() - new Date(user.currentLoginTime)) / (1000 * 60 * 60 * 24)) : null,
+                profileComplete: !!(user.landlordInfo?.landlordName || user.landlordInfo?.landlordLogo),
+                email: user.email,
+                company: user.company || 'Unassigned',
+                status: user.status || 'active'
+            }
+        };
+
+        // Role-specific statistics
+        if (user.role === 'landlord') {
+            // Get all meetings for landlord
+            const meetings = await Meeting.find({ 
+                userId: id, 
+                deleted: { $ne: true } 
+            });
+            
+            const archivedMeetings = await Meeting.find({ 
+                userId: id, 
+                archived: true,
+                deleted: { $ne: true } 
+            });
+            
+            const trashedMeetings = await Meeting.find({ 
+                userId: id, 
+                deleted: true 
+            });
+            
+            // Calculate detailed statistics
+            const totalRecordings = meetings.reduce((sum, m) => sum + (m.total_recordings || 0), 0);
+            const totalScreenshots = meetings.reduce((sum, m) => sum + (m.total_screenshots || 0), 0);
+            const totalAccessCount = meetings.reduce((sum, m) => sum + (m.total_access_count || 0), 0);
+            
+            stats.landlordStats = {
+                totalMeetings: meetings.length,
+                activeMeetings: meetings.filter(m => !m.archived).length,
+                archivedMeetings: archivedMeetings.length,
+                totalRecordings: totalRecordings,
+                totalScreenshots: totalScreenshots,
+                totalAccessCount: totalAccessCount,
+                averageMeetingsPerDay: meetings.length > 0 ? Math.round((meetings.length / Math.max(1, Math.floor((Date.now() - new Date(user.createdAt)) / (1000 * 60 * 60 * 24)))) * 100) / 100 : 0
+            };
+        } else if (user.role === 'resident') {
+            const uploads = await Upload.find({ 
+                email: user.email, 
+                deleted: { $ne: true } 
+            });
+            
+            const trashedUploads = await Upload.find({ 
+                email: user.email, 
+                deleted: true 
+            });
+            
+            // Calculate detailed statistics
+            const totalImages = uploads.reduce((sum, u) => sum + (u.images?.length || 0), 0);
+            const totalVideos = uploads.reduce((sum, u) => sum + (u.videos?.length || 0), 0);
+            const totalAccessCount = uploads.reduce((sum, u) => sum + (u.total_access_count || 0), 0);
+            
+            stats.residentStats = {
+                totalUploads: uploads.length,
+                totalImages: totalImages,
+                totalVideos: totalVideos,
+                totalAccess: totalAccessCount,
+                averageAccessPerUpload: uploads.length > 0 ? Math.round((totalAccessCount / uploads.length) * 100) / 100 : 0,
+                trashedUploads: trashedUploads.length
+            };
+        } else if (user.role === 'company-admin') {
+            const companyUsers = await UserModel.find({ 
+                company: user.company, 
+                deleted: { $ne: true } 
+            });
+            
+            // Get company meetings and uploads
+            const companyMeetings = await Meeting.find({ 
+                userId: { $in: companyUsers.map(u => u._id) },
+                deleted: { $ne: true } 
+            });
+            
+            const companyUploads = await Upload.find({ 
+                email: { $in: companyUsers.map(u => u.email) },
+                deleted: { $ne: true } 
+            });
+            
+            stats.companyStats = {
+                companyUsers: companyUsers.length,
+                companyMeetings: companyMeetings.length,
+                companyUploads: companyUploads.length,
+                companyRevenue: 0, // Will be implemented when billing is added
+                averageUsersPerDay: companyUsers.length > 0 ? Math.round((companyUsers.length / Math.max(1, Math.floor((Date.now() - new Date(user.createdAt)) / (1000 * 60 * 60 * 24)))) * 100) / 100 : 0
+            };
+        }
+
+        // Archive & Trash Statistics
+        const archivedMeetings = await Meeting.find({ 
+            userId: id, 
+            archived: true,
+            deleted: { $ne: true } 
+        });
+        
+        const trashedMeetings = await Meeting.find({ 
+            userId: id, 
+            deleted: true 
+        });
+        
+        const trashedUploads = await Upload.find({ 
+            email: user.email, 
+            deleted: true 
+        });
+        
+        stats.archiveTrashStats = {
+            archivedItems: archivedMeetings.length,
+            trashItems: trashedMeetings.length + trashedUploads.length,
+            totalDeleted: trashedMeetings.length + trashedUploads.length
+        };
+
+        // Media & Files Statistics
+        const allMeetings = await Meeting.find({ 
+            userId: id, 
+            deleted: { $ne: true } 
+        });
+        
+        const allUploads = await Upload.find({ 
+            email: user.email, 
+            deleted: { $ne: true } 
+        });
+        
+        const totalScreenshots = allMeetings.reduce((sum, m) => sum + (m.total_screenshots || 0), 0) + 
+                                allUploads.reduce((sum, u) => sum + (u.images?.length || 0), 0);
+        
+        const totalVideos = allMeetings.reduce((sum, m) => sum + (m.total_recordings || 0), 0) +
+                           allUploads.reduce((sum, u) => sum + (u.videos?.length || 0), 0);
+        
+        // Enhanced storage calculation with real file sizes
+        let totalStorageBytes = 0;
+        let totalFileCount = 0;
+        
+        // Calculate storage from meetings (recordings and screenshots)
+        allMeetings.forEach(meeting => {
+            // Add recordings storage
+            if (meeting.recordings && meeting.recordings.length > 0) {
+                meeting.recordings.forEach(recording => {
+                    if (recording.size) {
+                        totalStorageBytes += recording.size;
+                        totalFileCount++;
+                    }
+                });
+            }
+            
+            // Add screenshots storage
+            if (meeting.screenshots && meeting.screenshots.length > 0) {
+                meeting.screenshots.forEach(screenshot => {
+                    if (screenshot.size) {
+                        totalStorageBytes += screenshot.size;
+                        totalFileCount++;
+                    }
+                });
+            }
+        });
+        
+        // Calculate storage from uploads (images and videos)
+        allUploads.forEach(upload => {
+            // Add images storage
+            if (upload.images && upload.images.length > 0) {
+                upload.images.forEach(image => {
+                    // Estimate image size if not available (average 2MB per image)
+                    const imageSize = image.size || (2 * 1024 * 1024);
+                    totalStorageBytes += imageSize;
+                    totalFileCount++;
+                });
+            }
+            
+            // Add videos storage
+            if (upload.videos && upload.videos.length > 0) {
+                upload.videos.forEach(video => {
+                    // Estimate video size if not available (average 50MB per video)
+                    const videoSize = video.size || (50 * 1024 * 1024);
+                    totalStorageBytes += videoSize;
+                    totalFileCount++;
+                });
+            }
+        });
+        
+        // Convert to appropriate units
+        let storageUsed, storageUnit;
+        if (totalStorageBytes < 1024 * 1024) {
+            // Less than 1MB
+            storageUsed = Math.round((totalStorageBytes / 1024) * 100) / 100;
+            storageUnit = 'KB';
+        } else if (totalStorageBytes < 1024 * 1024 * 1024) {
+            // Less than 1GB
+            storageUsed = Math.round((totalStorageBytes / (1024 * 1024)) * 100) / 100;
+            storageUnit = 'MB';
+        } else {
+            // GB or more
+            storageUsed = Math.round((totalStorageBytes / (1024 * 1024 * 1024)) * 100) / 100;
+            storageUnit = 'GB';
+        }
+        
+        // Fallback to rough estimate if no real sizes available
+        if (totalStorageBytes === 0) {
+            const roughEstimateMB = Math.round((totalScreenshots * 2 + totalVideos * 50) / 1024 * 100) / 100;
+            storageUsed = roughEstimateMB;
+            storageUnit = 'MB';
+        }
+        
+        stats.mediaStats = {
+            totalScreenshots: totalScreenshots,
+            totalVideos: totalVideos,
+            storageUsed: storageUsed,
+            storageUnit: storageUnit,
+            totalFileCount: totalFileCount,
+            averageFileSize: totalFileCount > 0 ? Math.round((storageUsed / totalFileCount) * 100) / 100 : 0,
+            averageFileSizeUnit: storageUnit,
+            storageBreakdown: {
+                meetingsStorage: allMeetings.reduce((sum, m) => {
+                    let meetingStorage = 0;
+                    if (m.recordings) meetingStorage += m.recordings.reduce((s, r) => s + (r.size || 0), 0);
+                    if (m.screenshots) meetingStorage += m.screenshots.reduce((s, img) => s + (img.size || 0), 0);
+                    return sum + meetingStorage;
+                }, 0),
+                uploadsStorage: allUploads.reduce((sum, u) => {
+                    let uploadStorage = 0;
+                    if (u.images) uploadStorage += u.images.reduce((s, img) => s + (img.size || (2 * 1024 * 1024)), 0);
+                    if (u.videos) uploadStorage += u.videos.reduce((s, v) => s + (v.size || (50 * 1024 * 1024)), 0);
+                    return sum + uploadStorage;
+                }, 0)
+            }
+        };
+
+        // Activity Statistics
+        const lastLogin = user.currentLoginTime || user.createdAt;
+        const daysSinceLastLogin = Math.floor((Date.now() - new Date(lastLogin)) / (1000 * 60 * 60 * 24));
+        
+        stats.activityStats = {
+            lastLogin: lastLogin,
+            daysSinceLastLogin: daysSinceLastLogin,
+            isActive: daysSinceLastLogin <= 30,
+            activityLevel: daysSinceLastLogin <= 1 ? 'Very Active' : 
+                          daysSinceLastLogin <= 7 ? 'Active' : 
+                          daysSinceLastLogin <= 30 ? 'Moderate' : 'Inactive'
+        };
+
+        res.status(200).json({
+            success: true,
+            message: "User statistics retrieved successfully",
+            data: { stats }
+        });
+    } catch (error) {
+        console.error('Error in getUserStats:', error);
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+});

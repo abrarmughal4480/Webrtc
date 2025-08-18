@@ -1,59 +1,60 @@
 "use client"
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
-import { requestDemoRequest } from '@/http/authHttp';
+import DemoCode from '@/components/DemoCode';
+import { toast } from "sonner";
 
 import ChatBot from '@/components/ChatBot';
 
 export default function ChatKarla() {
   const [isChatOpen, setIsChatOpen] = useState(false);
-  const [isDemoOpen, setIsDemoOpen] = useState(false);
   const [isDemoCodePopupOpen, setIsDemoCodePopupOpen] = useState(false);
-  const [demoName, setDemoName] = useState('');
-  const [demoEmail, setDemoEmail] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitMessage, setSubmitMessage] = useState('');
-  const [demoCode, setDemoCode] = useState('');
   const [chatDemoCode, setChatDemoCode] = useState('');
   const [chatDemoCodeError, setChatDemoCodeError] = useState('');
-  const [demoCodeBlocks, setDemoCodeBlocks] = useState(['', '', '', '']);
   const canvasRef = useRef(null);
 
-  // Valid demo codes - you can modify this array as needed
-  const validDemoCodes = ['7002'];
-
-  // Neural Network Animation
+  // Neural Network Animation - Optimized for better performance
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     const ctx = canvas.getContext('2d');
     let animationId;
+    let isActive = true;
 
     // Set canvas size
     const resizeCanvas = () => {
+      if (!isActive) return;
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
     };
     resizeCanvas();
-    window.addEventListener('resize', resizeCanvas);
+    
+    const handleResize = () => {
+      if (isActive) {
+        resizeCanvas();
+      }
+    };
+    window.addEventListener('resize', handleResize);
 
     // Node class for neural network
     class Node {
       constructor(x, y) {
         this.x = x;
         this.y = y;
-        this.vx = (Math.random() - 0.5) * 0.8;
-        this.vy = (Math.random() - 0.5) * 0.8;
-        this.radius = Math.random() * 2 + 1;
+        this.vx = (Math.random() - 0.5) * 0.6; // Reduced speed for better performance
+        this.vy = (Math.random() - 0.5) * 0.6;
+        this.radius = Math.random() * 1.5 + 0.5; // Smaller radius for better performance
         this.connections = [];
         this.pulse = Math.random() * Math.PI * 2;
       }
 
       update() {
+        if (!isActive) return;
+        
         this.x += this.vx;
         this.y += this.vy;
-        this.pulse += 0.08;
+        this.pulse += 0.05; // Reduced pulse speed
 
         // Bounce off edges
         if (this.x <= 0 || this.x >= canvas.width) this.vx *= -1;
@@ -65,29 +66,31 @@ export default function ChatKarla() {
       }
 
       draw() {
-        const alpha = 0.7 + 0.3 * Math.sin(this.pulse);
+        if (!isActive) return;
+        
+        const alpha = 0.6 + 0.2 * Math.sin(this.pulse); // Reduced alpha for better performance
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
         ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
         ctx.fill();
         
-        // Enhanced glow effect
-        ctx.shadowColor = 'rgba(255, 255, 255, 0.8)';
-        ctx.shadowBlur = 15;
+        // Reduced glow effect for better performance
+        ctx.shadowColor = 'rgba(255, 255, 255, 0.4)';
+        ctx.shadowBlur = 8;
         ctx.fill();
         ctx.shadowBlur = 0;
         
         // Add inner glow
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.radius * 0.6, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(255, 255, 255, ${alpha * 0.3})`;
+        ctx.fillStyle = `rgba(255, 255, 255, ${alpha * 0.2})`;
         ctx.fill();
       }
     }
 
-    // Create nodes
+    // Create nodes - reduced count for better performance
     const nodes = [];
-    const nodeCount = Math.min(80, Math.floor((canvas.width * canvas.height) / 15000));
+    const nodeCount = Math.min(40, Math.floor((canvas.width * canvas.height) / 30000)); // Reduced node count
     
     for (let i = 0; i < nodeCount; i++) {
       nodes.push(new Node(
@@ -96,8 +99,10 @@ export default function ChatKarla() {
       ));
     }
 
-    // Animation loop
+    // Animation loop with performance optimization
     const animate = () => {
+      if (!isActive) return;
+      
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       
       // Update and draw nodes
@@ -106,7 +111,7 @@ export default function ChatKarla() {
         node.draw();
       });
 
-      // Draw connections with enhanced linking
+      // Draw connections with reduced complexity for better performance
       nodes.forEach((node, i) => {
         nodes.slice(i + 1).forEach(otherNode => {
           const distance = Math.sqrt(
@@ -114,36 +119,36 @@ export default function ChatKarla() {
             Math.pow(node.y - otherNode.y, 2)
           );
           
-          if (distance < 180) {
-            const alpha = Math.max(0, 1 - distance / 180);
-            const pulseEffect = Math.sin(Date.now() * 0.003 + i * 0.1) * 0.2 + 0.8;
+          if (distance < 120) { // Reduced connection distance
+            const alpha = Math.max(0, 1 - distance / 120);
+            const pulseEffect = Math.sin(Date.now() * 0.002 + i * 0.1) * 0.15 + 0.85; // Reduced pulse effect
             
             // Main connection line
             ctx.beginPath();
             ctx.moveTo(node.x, node.y);
             ctx.lineTo(otherNode.x, otherNode.y);
-            ctx.strokeStyle = `rgba(255, 255, 255, ${alpha * 0.4 * pulseEffect})`;
-            ctx.lineWidth = 1.5;
+            ctx.strokeStyle = `rgba(255, 255, 255, ${alpha * 0.3 * pulseEffect})`;
+            ctx.lineWidth = 1;
             ctx.stroke();
             
-            // Enhanced glow to connections
-            ctx.shadowColor = 'rgba(255, 255, 255, 0.6)';
-            ctx.shadowBlur = 8;
+            // Reduced glow to connections for better performance
+            ctx.shadowColor = 'rgba(255, 255, 255, 0.3)';
+            ctx.shadowBlur = 4;
             ctx.stroke();
             ctx.shadowBlur = 0;
             
-            // Add pulsing dots along the connection
-            if (distance < 120) {
-              const steps = 3;
+            // Simplified pulsing dots - only for very close connections
+            if (distance < 80) {
+              const steps = 2; // Reduced steps
               for (let step = 1; step < steps; step++) {
                 const t = step / steps;
                 const x = node.x + (otherNode.x - node.x) * t;
                 const y = node.y + (otherNode.y - node.y) * t;
-                const dotPulse = Math.sin(Date.now() * 0.005 + step * 0.5) * 0.3 + 0.7;
+                const dotPulse = Math.sin(Date.now() * 0.003 + step * 0.5) * 0.2 + 0.8;
                 
                 ctx.beginPath();
-                ctx.arc(x, y, 1, 0, Math.PI * 2);
-                ctx.fillStyle = `rgba(255, 255, 255, ${alpha * 0.6 * dotPulse})`;
+                ctx.arc(x, y, 0.8, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(255, 255, 255, ${alpha * 0.4 * dotPulse})`;
                 ctx.fill();
               }
             }
@@ -156,117 +161,48 @@ export default function ChatKarla() {
 
     animate();
 
-    // Cleanup
-    return () => {
-      window.removeEventListener('resize', resizeCanvas);
+    // Cleanup function
+    const cleanup = () => {
+      isActive = false;
       if (animationId) {
         cancelAnimationFrame(animationId);
+        animationId = null;
       }
+      window.removeEventListener('resize', handleResize);
     };
+
+    // Cleanup on unmount
+    return cleanup;
   }, []);
 
   const handleStart = () => {
     setIsDemoCodePopupOpen(true);
   };
 
-  const handleDemoOpen = () => {
-    setIsDemoOpen(true);
-  };
 
-  const handleDemoClose = () => {
-    setIsDemoOpen(false);
-    setDemoName('');
-    setDemoEmail('');
-    setSubmitMessage('');
-    setIsSubmitting(false);
-  };
 
   const handleDemoCodeClose = () => {
     setIsDemoCodePopupOpen(false);
     setChatDemoCode('');
     setChatDemoCodeError('');
-    setDemoCodeBlocks(['', '', '', '']);
   };
 
-  const handleDemoCodeChange = (index, value) => {
-    // Only allow alphanumeric characters and limit to 1 character per block
-    if (value.length <= 1 && /^[A-Za-z0-9]*$/.test(value)) {
-      const newBlocks = [...demoCodeBlocks];
-      newBlocks[index] = value.toUpperCase();
-      setDemoCodeBlocks(newBlocks);
-      
-      // Auto-focus next input
-      if (value && index < 3) {
-        const nextInput = document.getElementById(`demo-code-${index + 1}`);
-        if (nextInput) nextInput.focus();
-      }
-      
-      // Update the combined demo code
-      setChatDemoCode(newBlocks.join(''));
-    }
-  };
-
-  const handleDemoCodeKeyDown = (index, e) => {
-    // Handle backspace to go to previous input
-    if (e.key === 'Backspace' && !demoCodeBlocks[index] && index > 0) {
-      const prevInput = document.getElementById(`demo-code-${index - 1}`);
-      if (prevInput) prevInput.focus();
-    }
-  };
-
-  const handleDemoCodeSubmit = (e) => {
-    e.preventDefault();
-    const combinedCode = demoCodeBlocks.join('');
-    if (combinedCode.length === 4) {
-      if (validDemoCodes.some(code => code.includes(combinedCode))) {
-        setChatDemoCodeError('');
-        setIsDemoCodePopupOpen(false);
-        setChatDemoCode('');
-        setDemoCodeBlocks(['', '', '', '']);
-        setIsChatOpen(true);
-      } else {
-        setChatDemoCodeError('Invalid demo code. Please try again.');
-      }
-    } else {
-      setChatDemoCodeError('Please enter a complete 4-character demo code.');
-    }
-  };
-
-  const handleDemoRequest = async (e) => {
-    e.preventDefault();
-    if (!demoName.trim() || !demoEmail.trim()) {
-      setSubmitMessage('Please fill in both name and email fields.');
+  const handleDemoCodeSubmit = (code, errorData) => {
+    if (errorData && errorData.error) {
+      // Show error message in toast
+      toast.error(errorData.error);
+      setChatDemoCodeError(errorData.error);
       return;
     }
-
-    setIsSubmitting(true);
-    setSubmitMessage('');
-
-    try {
-      const response = await requestDemoRequest({
-        name: demoName.trim(),
-        email: demoEmail.trim()
-      });
-      
-      if (response.data.success) {
-        setSubmitMessage('Thank you! Your demo code has been sent to your email.');
-        setDemoName('');
-        setDemoEmail('');
-        
-        // Close the popup after 3 seconds
-        setTimeout(() => {
-          handleDemoClose();
-        }, 3000);
-      } else {
-        setSubmitMessage('Sorry, there was an error sending your request. Please try again.');
-      }
-    } catch (error) {
-      console.error('Demo request error:', error);
-      setSubmitMessage('Sorry, there was an error sending your request. Please try again.');
-    } finally {
-      setIsSubmitting(false);
-    }
+    
+    // DemoCode component now handles validation
+    setChatDemoCodeError('');
+    setIsDemoCodePopupOpen(false);
+    setChatDemoCode('');
+    setIsChatOpen(true);
   };
+
+
 
   const residentFeatures = [
     "Advice and guidance on Damp and Mould issues",
@@ -283,7 +219,7 @@ export default function ChatKarla() {
   ];
 
   return (
-    <section className="py-8 sm:py-10 md:py-12 lg:py-16 bg-gradient-to-br from-[#9452FF] via-[#8a42fc] to-[#7c3aed] relative overflow-hidden">
+    <section id="chat-karla" className="py-8 sm:py-10 md:py-12 lg:py-16 bg-gradient-to-br from-[#9452FF] via-[#8a42fc] to-[#7c3aed] relative overflow-hidden">
       {/* Neural Network Canvas Background */}
       <canvas
         ref={canvasRef}
@@ -363,163 +299,22 @@ export default function ChatKarla() {
       {/* Chat Modal */}
       <ChatBot isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
       
-      {/* Demo Request Modal */}
-      {isDemoOpen && (
-        <>
-          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[150] pointer-events-none"></div>
-          <div className="fixed inset-0 z-[200] flex items-center justify-center">
-            <div className="min-w-[0] max-w-[95vw] w-full sm:w-[400px] bg-white rounded-2xl shadow-2xl pointer-events-auto flex flex-col mx-2 sm:mx-0">
-              {/* Purple header strip above modal */}
-              <div className="flex items-center justify-center bg-purple-500 text-white p-3 sm:p-4 m-0 rounded-t-2xl relative">
-                <div className="flex-1 flex items-center justify-center">
-                  <span className="text-base sm:text-lg font-bold text-center">Request Demo</span>
-                </div>
-                <button
-                  onClick={handleDemoClose}
-                  className="absolute right-4 bg-purple-500 hover:bg-purple-700 text-white transition p-2 rounded-full shadow"
-                  aria-label="Close"
-                >
-                  <span style={{fontWeight: 'bold', fontSize: 20}}>×</span>
-                </button>
-              </div>
-              <div className="w-full bg-white rounded-b-2xl shadow-2xl border border-gray-200 p-4 sm:p-6 flex flex-col items-center gap-3 pointer-events-auto">
-                <form className="space-y-4 w-full" onSubmit={handleDemoRequest}>
-                  <div>
-                    <label className="text-xs font-semibold text-gray-600 ml-1">Name<span className="text-red-500">*</span><br /></label>
-                    <input
-                      type="text"
-                      className="w-full px-3 py-2 rounded-lg border border-gray-300 bg-white text-sm"
-                      value={demoName}
-                      onChange={(e) => setDemoName(e.target.value)}
-                      placeholder="Enter your name"
-                      required
-                      disabled={isSubmitting}
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-semibold text-gray-600 ml-1">Email<span className="text-red-500">*</span><br /></label>
-                    <input
-                      type="email"
-                      className="w-full px-3 py-2 rounded-lg border border-gray-300 bg-white text-sm"
-                      value={demoEmail}
-                      onChange={(e) => setDemoEmail(e.target.value)}
-                      placeholder="Enter your email"
-                      required
-                      disabled={isSubmitting}
-                    />
-                  </div>
-                  {submitMessage && <div className="text-red-600 text-xs font-semibold text-center">{submitMessage}</div>}
-                  <button 
-                    type="submit" 
-                    className="bg-purple-600 hover:bg-purple-700 text-white font-semibold px-4 py-2 rounded-full transition-all w-full disabled:opacity-60"
-                    disabled={isSubmitting}
-                  >
-                    {isSubmitting ? 'Sending...' : 'Request Demo'}
-                  </button>
-                </form>
-                
-                {/* Link to enter demo code */}
-                <div className="text-center mt-1 pt-1">
-                  <p className="text-sm text-gray-600">
-                    Already have a demo code?{' '}
-                    <button
-                      onClick={() => {
-                        setIsDemoOpen(false);
-                        setDemoName('');
-                        setDemoEmail('');
-                        setSubmitMessage('');
-                        setIsSubmitting(false);
-                        setIsDemoCodePopupOpen(true);
-                      }}
-                      className="text-purple-600 hover:text-purple-700 font-semibold underline transition-colors"
-                    >
-                      Enter it here
-                    </button>
-                  </p>
-                </div>
-                
-                {/* Required field indicator */}
-                <div className="text-center mt-2">
-                  <p className="text-xs text-gray-500">
-                    <span className="text-red-500">*</span>required
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </>
-      )}
 
-      {/* Demo Code Popup Modal */}
-      {isDemoCodePopupOpen && (
-        <>
-          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[150] pointer-events-none"></div>
-          <div className="fixed inset-0 z-[200] flex items-center justify-center">
-            <div className="min-w-[0] max-w-[95vw] w-full sm:w-[400px] bg-white rounded-2xl shadow-2xl pointer-events-auto flex flex-col mx-2 sm:mx-0">
-              {/* Purple header strip above modal */}
-              <div className="flex items-center justify-center bg-purple-500 text-white p-3 sm:p-4 m-0 rounded-t-2xl relative">
-                <div className="flex-1 flex items-center justify-center">
-                  <span className="text-base sm:text-lg font-bold text-center">Enter Demo Code</span>
-                </div>
-                <button
-                  onClick={handleDemoCodeClose}
-                  className="absolute right-4 bg-purple-500 hover:bg-purple-700 text-white transition p-2 rounded-full shadow"
-                  aria-label="Close"
-                >
-                  <span style={{fontWeight: 'bold', fontSize: 20}}>×</span>
-                </button>
-              </div>
-              <div className="w-full bg-white rounded-b-2xl shadow-2xl border border-gray-200 p-4 sm:p-6 flex flex-col items-center gap-3 pointer-events-auto">
-                <form className="space-y-4 w-full" onSubmit={handleDemoCodeSubmit}>
-                  <div>
-                    <label className="text-xs font-semibold text-gray-600 ml-1">Demo Code<br /></label>
-                    <div className="flex justify-center gap-2 mt-2">
-                      {demoCodeBlocks.map((block, index) => (
-                        <input
-                          key={index}
-                          id={`demo-code-${index}`}
-                          type="text"
-                          className="w-12 h-12 text-center text-lg font-semibold border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none bg-white"
-                          value={block}
-                          onChange={(e) => handleDemoCodeChange(index, e.target.value)}
-                          onKeyDown={(e) => handleDemoCodeKeyDown(index, e)}
-                          maxLength={1}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                  {chatDemoCodeError && <div className="text-red-600 text-xs font-semibold text-center">{chatDemoCodeError}</div>}
-                  <button 
-                    type="submit" 
-                    className="bg-purple-600 hover:bg-purple-700 text-white font-semibold px-4 py-2 rounded-full transition-all w-full"
-                  >
-                    Start Chat
-                  </button>
-                </form>
-                
-                {/* Link to request demo code */}
-                <div className="text-center mt-1 pt-1">
-                  <p className="text-sm text-gray-600">
-                    Don't have a demo code?{' '}
-                    <button
-                      onClick={() => {
-                        setIsDemoCodePopupOpen(false);
-                        setChatDemoCode('');
-                        setChatDemoCodeError('');
-                        setDemoCodeBlocks(['', '', '', '']);
-                        setIsDemoOpen(true);
-                      }}
-                      className="text-purple-600 hover:text-purple-700 font-semibold underline transition-colors"
-                    >
-                      Request one here
-                    </button>
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </>
-      )}
+
+      {/* Demo Code Component */}
+      <DemoCode
+        isOpen={isDemoCodePopupOpen}
+        onClose={handleDemoCodeClose}
+        onSubmit={handleDemoCodeSubmit}
+        error={chatDemoCodeError}
+        useCase="karla"
+        onRequestDemo={() => {
+          setIsDemoCodePopupOpen(false);
+          setChatDemoCode('');
+          setChatDemoCodeError('');
+          setIsDemoOpen(true);
+        }}
+      />
     </section>
   );
 }

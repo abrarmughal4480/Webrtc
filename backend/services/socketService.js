@@ -3,6 +3,10 @@ import pino from 'pino';
 const logger = pino();
 
 let io;
+// Store online users with their details
+const onlineUsers = new Map(); // socketId -> userData
+const userSockets = new Map(); // userId -> socketId
+const adminWaitingRooms = new Map(); // token -> socketId (admin waiting)
 
 export const initializeSocket = (server) => {
   io = new Server(server, {
@@ -32,6 +36,72 @@ export const setupSocketListeners = () => {
   io.on('connection', (socket) => {
     logger.info('User connected: ' + socket.id);
 
+    // Handle user authentication and online status
+    socket.on('user-authenticated', (userData) => {
+      try {
+        const { userId, email, role, company } = userData;
+        
+        // Store user connection
+        onlineUsers.set(socket.id, {
+          userId,
+          email,
+          role,
+          company,
+          socketId: socket.id,
+          connectedAt: new Date(),
+          lastActivity: new Date()
+        });
+        
+        // Map userId to socketId for quick lookup
+        userSockets.set(userId, socket.id);
+        
+        // Join superadmin room for online user updates
+        if (role === 'superadmin') {
+          socket.join('superadmin-room');
+          // Send current online users to superadmin
+          socket.emit('online-users-update', getOnlineUsersForSuperadmin());
+        }
+        
+        // Notify superadmins about new online user
+        socket.to('superadmin-room').emit('user-came-online', {
+          userId,
+          email,
+          role,
+          company,
+          connectedAt: new Date()
+        });
+        
+        logger.info(`User ${email} (${role}) connected and authenticated`);
+      } catch (error) {
+        logger.error('Error in user-authenticated:', error);
+      }
+    });
+
+    // Handle user activity (heartbeat)
+    socket.on('user-activity', (userId) => {
+      try {
+        const userData = onlineUsers.get(socket.id);
+        if (userData && userData.userId === userId) {
+          userData.lastActivity = new Date();
+          onlineUsers.set(socket.id, userData);
+        }
+      } catch (error) {
+        logger.error('Error in user-activity:', error);
+      }
+    });
+
+    // Handle superadmin request for online users
+    socket.on('get-online-users', (userData) => {
+      try {
+        const { role } = userData;
+        if (role === 'superadmin') {
+          socket.emit('online-users-update', getOnlineUsersForSuperadmin());
+        }
+      } catch (error) {
+        logger.error('Error in get-online-users:', error);
+      }
+    });
+
     // Join room for WebRTC
     socket.on('join-room', (roomId) => {
       socket.join(roomId);
@@ -41,13 +111,35 @@ export const setupSocketListeners = () => {
     // Admin waiting for user
     socket.on('admin-waiting', (token) => {
       socket.join(`admin-${token}`);
+      adminWaitingRooms.set(token, socket.id);
       logger.info(`Admin ${socket.id} waiting for token: ${token}`);
+      logger.info(`Current admin waiting rooms:`, Array.from(adminWaitingRooms.entries()));
     });
 
     // User opened the link
     socket.on('user-opened-link', (roomId) => {
-      socket.to(`admin-${roomId}`).emit('user-joined-room', roomId);
       logger.info(`User opened link for room: ${roomId}`);
+      logger.info(`Current admin waiting rooms:`, Array.from(adminWaitingRooms.entries()));
+      
+      // Find admin waiting for this room and notify them
+      let adminFound = false;
+      for (const [token, adminSocketId] of adminWaitingRooms.entries()) {
+        logger.info(`Checking token: ${token} against roomId: ${roomId}`);
+        if (token === roomId) {
+          const adminSocket = io.sockets.sockets.get(adminSocketId);
+          if (adminSocket) {
+            adminSocket.emit('user-joined-room', roomId);
+            logger.info(`✅ Notified admin ${adminSocketId} that user opened room: ${roomId}`);
+            adminFound = true;
+          } else {
+            logger.warn(`⚠️ Admin socket ${adminSocketId} not found for token: ${token}`);
+          }
+        }
+      }
+      
+      if (!adminFound) {
+        logger.warn(`⚠️ No admin found waiting for room: ${roomId}`);
+      }
     });
 
     // User started session
@@ -149,11 +241,79 @@ export const setupSocketListeners = () => {
     });
 
     socket.on('disconnect', () => {
-      logger.info('User disconnected: ' + socket.id);
-      // --- DISCONNECT CLEANUP STUB ---
-      // TODO: Clean up any resources, timers, or memory leaks here if needed
+      try {
+        // Get user data before removing
+        const userData = onlineUsers.get(socket.id);
+        
+        if (userData) {
+          // Remove from online users
+          onlineUsers.delete(socket.id);
+          userSockets.delete(userData.userId);
+          
+          // Notify superadmins about user going offline
+          socket.to('superadmin-room').emit('user-went-offline', {
+            userId: userData.userId,
+            email: userData.email,
+            role: userData.role,
+            company: userData.company,
+            disconnectedAt: new Date()
+          });
+          
+          logger.info(`User ${userData.email} (${userData.role}) disconnected`);
+        }
+        
+        // Clean up admin waiting rooms
+        for (const [token, adminSocketId] of adminWaitingRooms.entries()) {
+          if (adminSocketId === socket.id) {
+            adminWaitingRooms.delete(token);
+            logger.info(`Admin ${socket.id} stopped waiting for token: ${token}`);
+          }
+        }
+        
+        logger.info('User disconnected: ' + socket.id);
+      } catch (error) {
+        logger.error('Error in disconnect handler:', error);
+      }
     });
   });
+};
+
+// Function to get online users data for superadmins
+export const getOnlineUsersForSuperadmin = () => {
+  const onlineUsersList = Array.from(onlineUsers.values()).map(user => ({
+    userId: user.userId,
+    email: user.email,
+    role: user.role,
+    company: user.company,
+    connectedAt: user.connectedAt,
+    lastActivity: user.lastActivity,
+    onlineDuration: Math.floor((Date.now() - user.connectedAt.getTime()) / 1000) // seconds
+  }));
+  
+  return {
+    totalOnline: onlineUsersList.length,
+    users: onlineUsersList,
+    timestamp: new Date()
+  };
+};
+
+// Function to check if a specific user is online
+export const isUserOnline = (userId) => {
+  return userSockets.has(userId);
+};
+
+// Function to get online user count
+export const getOnlineUserCount = () => {
+  return onlineUsers.size;
+};
+
+// Function to get admin waiting rooms for debugging
+export const getAdminWaitingRooms = () => {
+  return Array.from(adminWaitingRooms.entries()).map(([token, socketId]) => ({
+    token,
+    adminSocketId: socketId,
+    timestamp: new Date()
+  }));
 };
 
 export const getIO = () => {
@@ -195,5 +355,8 @@ export default {
   initializeSocket,
   setupSocketListeners,
   getIO,
-  SocketService
+  SocketService,
+  getOnlineUsersForSuperadmin,
+  isUserOnline,
+  getOnlineUserCount
 };

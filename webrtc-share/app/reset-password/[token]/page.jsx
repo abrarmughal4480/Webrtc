@@ -34,7 +34,7 @@ const ResetPasswordPage = ({ params }) => {
     setIsLoading(true);
     
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/api/v1/reset-password/${token}`, {
+              const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/reset-password/${token}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

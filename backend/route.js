@@ -1,6 +1,6 @@
 import express from 'express';
 const router = express.Router();
-import {changePassword, loadme, login, logout, register, updateUser,forgotPassword,resetPassword, verify, sendFriendLink, resetPasswordFromDashboard, sendFeedback, raiseSupportTicket, updateUserLogo, updateLandlordInfo, bookDemoMeeting, requestCallback, updateMessageSettings, getMessageSettings, createFolder, updateFolder, deleteFolder, moveFolderToTrash, restoreFolderFromTrash, getFolders, assignMeetingToFolder, getMeetingFolders, updatePaginationSettings, getPaginationSettings, registerResident, getAllUsersByRole, getUserById, deleteUser, restoreUser, permanentDeleteUser } from './controllers/authController.js';
+import {changePassword, loadme, login, logout, register, updateUser,forgotPassword,resetPassword, verify, resetPasswordFromDashboard, updateUserLogo, updateLandlordInfo, updateMessageSettings, getMessageSettings, createFolder, updateFolder, deleteFolder, moveFolderToTrash, restoreFolderFromTrash, getFolders, assignMeetingToFolder, getMeetingFolders, updatePaginationSettings, getPaginationSettings, registerResident, getAllUsersByRole, getUserById, deleteUser, restoreUser, permanentDeleteUser, freezeUser, suspendUser, activateUser, updateUserDetails, getUserStats } from './controllers/authController.js';
 import { requestDemo } from './controllers/demoController.js';
 import { saveChatSession, getChatSessions, getChatSession, deleteChatSession, updateChatSessionTitle, updateMessageFeedback } from './controllers/chatHistoryController.js';
 import { createUpload, createUploadSession, uploadFile, completeUpload, getUploadProgress, getUploadByAccessCode, getMyUploads, getMyLatestUpload, deleteUpload, restoreUpload, permanentDeleteUpload, getMyTrashedUploads, markNotificationSent, checkNotificationStatus, searchUploads, recordVisitorAccess } from './controllers/uploadController.js';
@@ -13,7 +13,16 @@ import Upload from './models/upload.js';
 import { createCompany, getAllCompanies, getCompanyById, updateCompany, deleteCompany, getCompanyStats, changeTemporaryPassword, checkTemporaryPasswordStatus, testCompanyController } from './controllers/companyController.js';
 
 // Support Ticket controller import
-import { createSupportTicket, getUserTickets, getTicketById, updateTicket, deleteTicket, getAllTickets, adminUpdateTicket, getTicketStats, bulkUpdateTickets, searchTickets, exportTickets, deleteAttachment } from './controllers/supportTicketController.js';
+import { createSupportTicket, getUserTickets, getTicketById, updateTicket, deleteTicket, getAllTickets, adminUpdateTicket, adminUpdateTicketComprehensive, getSuperAdminAllTickets, getDashboardStats, getTicketStats, bulkUpdateTickets, searchTickets, exportTickets, deleteAttachment } from './controllers/supportTicketController.js';
+
+// Callback Request controller import
+import { createCallbackRequest, getAllCallbackRequests, getCallbackRequestById, updateCallbackRequestStatus, addContactAttempt, deleteCallbackRequest, getCallbackRequestStats } from './controllers/callbackRequestController.js';
+
+// Demo Meeting controller import
+import { createDemoMeetingRequest, getAllDemoMeetingRequests, getDemoMeetingRequestById, updateDemoMeetingRequest, rescheduleDemoMeeting, deleteDemoMeetingRequest, getDemoMeetingStats } from './controllers/demoMeetingController.js';
+
+// Socket service import for online users
+import { getOnlineUsersForSuperadmin, getAdminWaitingRooms } from './services/socketService.js';
 
 router.route('/register').post(register);
 router.route('/register-resident').post(registerResident);
@@ -25,11 +34,7 @@ router.route('/user/update').put(isAuthenticate,updateUser);
 router.route('/user/change-password').put(isAuthenticate,changePassword);
 router.route('/forgot-password').post(forgotPassword);
 router.route('/reset-password/:token').put(resetPassword);
-router.route('/send-friend-link').post(isAuthenticate, sendFriendLink);
 router.route('/user/reset-password').put(isAuthenticate, resetPasswordFromDashboard);
-router.route('/send-feedback').post(isAuthenticate, sendFeedback);
-router.route('/raise-support-ticket').post(isAuthenticate, raiseSupportTicket);
-router.route('/request-callback').post(requestCallback);
 router.route('/user/update-logo').put(isAuthenticate, updateUserLogo);
 router.route('/user/update-landlord-info').put(isAuthenticate, updateLandlordInfo);
 router.route('/user/message-settings').put(isAuthenticate, updateMessageSettings);
@@ -37,12 +42,113 @@ router.route('/user/message-settings').get(isAuthenticate, getMessageSettings);
 router.route('/user/pagination-settings').put(isAuthenticate, updatePaginationSettings);
 router.route('/user/pagination-settings').get(isAuthenticate, getPaginationSettings);
 router.route('/users/all').get(isAuthenticate, getAllUsersByRole);
+router.route('/users/online').get(isAuthenticate, (req, res) => {
+  // Only superadmins can access online users
+  if (req.user.role !== 'superadmin') {
+    return res.status(403).json({
+      success: false,
+      message: 'Only superadmins can access online users'
+    });
+  }
+  
+  try {
+    const onlineUsers = getOnlineUsersForSuperadmin();
+    res.json({
+      success: true,
+      data: onlineUsers
+    });
+  } catch (error) {
+    console.error('Error getting online users:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching online users'
+    });
+  }
+});
+
+// Debug endpoint for socket status (development only)
+router.route('/debug/socket-status').get((req, res) => {
+  if (process.env.NODE_ENV !== 'development') {
+    return res.status(403).json({
+      success: false,
+      message: 'Debug endpoint only available in development'
+    });
+  }
+  
+  try {
+    const adminWaitingRooms = getAdminWaitingRooms();
+    res.json({
+      success: true,
+      data: {
+        adminWaitingRooms,
+        timestamp: new Date()
+      }
+    });
+  } catch (error) {
+    console.error('Error getting socket status:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching socket status'
+    });
+  }
+});
 router.route('/users/:id').get(isAuthenticate, getUserById);
 router.route('/users/:id').put(isAuthenticate, updateUser);
 router.route('/users/:id').delete(isAuthenticate, deleteUser);
 router.route('/users/restore/:id').put(isAuthenticate, restoreUser);
 router.route('/users/permanent/:id').delete(isAuthenticate, permanentDeleteUser);
-router.route('/book-demo-meeting').post(bookDemoMeeting);
+router.route('/users/:id/freeze').put(isAuthenticate, freezeUser);
+router.route('/users/:id/suspend').put(isAuthenticate, suspendUser);
+router.route('/users/:id/activate').put(isAuthenticate, activateUser);
+router.route('/users/:id/details').put(isAuthenticate, updateUserDetails);
+router.route('/users/:id/stats').get(isAuthenticate, getUserStats);
+router.route('/dashboard/stats').get(isAuthenticate, async (req, res) => {
+  // Only superadmins can access dashboard stats
+  if (req.user.role !== 'superadmin') {
+    return res.status(403).json({
+      success: false,
+      message: 'Only superadmins can access dashboard stats'
+    });
+  }
+  
+  try {
+    // Import models
+    const User = (await import('./models/user.js')).default;
+    const Company = (await import('./models/company.js')).default;
+    const Meeting = (await import('./models/meetings.js')).default;
+    const Upload = (await import('./models/upload.js')).default;
+    const SupportTicket = (await import('./models/supportTicket.js')).default;
+    
+    // Get counts in parallel for better performance
+    const [totalUsers, totalCompanies, totalMeetings, totalUploads, totalTickets, systemHealth] = await Promise.all([
+      User.countDocuments({ deleted: { $ne: true } }),
+      Company.countDocuments({ deleted: { $ne: true } }),
+      Meeting.countDocuments({ deleted: { $ne: true } }),
+      Upload.countDocuments({ deleted: { $ne: true } }),
+      SupportTicket.countDocuments({ deleted: { $ne: true } }),
+      Promise.resolve('healthy') // You can add real system health check here
+    ]);
+    
+    res.json({
+      success: true,
+      data: {
+        totalUsers,
+        totalCompanies,
+        totalMeetings,
+        totalUploads,
+        totalTickets,
+        systemHealth,
+        timestamp: new Date().toISOString()
+      }
+    });
+  } catch (error) {
+    console.error('Error getting dashboard stats:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching dashboard stats'
+    });
+  }
+});
 router.route('/request-demo').post(requestDemo);
 
 router.route('/chat/sessions').get(isAuthenticate, getChatSessions);
@@ -92,26 +198,18 @@ router.route('/get-token-info/:token').get((req, res) => {
         const { token } = req.params;
         const { landlordName, profileImage, landlordLogo } = req.query;
         
-        console.log(`ℹ️ Token info request for: ${token}`);
-        
         const tokenInfo = {};
         
         if (landlordName) tokenInfo.landlordName = landlordName;
         if (profileImage) tokenInfo.profileImage = profileImage;
         if (landlordLogo) tokenInfo.landlordLogo = landlordLogo;
         
-        if (Object.keys(tokenInfo).length > 0) {
-            console.log(`✅ Found token info for: ${token}`);
-        } else {
-            console.log(`ℹ️ No token-specific info found for: ${token} (using default profile)`);
-        }
-        
         res.json({
             success: true,
             tokenInfo: Object.keys(tokenInfo).length > 0 ? tokenInfo : null
         });
     } catch (error) {
-        console.error('❌ Error getting token info:', error);
+        console.error('Error getting token info:', error);
         res.status(500).json({
             success: false,
             message: 'Error retrieving token info'
@@ -142,29 +240,17 @@ router.route('/upload/:accessCode/access').post(recordVisitorAccess);
 
 router.post('/validate-access-code', async (req, res) => {
   const { code, house, postcode } = req.body;
-  console.log('🔍 Validation request received:', { code, house, postcode });
   
   if (!code || !house || !postcode) {
-    console.log('❌ Missing required fields');
     return res.status(400).json({ valid: false, message: 'All fields are required.' });
   }
   
   try {
     const upload = await Upload.findOne({ accessCode: code });
-    console.log('📄 Found upload:', upload ? 'Yes' : 'No');
     
     if (!upload) {
-      console.log('❌ Code not found:', code);
       return res.status(404).json({ valid: false, message: 'Code not found' });
     }
-    
-    console.log('📋 Upload details:', {
-      accessCode: upload.accessCode,
-      house_name_number: upload.house_name_number,
-      flat_apartment_room: upload.flat_apartment_room,
-      actualPostCode: upload.actualPostCode,
-      postCode: upload.postCode
-    });
     
     const houseMatch = (upload.house_name_number && upload.house_name_number.trim().toLowerCase() === house.trim().toLowerCase()) ||
                       (upload.flat_apartment_room && upload.flat_apartment_room.trim().toLowerCase() === house.trim().toLowerCase());
@@ -172,29 +258,13 @@ router.post('/validate-access-code', async (req, res) => {
     const postcodeMatch = (upload.actualPostCode && upload.actualPostCode.trim().toLowerCase() === postcode.trim().toLowerCase()) ||
                          (upload.postCode && upload.postCode.trim().toLowerCase() === postcode.trim().toLowerCase());
     
-    console.log('🏠 House matching:', {
-      input: house.trim().toLowerCase(),
-      house_name_number: upload.house_name_number ? upload.house_name_number.trim().toLowerCase() : 'null',
-      flat_apartment_room: upload.flat_apartment_room ? upload.flat_apartment_room.trim().toLowerCase() : 'null',
-      houseMatch
-    });
-    
-    console.log('📮 Postcode matching:', {
-      input: postcode.trim().toLowerCase(),
-      actualPostCode: upload.actualPostCode ? upload.actualPostCode.trim().toLowerCase() : 'null',
-      postCode: upload.postCode ? upload.postCode.trim().toLowerCase() : 'null',
-      postcodeMatch
-    });
-    
     if (houseMatch && postcodeMatch) {
-      console.log('✅ Validation successful');
       return res.json({ valid: true, accessCode: code });
     }
     
-    console.log('❌ Validation failed - details do not match');
     return res.status(403).json({ valid: false, message: 'Details do not match' });
   } catch (err) {
-    console.error('💥 Server error:', err);
+    console.error('Server error:', err);
     return res.status(500).json({ valid: false, message: 'Server error' });
   }
 });
@@ -296,6 +366,42 @@ router.get('/support-tickets/admin/all', isAuthenticate, (req, res, next) => {
     }
 }, getAllTickets);
 
+// New admin update route for super admin
+router.put('/support-tickets/admin/update/:id', isAuthenticate, (req, res, next) => {
+    if (req.user.role === 'admin' || req.user.role === 'superadmin') {
+        next();
+    } else {
+        res.status(401).json({
+            success: false,
+            message: 'Only admin or superadmin can perform this operation'
+        });
+    }
+}, adminUpdateTicketComprehensive);
+
+// Super admin: Get ALL tickets without restrictions
+router.get('/support-tickets/superadmin/all', isAuthenticate, (req, res, next) => {
+    if (req.user.role === 'superadmin') {
+        next();
+    } else {
+        res.status(401).json({
+            success: false,
+            message: 'Only superadmin can perform this operation'
+        });
+    }
+}, getSuperAdminAllTickets);
+
+// Fast stats route for super admin
+router.get('/support-tickets/admin/fast-stats', isAuthenticate, (req, res, next) => {
+    if (req.user.role === 'admin' || req.user.role === 'superadmin') {
+        next();
+    } else {
+        res.status(401).json({
+            success: false,
+            message: 'Only admin or superadmin can perform this operation'
+        });
+    }
+}, getDashboardStats);
+
 router.put('/support-tickets/admin/ticket/:id', isAuthenticate, (req, res, next) => {
     if (req.user.role === 'admin' || req.user.role === 'superadmin' || req.user.role === 'company-admin') {
         next();
@@ -353,5 +459,23 @@ router.get('/support-tickets/admin/export', isAuthenticate, (req, res, next) => 
 
 // Search route (available to all authenticated users)
 router.get('/support-tickets/search', isAuthenticate, searchTickets);
+
+// Callback Request routes
+router.post('/callback-requests', createCallbackRequest); // Public route
+router.get('/callback-requests', isAuthenticate, getAllCallbackRequests); // Protected route
+router.get('/callback-requests/:id', isAuthenticate, getCallbackRequestById);
+router.put('/callback-requests/:id', isAuthenticate, updateCallbackRequestStatus);
+router.post('/callback-requests/:id/contact-attempt', isAuthenticate, addContactAttempt);
+router.delete('/callback-requests/:id', isAuthenticate, deleteCallbackRequest);
+router.get('/callback-requests/stats', isAuthenticate, getCallbackRequestStats);
+
+// Demo Meeting routes
+router.post('/demo-meetings', createDemoMeetingRequest); // Public route
+router.get('/demo-meetings', isAuthenticate, getAllDemoMeetingRequests); // Protected route
+router.get('/demo-meetings/:id', isAuthenticate, getDemoMeetingRequestById);
+router.put('/demo-meetings/:id', isAuthenticate, updateDemoMeetingRequest);
+router.post('/demo-meetings/:id/reschedule', isAuthenticate, rescheduleDemoMeeting);
+router.delete('/demo-meetings/:id', isAuthenticate, deleteDemoMeetingRequest);
+router.get('/demo-meetings/stats', isAuthenticate, getDemoMeetingStats);
 
 export default router;

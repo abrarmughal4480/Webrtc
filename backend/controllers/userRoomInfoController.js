@@ -5,23 +5,18 @@ import { decryptUserId } from '../utils/sendToken.js';
 export const getUserRoomInfo = async (req, res) => {
   try {
     const { userId } = req.query;
-    console.log('[room-user-info] Incoming obfuscated userId:', userId);
     if (!userId) {
       return res.status(400).json({ success: false, message: 'userId (sid) is required' });
     }
     // Decrypt the obfuscated userId
     const realUserId = decryptUserId(userId);
-    console.log('[room-user-info] Decrypted userId:', realUserId);
     if (!realUserId || realUserId.length !== 24) {
       return res.status(400).json({ success: false, message: 'Invalid or un-decryptable userId', decrypted: realUserId });
     }
     const user = await User.findById(realUserId).select('email landlordInfo role logo messageSettings');
     if (!user) {
-      console.log('[room-user-info] User not found for userId:', realUserId);
       return res.status(404).json({ success: false, message: 'User not found', userId: realUserId });
     }
-    console.log('[room-user-info] User found:', user.email);
-    console.log('[room-user-info] Full user document:', JSON.stringify(user, null, 2));
 
     // Determine tailored or default redirect
     let isDefaultRedirectUrl = true;

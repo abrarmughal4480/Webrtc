@@ -32,7 +32,7 @@ export const sendMail = async (to, subject, text, html = null, buttonColor = nul
             ...(finalHtml && { html: finalHtml })
         };
         await transporter.sendMail(mailOptions);
-        console.log("Email sent successfully");
+        // Email sent successfully
     } catch (error) {
         console.error("Error sending email:", error);
         throw error; // Re-throw error for better upstream error handling
