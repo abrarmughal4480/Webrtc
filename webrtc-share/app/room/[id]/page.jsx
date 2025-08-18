@@ -24,7 +24,7 @@ const page = ({params}) => {
   const videoRef = useRef(null);
   const notificationSocketRef = useRef(null);  const {localStream, remoteStream, socket, socketConnection, handleDisconnect, startPeerConnection, endCallWithRedirect,
     handleMouseDown, handleMouseMove, handleMouseUp, handleMouseLeave, mousePosition, isMouseDown,
-    handleCameraZoom, handleCameraTorch, handleIncomingCameraZoom, handleIncomingCameraTorch} = useWebRTC(false, id, videoRef);
+    handleCameraZoom, handleCameraTorch, handleIncomingCameraZoom, handleIncomingCameraTorch, cameraReady} = useWebRTC(false, id, videoRef);
   const [roomUserInfo, setRoomUserInfo] = useState(null);
   const [minSkeletonTimePassed, setMinSkeletonTimePassed] = useState(false);
   const [isDefaultRedirectUrlFromUser, setIsDefaultRedirectUrlFromUser] = useState(true);
@@ -393,6 +393,12 @@ const page = ({params}) => {
               zIndex: 30
             }}
           >
+            {/* NEW: Camera Status Indicator */}
+            <div className="flex items-center gap-2 text-white text-xs bg-black/30 px-2 py-1 rounded">
+              <div className={`w-2 h-2 rounded-full ${cameraReady ? 'bg-green-400' : 'bg-yellow-400'}`}></div>
+              <span>{cameraReady ? 'Camera Ready' : 'Camera Initializing...'}</span>
+            </div>
+
             {/* Torch Button */}
             <button 
               className="w-12 h-12 bg-black/50 hover:bg-black/70 text-white rounded-full flex items-center justify-center cursor-pointer transition-all duration-200 shadow-lg"

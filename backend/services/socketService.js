@@ -240,6 +240,32 @@ export const setupSocketListeners = () => {
       }
     });
 
+    // NEW: Dedicated camera control room events for better reliability
+    socket.on('join-camera-room', (roomId) => {
+      logger.info(`Camera control socket ${socket.id} joining camera room: ${roomId}`);
+      socket.join(roomId);
+      
+      // Store socket info for camera control
+      if (!socket.cameraRooms) {
+        socket.cameraRooms = new Set();
+      }
+      socket.cameraRooms.add(roomId);
+    });
+
+    socket.on('camera-ready', (data) => {
+      logger.info(`Camera ready signal received from ${socket.id} in room: ${data.roomId}`);
+      
+      // Forward camera ready signal to admin in the same room
+      if (data.roomId) {
+        socket.to(data.roomId).emit('camera-ready', {
+          userId: socket.id,
+          roomId: data.roomId,
+          timestamp: Date.now()
+        });
+        logger.info(`Camera ready signal forwarded to room ${data.roomId}`);
+      }
+    });
+
     socket.on('disconnect', () => {
       try {
         // Get user data before removing
