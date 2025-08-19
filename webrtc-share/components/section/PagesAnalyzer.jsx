@@ -38,21 +38,17 @@ export default function PagesAnalyzer({ isOpen, onClose }) {
   const getThumbUrl = (index) => {
     // First check if we have a stored thumb in results
     if (results[index]?.thumb) {
-      console.log(`Using stored thumb for index ${index}:`, results[index].thumb);
       return results[index].thumb;
     }
     // Fallback to thumbs array
     if (thumbs[index]) {
-      console.log(`Using thumbs array for index ${index}:`, thumbs[index]);
       return thumbs[index];
     }
     // If still no thumb, try to create one from files
     if (files[index]) {
       const newUrl = URL.createObjectURL(files[index]);
-      console.log(`Created new URL for index ${index}:`, newUrl);
       return newUrl;
     }
-    console.log(`No thumb found for index ${index}`);
     return '';
   };
 
@@ -77,6 +73,8 @@ export default function PagesAnalyzer({ isOpen, onClose }) {
   // Load voices for speech synthesis
   useEffect(() => {
     const loadVoices = () => {
+      if (typeof window === 'undefined' || !window.speechSynthesis) return;
+      
       const voices = window.speechSynthesis.getVoices();
       // Find the best British female voice
       const britishVoice = voices.find(v => 
@@ -85,7 +83,7 @@ export default function PagesAnalyzer({ isOpen, onClose }) {
       ) || voices.find(v => /en-GB/i.test(v.lang)) || voices.find(v => /^en/i.test(v.lang));
       
       if (britishVoice) {
-        console.log('Selected voice:', britishVoice.name, britishVoice.lang);
+      } else {
       }
     };
 
@@ -93,11 +91,13 @@ export default function PagesAnalyzer({ isOpen, onClose }) {
     loadVoices();
     
     // Also listen for voices loaded event
-    window.speechSynthesis.addEventListener('voiceschanged', loadVoices);
-    
-    return () => {
-      window.speechSynthesis.removeEventListener('voiceschanged', loadVoices);
-    };
+    if (typeof window !== 'undefined' && window.speechSynthesis) {
+      window.speechSynthesis.addEventListener('voiceschanged', loadVoices);
+      
+      return () => {
+        window.speechSynthesis.removeEventListener('voiceschanged', loadVoices);
+      };
+    }
   }, []);
 
   const onFileChange = (e) => {
@@ -247,66 +247,122 @@ export default function PagesAnalyzer({ isOpen, onClose }) {
   const speakRef = useRef(null);
   const handleSpeak = (result) => {
     if (!result) return;
+    
+    // Check if speech synthesis is supported
+    if (typeof window === 'undefined' || !window.speechSynthesis) {
+      setIsAudioPlaying(false);
+      return;
+    }
+    
     const synth = window.speechSynthesis;
-    if (!synth) return alert("Speech synthesis not supported in this browser.");
+    if (!synth) {
+      setIsAudioPlaying(false);
+      return;
+    }
 
     // Immediately set audio playing state for instant button change
     setIsAudioPlaying(true);
 
-    const voices = synth.getVoices();
-    
-    // Prioritize British female voices
-    let voice = voices.find(v => 
-      /en-GB/i.test(v.lang) && 
-      (v.name.includes('Female') || v.name.includes('female') || v.name.includes('Samantha') || v.name.includes('Victoria'))
-    ) || voices.find(v => /en-GB/i.test(v.lang)) || voices.find(v => /^en/i.test(v.lang)) || null;
-
-    if (!voice) {
-      // If no British voice found, try to find any English voice
-      voice = voices.find(v => /^en/i.test(v.lang));
-    }
-
-    const affectedLine = result.affected?.length ? result.affected.join(", ") : "none";
-    const text = `Analysis Results. Severity: ${result.severity || "unknown"}. Confidence: ${result.confidence ?? 0} percent. Affected areas: ${affectedLine}. Summary: ${result.summary}`;
-
-    const utter = new SpeechSynthesisUtterance(text);
-    if (voice) {
-      utter.voice = voice;
-      console.log('Using voice:', voice.name, voice.lang);
-    }
-    
-    // Optimize for British accent
-    utter.rate = 0.85; // Slightly slower for clarity
-    utter.pitch = 1.05; // Slightly higher pitch for female voice
-    utter.lang = voice?.lang || "en-GB";
-    
-    // Stop any current speech
-    synth.cancel();
-    
-    // Start new speech
-    synth.speak(utter);
-    speakRef.current = utter;
-    
-    // Add event listeners for better control
-    utter.onend = () => {
+    try {
+      let voices = synth.getVoices();
+      
+      // If no voices are loaded yet, wait for them
+      if (voices.length === 0) {
+        synth.addEventListener('voiceschanged', () => {
+          voices = synth.getVoices();
+          proceedWithSpeech(voices, result, synth);
+        }, { once: true });
+        return;
+      }
+      
+      proceedWithSpeech(voices, result, synth);
+      
+    } catch (error) {
       speakRef.current = null;
-      setIsAudioPlaying(false); // Reset state when audio ends
-    };
-    
-    utter.onerror = (event) => {
-      console.error('Speech synthesis error:', event);
+      setIsAudioPlaying(false);
+    }
+  };
+
+  const proceedWithSpeech = (voices, result, synth) => {
+    try {
+      // Prioritize British female voices
+      let voice = voices.find(v => 
+        /en-GB/i.test(v.lang) && 
+        (v.name.includes('Female') || v.name.includes('female') || v.name.includes('Samantha') || v.name.includes('Victoria'))
+      ) || voices.find(v => /en-GB/i.test(v.lang)) || voices.find(v => /^en/i.test(v.lang)) || null;
+
+      if (!voice) {
+        // If no British voice found, try to find any English voice
+        voice = voices.find(v => /^en/i.test(v.lang));
+      }
+
+      const affectedLine = result.affected?.length ? result.affected.join(", ") : "none";
+      const text = `Analysis Results. Severity: ${result.severity || "unknown"}. Confidence: ${result.confidence ?? 0} percent. Affected areas: ${affectedLine}. Summary: ${result.summary}`;
+
+      const utter = new SpeechSynthesisUtterance(text);
+      
+      if (voice) {
+        utter.voice = voice;
+      }
+      
+      // Optimize for British accent
+      utter.rate = 0.85; // Slightly slower for clarity
+      utter.pitch = 1.05; // Slightly higher pitch for female voice
+      utter.lang = voice?.lang || "en-GB";
+      
+      // Stop any current speech
+      synth.cancel();
+      
+      // Add event listeners for better control
+      utter.onend = () => {
+        speakRef.current = null;
+        setIsAudioPlaying(false); // Reset state when audio ends
+      };
+      
+      utter.onerror = (event) => {
+        speakRef.current = null;
+        setIsAudioPlaying(false); // Reset state on error
+      };
+      
+      // Start new speech
+      synth.speak(utter);
+      speakRef.current = utter;
+      
+    } catch (error) {
       speakRef.current = null;
-      setIsAudioPlaying(false); // Reset state on error
-    };
+      setIsAudioPlaying(false);
+    }
   };
 
   const stopSpeak = () => {
-    const synth = window.speechSynthesis;
-    if (synth) {
-      synth.cancel();
+    try {
+      const synth = window.speechSynthesis;
+      if (synth) {
+        synth.cancel();
+        speakRef.current = null;
+        setIsAudioPlaying(false); // Immediately reset state for instant button change
+      }
+    } catch (error) {
+      // Even if there's an error, reset the state
       speakRef.current = null;
-      setIsAudioPlaying(false); // Immediately reset state for instant button change
+      setIsAudioPlaying(false);
     }
+  };
+
+  const handleFeedback = (imageIndex, type) => {
+    console.log(`Feedback for image ${imageIndex}: ${type}`);
+    
+    // Update the result to show filled state immediately
+    setResults(prev => ({
+      ...prev,
+      [imageIndex]: {
+        ...prev[imageIndex],
+        feedback: type
+      }
+    }));
+    
+    // You can add backend feedback saving here if needed
+    // For now, it's just stored in local state
   };
 
   const severityPill = (label) => {
@@ -534,8 +590,8 @@ export default function PagesAnalyzer({ isOpen, onClose }) {
                     {/* Three Column Layout */}
                     <div className="flex flex-col md:flex-row items-center justify-center gap-0 mb-6">
                       {/* Column 1: Photo */}
-                      <div className="flex flex-col items-center px-6 w-full md:w-1/3">
-                        <div className="w-full max-w-40 h-32 rounded-lg border border-gray-200 overflow-hidden flex-shrink-0 relative group">
+                      <div className="flex flex-col items-center px-6 w-full md:w-1/4">
+                        <div className="w-full max-w-40 h-28 rounded-lg border border-gray-200 overflow-hidden flex-shrink-0 relative group">
                           {getThumbUrl(parseInt(imageIndex)) ? (
                             <img src={getThumbUrl(parseInt(imageIndex))} alt={`Photo ${parseInt(imageIndex) + 1}`} className="w-full h-full object-cover" />
                           ) : (
@@ -561,16 +617,17 @@ export default function PagesAnalyzer({ isOpen, onClose }) {
                           </div>
                         </div>
                         <p className="text-sm text-gray-600 mt-2 text-center">Photo {parseInt(imageIndex) + 1}</p>
-                        <p className="text-xs text-gray-500 mt-1 text-center">Analyzed at: {result.analysedAt}</p>
                       </div>
 
                       {/* Vertical Divider Line 1 */}
-                      <div className="hidden md:block w-px h-48 bg-gray-300 mx-2"></div>
+                      <div className="hidden md:block w-px h-40 bg-gray-300 mx-2"></div>
 
                       {/* Column 2: Confidence */}
-                      <div className="flex flex-col items-center px-6 w-full md:w-1/3">
-                        <h4 className="text-lg font-semibold text-gray-800 mb-3 text-center">Confidence:</h4>
-                        <div className="w-full max-w-40 h-32 flex flex-col items-center justify-center">
+                      <div className="flex flex-col items-center px-6 w-full md:w-1/4">
+                        <div className="bg-gray-100 text-gray-800 px-4 py-2 rounded-lg border border-gray-200 mb-3">
+                          <h4 className="text-lg font-semibold text-center">Confidence:</h4>
+                        </div>
+                        <div className="w-full max-w-40 h-28 flex flex-col items-center justify-center">
                           {result.error ? (
                             <div className="text-center">
                               <p className="text-red-600 font-medium">Error</p>
@@ -588,12 +645,14 @@ export default function PagesAnalyzer({ isOpen, onClose }) {
                       </div>
 
                       {/* Vertical Divider Line 2 */}
-                      <div className="hidden md:block w-px h-48 bg-gray-300 mx-2"></div>
+                      <div className="hidden md:block w-px h-40 bg-gray-300 mx-2"></div>
 
                       {/* Column 3: Severity */}
-                      <div className="flex flex-col items-center px-6 w-full md:w-1/3">
-                        <h4 className="text-lg font-semibold text-gray-800 mb-3 text-center">Severity:</h4>
-                        <div className="w-full max-w-40 h-32 flex flex-col items-center justify-center">
+                      <div className="flex flex-col items-center px-6 w-full md:w-1/4">
+                        <div className="bg-gray-100 text-gray-800 px-4 py-2 rounded-lg border border-gray-200 mb-3">
+                          <h4 className="text-lg font-semibold text-center">Severity:</h4>
+                        </div>
+                        <div className="w-full max-w-40 h-28 flex flex-col items-center justify-center">
                           {result.error ? (
                             <div className="text-center">
                               <p className="text-red-600 font-medium">Error</p>
@@ -611,8 +670,32 @@ export default function PagesAnalyzer({ isOpen, onClose }) {
                           )}
                         </div>
                       </div>
-                    </div>
 
+                      {/* Vertical Divider Line 3 */}
+                      <div className="hidden md:block w-px h-40 bg-gray-300 mx-2"></div>
+
+                      {/* Column 4: Affected Areas */}
+                      <div className="flex flex-col items-center px-6 w-full md:w-1/4">
+                        <div className="bg-gray-100 text-gray-800 px-4 py-2 rounded-lg border border-gray-200 mb-3">
+                          <h4 className="text-lg font-semibold text-center">Affected Areas:</h4>
+                        </div>
+                        <div className="w-full max-w-40 h-28 flex flex-col items-center justify-center">
+                          {result.error ? (
+                            <div className="text-center">
+                              <p className="text-red-600 font-medium">Error</p>
+                            </div>
+                          ) : result.isInvalid ? (
+                            <div className="text-center">
+                              <p className="text-orange-600 font-medium">Invalid</p>
+                            </div>
+                          ) : (
+                            <div className="text-center">
+                              <span className="text-lg font-semibold text-gray-800 text-center px-2">{result.affected?.length ? result.affected.join(", ") : "—"}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
 
 
                     {result.error ? (
@@ -650,18 +733,6 @@ export default function PagesAnalyzer({ isOpen, onClose }) {
                       </div>
                     ) : (
                       <>
-                        {/* Affected areas */}
-                        <div className="text-sm bg-white px-3 py-2 rounded-lg border mb-4">
-                          <b className="flex items-center gap-2">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                            </svg>
-                            Affected areas:
-                          </b>{" "}
-                          {result.affected?.length ? result.affected.join(", ") : "—"}
-                        </div>
-
                         {/* Summary */}
                         <hr className="my-4 border-dashed border-gray-300" />
                         <div className="font-semibold text-lg mb-3 flex items-center gap-2">
@@ -672,6 +743,39 @@ export default function PagesAnalyzer({ isOpen, onClose }) {
                         </div>
                         <div className="bg-white p-4 rounded-lg border">
                           <p className="leading-7 whitespace-pre-wrap text-gray-800">{result.summary}</p>
+                        </div>
+
+                        {/* Feedback Section */}
+                        <div className="mt-4 flex items-center justify-between">
+                          <span className="text-xs text-gray-500">Rate this analysis</span>
+                          <div className="flex items-center space-x-2">
+                            <button
+                              onClick={() => handleFeedback(parseInt(imageIndex), 'thumbsUp')}
+                              className={`p-2 rounded-lg transition-colors duration-200 ${
+                                result.feedback === 'thumbsUp' 
+                                  ? 'text-green-600 bg-green-50' 
+                                  : 'text-slate-500 hover:text-green-600 hover:bg-green-50'
+                              }`}
+                              title="Helpful Analysis"
+                            >
+                              <svg className="w-5 h-5" fill={result.feedback === 'thumbsUp' ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5" />
+                              </svg>
+                            </button>
+                            <button
+                              onClick={() => handleFeedback(parseInt(imageIndex), 'thumbsDown')}
+                              className={`p-2 rounded-lg transition-colors duration-200 ${
+                                result.feedback === 'thumbsDown' 
+                                  ? 'text-red-600 bg-red-50' 
+                                  : 'text-slate-500 hover:text-red-600 hover:bg-red-50'
+                              }`}
+                              title="Not Helpful Analysis"
+                            >
+                              <svg className="w-5 h-5" fill={result.feedback === 'thumbsDown' ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24" style={{ transform: 'rotate(180deg)' }}>
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5" />
+                              </svg>
+                            </button>
+                          </div>
                         </div>
                       </>
                     )}
