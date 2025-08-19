@@ -25,6 +25,19 @@ const page = ({params}) => {
   const notificationSocketRef = useRef(null);  const {localStream, remoteStream, socket, socketConnection, handleDisconnect, startPeerConnection, endCallWithRedirect,
     handleMouseDown, handleMouseMove, handleMouseUp, handleMouseLeave, mousePosition, isMouseDown,
     handleCameraZoom, handleCameraTorch, handleIncomingCameraZoom, handleIncomingCameraTorch, cameraReady} = useWebRTC(false, id, videoRef);
+
+  // NEW: Test socket response handler
+  useEffect(() => {
+    if (socket) {
+      socket.on('test-camera-socket-response', (data) => {
+        console.log('🧪 Test response received:', data);
+      });
+      
+      return () => {
+        socket.off('test-camera-socket-response');
+      };
+    }
+  }, [socket]);
   const [roomUserInfo, setRoomUserInfo] = useState(null);
   const [minSkeletonTimePassed, setMinSkeletonTimePassed] = useState(false);
   const [isDefaultRedirectUrlFromUser, setIsDefaultRedirectUrlFromUser] = useState(true);
@@ -398,6 +411,28 @@ const page = ({params}) => {
               <div className={`w-2 h-2 rounded-full ${cameraReady ? 'bg-green-400' : 'bg-yellow-400'}`}></div>
               <span>{cameraReady ? 'Camera Ready' : 'Camera Initializing...'}</span>
             </div>
+
+            {/* NEW: Test Socket Connection Button */}
+            <button 
+              className="w-12 h-12 bg-blue-500 hover:bg-blue-600 text-white rounded-full flex items-center justify-center cursor-pointer transition-all duration-200 shadow-lg"
+              onClick={() => {
+                console.log('🧪 Testing camera control socket connection...');
+                console.log('📷 Camera ready state:', cameraReady);
+                console.log('📷 Local stream available:', !!localStream);
+                // Try to emit a test event to verify socket connection
+                if (socket && socket.emit) {
+                  socket.emit('test-camera-socket', { roomId: id, from: 'user-test' });
+                  console.log('🧪 Test event sent via main socket');
+                } else {
+                  console.log('❌ Main socket not available');
+                }
+              }}
+              title="Test Socket Connection"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 0 0118 0z" />
+              </svg>
+            </button>
 
             {/* Torch Button */}
             <button 

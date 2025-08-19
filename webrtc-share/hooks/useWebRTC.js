@@ -114,14 +114,45 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
             });
 
             cameraControlSocketRef.current.on('connect', () => {
-                console.log('📷 Camera control socket connected');
+                console.log('📷 Camera control socket connected successfully');
                 cameraControlSocketRef.current.emit('join-camera-room', { roomId, isAdmin });
+                
+                // If user device, immediately emit camera-ready if stream is available
+                if (!isAdmin && localStream && localStream.getVideoTracks().length > 0) {
+                    console.log('📷 User device: Emitting camera-ready signal');
+                    cameraControlSocketRef.current.emit('camera-ready', { roomId });
+                }
+                
+                // NEW: Test socket communication with ping
+                if (isAdmin) {
+                    console.log('📷 Admin device: Sending test ping to verify socket communication');
+                    setTimeout(() => {
+                        if (cameraControlSocketRef.current) {
+                            cameraControlSocketRef.current.emit('camera-ping', { roomId, from: 'admin' });
+                        }
+                    }, 2000);
+                }
             });
 
             // Only users should listen to incoming camera commands
             if (!isAdmin) {
                 cameraControlSocketRef.current.on('camera-zoom', handleIncomingCameraZoom);
                 cameraControlSocketRef.current.on('camera-torch', handleIncomingCameraTorch);
+                console.log('📷 User device: Camera command listeners attached');
+                
+                // NEW: Test ping event handler
+                cameraControlSocketRef.current.on('camera-ping', (data) => {
+                    console.log('📷 User device: Received ping from admin:', data);
+                    // Send pong back to confirm communication
+                    cameraControlSocketRef.current.emit('camera-pong', { roomId, from: 'user', receivedPing: data });
+                });
+            } else {
+                console.log('📷 Admin device: Camera command listeners not attached');
+                
+                // NEW: Test pong event handler for admin
+                cameraControlSocketRef.current.on('camera-pong', (data) => {
+                    console.log('📷 Admin device: Received pong from user:', data);
+                });
             }
             
             cameraControlSocketRef.current.on('camera-ready', () => {
@@ -187,12 +218,98 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
         }
     }, [localStream, isAdmin]);
 
-    // Cleanup camera control socket
+    // NEW: Separate useEffect for camera control socket
     useEffect(() => {
+        console.log('📷 Camera control socket useEffect triggered:', { isAdmin, roomId, hasLocalStream: !!localStream });
+        
+        const initCameraControlSocket = () => {
+            const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4000';
+            const socketUrl = backendUrl.replace('/api/v1', '');
+            
+            console.log('📷 Initializing camera control socket for:', { isAdmin, roomId, socketUrl });
+            
+            // Disconnect existing socket if any
+            if (cameraControlSocketRef.current) {
+                console.log('📷 Disconnecting existing camera control socket');
+                cameraControlSocketRef.current.disconnect();
+                cameraControlSocketRef.current = null;
+            }
+            
+            cameraControlSocketRef.current = io(socketUrl, {
+                reconnectionAttempts: 10,
+                timeout: 15000,
+                transports: ['websocket'],
+                query: { type: 'camera-control', roomId, isAdmin }
+            });
+
+            cameraControlSocketRef.current.on('connect', () => {
+                console.log('📷 Camera control socket connected successfully');
+                cameraControlSocketRef.current.emit('join-camera-room', { roomId, isAdmin });
+                
+                // If user device, immediately emit camera-ready if stream is available
+                if (!isAdmin && localStream && localStream.getVideoTracks().length > 0) {
+                    console.log('📷 User device: Emitting camera-ready signal');
+                    cameraControlSocketRef.current.emit('camera-ready', { roomId });
+                }
+                
+                // NEW: Test socket communication with ping
+                if (isAdmin) {
+                    console.log('📷 Admin device: Sending test ping to verify socket communication');
+                    setTimeout(() => {
+                        if (cameraControlSocketRef.current) {
+                            cameraControlSocketRef.current.emit('camera-ping', { roomId, from: 'admin' });
+                        }
+                    }, 2000);
+                }
+            });
+
+            // Only users should listen to incoming camera commands
+            if (!isAdmin) {
+                cameraControlSocketRef.current.on('camera-zoom', handleIncomingCameraZoom);
+                cameraControlSocketRef.current.on('camera-torch', handleIncomingCameraTorch);
+                console.log('📷 User device: Camera command listeners attached');
+                
+                // NEW: Test ping event handler
+                cameraControlSocketRef.current.on('camera-ping', (data) => {
+                    console.log('📷 User device: Received ping from admin:', data);
+                    // Send pong back to confirm communication
+                    cameraControlSocketRef.current.emit('camera-pong', { roomId, from: 'user', receivedPing: data });
+                });
+            } else {
+                console.log('📷 Admin device: Camera command listeners not attached');
+                
+                // NEW: Test pong event handler for admin
+                cameraControlSocketRef.current.on('camera-pong', (data) => {
+                    console.log('📷 Admin device: Received pong from user:', data);
+                });
+            }
+            
+            cameraControlSocketRef.current.on('camera-ready', () => {
+                console.log('📷 Camera ready signal received');
+                setCameraReady(true);
+                // Process any pending commands
+                processPendingCameraCommands();
+            });
+
+            cameraControlSocketRef.current.on('connect_error', (error) => {
+                console.error('❌ Camera control socket error:', error);
+            });
+
+            cameraControlSocketRef.current.on('disconnect', (reason) => {
+                console.log('📷 Camera control socket disconnected:', reason);
+                setCameraReady(false);
+            });
+        };
+
+        // Initialize camera control socket
+        initCameraControlSocket();
+
+        // Cleanup camera control socket
         return () => {
             if (cameraControlSocketRef.current) {
                 console.log('📷 Cleaning up camera control socket');
                 cameraControlSocketRef.current.disconnect();
+                cameraControlSocketRef.current = null;
             }
             
             // Cleanup debounced operations
@@ -200,7 +317,7 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
                 clearTimeout(debouncedCameraOperation.current);
             }
         };
-    }, []);
+    }, [roomId, isAdmin, localStream]);
 
     // Enhanced getUserMedia with comprehensive device error handling
     const getUserMedia = async () => {

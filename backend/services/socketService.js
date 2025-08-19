@@ -237,6 +237,7 @@ export const setupSocketListeners = () => {
     // Updated camera control events with proper routing
     socket.on('camera-zoom', (data) => {
       logger.info(`Camera zoom command received from ${socket.id}:`, data);
+      logger.info(`Socket ${socket.id} isAdmin status:`, socket.isAdmin);
       
       // Get the room ID from the socket's joined rooms
       const rooms = Array.from(socket.rooms);
@@ -247,6 +248,7 @@ export const setupSocketListeners = () => {
       
       if (roomId && socket.isAdmin) {
         // Only forward commands from admin to users
+        logger.info(`Forwarding camera zoom command from admin ${socket.id} to room ${roomId}`);
         socket.to(roomId).emit('camera-zoom', data);
         logger.info(`Camera zoom command from admin ${socket.id} in room ${roomId}: ${data.direction}`);
       } else if (!socket.isAdmin) {
@@ -258,6 +260,7 @@ export const setupSocketListeners = () => {
 
     socket.on('camera-torch', (data) => {
       logger.info(`Camera torch command received from ${socket.id}:`, data);
+      logger.info(`Socket ${socket.id} isAdmin status:`, socket.isAdmin);
       
       // Get the room ID from the socket's joined rooms
       const rooms = Array.from(socket.rooms);
@@ -268,6 +271,7 @@ export const setupSocketListeners = () => {
       
       if (roomId && socket.isAdmin) {
         // Only forward commands from admin to users
+        logger.info(`Forwarding camera torch command from admin ${socket.id} to room ${roomId}`);
         socket.to(roomId).emit('camera-torch', data);
         logger.info(`Camera torch command from admin ${socket.id} in room ${roomId}: ${data.enabled ? 'ON' : 'OFF'}`);
       } else if (!socket.isAdmin) {
@@ -275,6 +279,55 @@ export const setupSocketListeners = () => {
       } else {
         logger.warn(`Camera torch command from ${socket.id} but no room found`);
       }
+    });
+
+    // NEW: Test ping-pong events for debugging socket communication
+    socket.on('camera-ping', (data) => {
+      logger.info(`Camera ping received from ${socket.id}:`, data);
+      
+      // Get the room ID from the socket's joined rooms
+      const rooms = Array.from(socket.rooms);
+      const roomId = rooms.find(room => room !== socket.id);
+      
+      if (roomId) {
+        // Forward ping to other users in the room
+        socket.to(roomId).emit('camera-ping', data);
+        logger.info(`Camera ping forwarded from ${socket.id} to room ${roomId}`);
+      }
+    });
+
+    socket.on('camera-pong', (data) => {
+      logger.info(`Camera pong received from ${socket.id}:`, data);
+      
+      // Get the room ID from the socket's joined rooms
+      const rooms = Array.from(socket.rooms);
+      const roomId = rooms.find(room => room !== socket.id);
+      
+      if (roomId) {
+        // Forward pong to other users in the room
+        socket.to(roomId).emit('camera-pong', data);
+        logger.info(`Camera pong forwarded from ${socket.id} to room ${roomId}`);
+      }
+    });
+
+    // NEW: Test event handler for debugging
+    socket.on('test-camera-socket', (data) => {
+      logger.info(`Test camera socket event received from ${socket.id}:`, data);
+      
+      // Get the room ID from the socket's joined rooms
+      const rooms = Array.from(socket.rooms);
+      const roomId = rooms.find(room => room !== socket.id);
+      
+      logger.info(`Socket ${socket.id} is in rooms:`, rooms);
+      logger.info(`Test event from room:`, roomId);
+      
+      // Send test response back
+      socket.emit('test-camera-socket-response', {
+        received: true,
+        socketId: socket.id,
+        roomId: roomId,
+        timestamp: Date.now()
+      });
     });
 
     socket.on('disconnect', () => {
