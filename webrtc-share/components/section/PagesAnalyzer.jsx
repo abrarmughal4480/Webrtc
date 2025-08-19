@@ -18,6 +18,8 @@ export default function PagesAnalyzer({ isOpen, onClose }) {
   const [results, setResults] = useState({}); // Store individual results for each image
   const [error, setError] = useState(null);
   const [analyzingImage, setAnalyzingImage] = useState(null); // Track which image is being analyzed
+  const [expandedImage, setExpandedImage] = useState(null); // Track which image is expanded
+  const [isAudioPlaying, setIsAudioPlaying] = useState(false); // Track audio playing status
 
   const analysedAt = useMemo(() => {
     return new Date().toLocaleString(undefined, {
@@ -31,6 +33,28 @@ export default function PagesAnalyzer({ isOpen, onClose }) {
   }, [Object.keys(results).length]);
 
   const thumbs = useMemo(() => files.map((f) => URL.createObjectURL(f)), [files]);
+  
+  // Store thumb URLs in results to prevent them from being lost
+  const getThumbUrl = (index) => {
+    // First check if we have a stored thumb in results
+    if (results[index]?.thumb) {
+      console.log(`Using stored thumb for index ${index}:`, results[index].thumb);
+      return results[index].thumb;
+    }
+    // Fallback to thumbs array
+    if (thumbs[index]) {
+      console.log(`Using thumbs array for index ${index}:`, thumbs[index]);
+      return thumbs[index];
+    }
+    // If still no thumb, try to create one from files
+    if (files[index]) {
+      const newUrl = URL.createObjectURL(files[index]);
+      console.log(`Created new URL for index ${index}:`, newUrl);
+      return newUrl;
+    }
+    console.log(`No thumb found for index ${index}`);
+    return '';
+  };
 
   useEffect(() => {
     return () => thumbs.forEach((u) => URL.revokeObjectURL(u));
@@ -49,6 +73,32 @@ export default function PagesAnalyzer({ isOpen, onClose }) {
       document.body.style.overflow = 'unset';
     };
   }, [isOpen]);
+
+  // Load voices for speech synthesis
+  useEffect(() => {
+    const loadVoices = () => {
+      const voices = window.speechSynthesis.getVoices();
+      // Find the best British female voice
+      const britishVoice = voices.find(v => 
+        /en-GB/i.test(v.lang) && 
+        (v.name.includes('Female') || v.name.includes('female') || v.name.includes('Samantha') || v.name.includes('Victoria'))
+      ) || voices.find(v => /en-GB/i.test(v.lang)) || voices.find(v => /^en/i.test(v.lang));
+      
+      if (britishVoice) {
+        console.log('Selected voice:', britishVoice.name, britishVoice.lang);
+      }
+    };
+
+    // Load voices immediately if available
+    loadVoices();
+    
+    // Also listen for voices loaded event
+    window.speechSynthesis.addEventListener('voiceschanged', loadVoices);
+    
+    return () => {
+      window.speechSynthesis.removeEventListener('voiceschanged', loadVoices);
+    };
+  }, []);
 
   const onFileChange = (e) => {
     const list = Array.from(e.target.files || []);
@@ -118,7 +168,7 @@ export default function PagesAnalyzer({ isOpen, onClose }) {
               minute: "2-digit",
               second: "2-digit",
             }),
-            thumb: thumbs[i],
+            thumb: imageDataUrl,
             fileIndex: i,
           }
         }));
@@ -129,7 +179,7 @@ export default function PagesAnalyzer({ isOpen, onClose }) {
           [i]: {
             error: e.message || "Failed to analyze this photo",
             analysedAt: new Date().toLocaleString(),
-            thumb: thumbs[i],
+            thumb: thumbs[i] || '',
             fileIndex: i,
           }
         }));
@@ -174,7 +224,7 @@ export default function PagesAnalyzer({ isOpen, onClose }) {
             minute: "2-digit",
             second: "2-digit",
           }),
-          thumb: thumbs[imageIndex],
+          thumb: imageDataUrl,
           fileIndex: imageIndex,
         }
       }));
@@ -185,7 +235,7 @@ export default function PagesAnalyzer({ isOpen, onClose }) {
         [imageIndex]: {
           error: e.message || "Failed to analyze this photo",
           analysedAt: new Date().toLocaleString(),
-          thumb: thumbs[imageIndex],
+          thumb: thumbs[imageIndex] || '',
           fileIndex: imageIndex,
         }
       }));
@@ -195,33 +245,68 @@ export default function PagesAnalyzer({ isOpen, onClose }) {
   };
 
   const speakRef = useRef(null);
-  const handleSpeak = () => {
+  const handleSpeak = (result) => {
     if (!result) return;
     const synth = window.speechSynthesis;
     if (!synth) return alert("Speech synthesis not supported in this browser.");
 
+    // Immediately set audio playing state for instant button change
+    setIsAudioPlaying(true);
+
     const voices = synth.getVoices();
-    let voice =
-      voices.find((v) => /en-GB|British/i.test(v.lang) || /UK|British/i.test(v.name)) ||
-      voices.find((v) => /^en/i.test(v.lang)) ||
-      null;
+    
+    // Prioritize British female voices
+    let voice = voices.find(v => 
+      /en-GB/i.test(v.lang) && 
+      (v.name.includes('Female') || v.name.includes('female') || v.name.includes('Samantha') || v.name.includes('Victoria'))
+    ) || voices.find(v => /en-GB/i.test(v.lang)) || voices.find(v => /^en/i.test(v.lang)) || null;
+
+    if (!voice) {
+      // If no British voice found, try to find any English voice
+      voice = voices.find(v => /^en/i.test(v.lang));
+    }
 
     const affectedLine = result.affected?.length ? result.affected.join(", ") : "none";
-    const text = `Severity: ${result.severity || "unknown"}. Confidence ${result.confidence ?? 0} percent. Affected areas: ${affectedLine}. Summary: ${result.summary}`;
+    const text = `Analysis Results. Severity: ${result.severity || "unknown"}. Confidence: ${result.confidence ?? 0} percent. Affected areas: ${affectedLine}. Summary: ${result.summary}`;
 
     const utter = new SpeechSynthesisUtterance(text);
-    if (voice) utter.voice = voice;
-    utter.rate = 1;
-    utter.pitch = 1;
+    if (voice) {
+      utter.voice = voice;
+      console.log('Using voice:', voice.name, voice.lang);
+    }
+    
+    // Optimize for British accent
+    utter.rate = 0.85; // Slightly slower for clarity
+    utter.pitch = 1.05; // Slightly higher pitch for female voice
     utter.lang = voice?.lang || "en-GB";
+    
+    // Stop any current speech
     synth.cancel();
+    
+    // Start new speech
     synth.speak(utter);
     speakRef.current = utter;
+    
+    // Add event listeners for better control
+    utter.onend = () => {
+      speakRef.current = null;
+      setIsAudioPlaying(false); // Reset state when audio ends
+    };
+    
+    utter.onerror = (event) => {
+      console.error('Speech synthesis error:', event);
+      speakRef.current = null;
+      setIsAudioPlaying(false); // Reset state on error
+    };
   };
 
   const stopSpeak = () => {
     const synth = window.speechSynthesis;
-    if (synth) synth.cancel();
+    if (synth) {
+      synth.cancel();
+      speakRef.current = null;
+      setIsAudioPlaying(false); // Immediately reset state for instant button change
+    }
   };
 
   const severityPill = (label) => {
@@ -307,7 +392,17 @@ export default function PagesAnalyzer({ isOpen, onClose }) {
                         {thumbs.map((src, i) => (
                           <div key={i} className="relative rounded-lg border border-gray-200 overflow-hidden group">
                             <img src={src} alt={`Photo ${i + 1}`} className="w-full h-32 object-cover" />
-                            <div className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+                            
+                            {/* Maximize Icon */}
+                            <div className="absolute top-2 left-2 bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs cursor-pointer opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity hover:bg-blue-600"
+                                 onClick={() => setExpandedImage({ src, index: i, filename: `Photo ${i + 1}` })}>
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                              </svg>
+                            </div>
+                            
+                            {/* Remove Icon */}
+                            <div className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs cursor-pointer opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity hover:bg-red-600"
                                  onClick={() => setFiles(files.filter((_, index) => index !== i))}>
                               ×
                             </div>
@@ -317,7 +412,12 @@ export default function PagesAnalyzer({ isOpen, onClose }) {
                             <div className="absolute bottom-0 left-0 right-0 bg-black/70 text-white p-2">
                               {results[i] ? (
                                 <div className="text-center">
-                                  <span className="text-xs">✓ Analyzed</span>
+                                  <span className="text-xs flex items-center justify-center gap-1">
+                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                    </svg>
+                                    Analyzed
+                                  </span>
                                 </div>
                               ) : (
                                 <button
@@ -360,7 +460,12 @@ export default function PagesAnalyzer({ isOpen, onClose }) {
                className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-medium disabled:opacity-50"
              >
                {Object.keys(results).length === files.length ? (
-                 "All Photos Analyzed ✓"
+                 <span className="flex items-center gap-2">
+                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                   </svg>
+                   All Photos Analyzed
+                 </span>
                ) : (
                  "Analyze All Photos"
                )}
@@ -378,32 +483,146 @@ export default function PagesAnalyzer({ isOpen, onClose }) {
 
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
-              ⚠️ {error}
+              <span className="flex items-center gap-2">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+                {error}
+              </span>
             </div>
           )}
 
           {/* Individual Results */}
           {Object.keys(results).length > 0 && (
             <div className="space-y-6">
-              <h3 className="text-xl font-bold text-gray-800 text-center">📊 Individual Image Analysis Results</h3>
+              <h3 className="text-xl font-bold text-gray-800 text-center flex items-center justify-center gap-2">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+                Individual Image Analysis Results
+              </h3>
               
               {Object.entries(results).map(([imageIndex, result]) => (
                 <div key={imageIndex} className="bg-gradient-to-br from-gray-50 to-white rounded-xl shadow-lg border border-gray-200 p-6">
                   <div className="max-w-[794px] mx-auto">
-                    {/* Image Header */}
-                    <div className="flex items-center gap-4 mb-4">
-                      <div className="w-20 h-20 rounded-lg border border-gray-200 overflow-hidden flex-shrink-0">
-                        <img src={result.thumb} alt={`Photo ${parseInt(imageIndex) + 1}`} className="w-full h-full object-cover" />
+                    {/* Audio Button - Right Side */}
+                    <div className="flex justify-end mb-4">
+                      {!isAudioPlaying ? (
+                        <button
+                          onClick={() => handleSpeak(result)}
+                          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                          </svg>
+                          Listen to Analysis
+                        </button>
+                      ) : (
+                        <button
+                          onClick={stopSpeak}
+                          className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
+                          </svg>
+                          Stop
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Three Column Layout */}
+                    <div className="flex flex-col md:flex-row items-center justify-center gap-0 mb-6">
+                      {/* Column 1: Photo */}
+                      <div className="flex flex-col items-center px-6 w-full md:w-1/3">
+                        <div className="w-full max-w-40 h-32 rounded-lg border border-gray-200 overflow-hidden flex-shrink-0 relative group">
+                          {getThumbUrl(parseInt(imageIndex)) ? (
+                            <img src={getThumbUrl(parseInt(imageIndex))} alt={`Photo ${parseInt(imageIndex) + 1}`} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full bg-gray-200 flex items-center justify-center">
+                              <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                              </svg>
+                            </div>
+                          )}
+                          {/* Maximize Icon for Result Image */}
+                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                            <div className="bg-blue-500 text-white rounded-full w-8 h-8 flex items-center justify-center cursor-pointer opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity hover:bg-blue-600"
+                                 onClick={() => {
+                                   const thumbUrl = getThumbUrl(parseInt(imageIndex));
+                                   if (thumbUrl) {
+                                     setExpandedImage({ src: thumbUrl, index: parseInt(imageIndex), filename: `Photo ${parseInt(imageIndex) + 1}` });
+                                   }
+                                 }}>
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                              </svg>
+                            </div>
+                          </div>
+                        </div>
+                        <p className="text-sm text-gray-600 mt-2 text-center">Photo {parseInt(imageIndex) + 1}</p>
+                        <p className="text-xs text-gray-500 mt-1 text-center">Analyzed at: {result.analysedAt}</p>
                       </div>
-                      <div className="flex-1">
-                        <h4 className="text-lg font-semibold text-gray-800">Photo {parseInt(imageIndex) + 1}</h4>
-                        <p className="text-sm text-gray-600">Analyzed at: {result.analysedAt}</p>
+
+                      {/* Vertical Divider Line 1 */}
+                      <div className="hidden md:block w-px h-48 bg-gray-300 mx-2"></div>
+
+                      {/* Column 2: Confidence */}
+                      <div className="flex flex-col items-center px-6 w-full md:w-1/3">
+                        <h4 className="text-lg font-semibold text-gray-800 mb-3 text-center">Confidence:</h4>
+                        <div className="w-full max-w-40 h-32 flex flex-col items-center justify-center">
+                          {result.error ? (
+                            <div className="text-center">
+                              <p className="text-red-600 font-medium">Error</p>
+                            </div>
+                          ) : result.isInvalid ? (
+                            <div className="text-center">
+                              <p className="text-orange-600 font-medium">Invalid</p>
+                            </div>
+                          ) : (
+                            <div className="text-center">
+                              <span className="text-3xl font-bold text-green-600">{result.confidence ?? "—"}%</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Vertical Divider Line 2 */}
+                      <div className="hidden md:block w-px h-48 bg-gray-300 mx-2"></div>
+
+                      {/* Column 3: Severity */}
+                      <div className="flex flex-col items-center px-6 w-full md:w-1/3">
+                        <h4 className="text-lg font-semibold text-gray-800 mb-3 text-center">Severity:</h4>
+                        <div className="w-full max-w-40 h-32 flex flex-col items-center justify-center">
+                          {result.error ? (
+                            <div className="text-center">
+                              <p className="text-red-600 font-medium">Error</p>
+                            </div>
+                          ) : result.isInvalid ? (
+                            <div className="text-center">
+                              <p className="text-orange-600 font-medium">Invalid</p>
+                            </div>
+                          ) : (
+                            <div className="text-center">
+                              <span className="text-xl font-bold text-center px-2" style={{ 
+                                color: severityColours(result.severity).fg
+                              }}>{result.severity || "—"}</span>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
 
+
+
                     {result.error ? (
                       <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-                        ⚠️ {result.error}
+                        <span className="flex items-center gap-2">
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                          </svg>
+                          {result.error}
+                        </span>
                       </div>
                     ) : result.isInvalid ? (
                       <div className="bg-orange-50 border border-orange-200 text-orange-700 px-4 py-3 rounded-lg">
@@ -415,7 +634,12 @@ export default function PagesAnalyzer({ isOpen, onClose }) {
                         </div>
                         <p className="text-sm">{result.summary}</p>
                         <div className="mt-3 p-3 bg-white rounded border">
-                          <p className="text-xs text-orange-600 font-medium">💡 Please upload photos of:</p>
+                          <p className="text-xs text-orange-600 font-medium flex items-center gap-1">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a9 9 0 11.707-1.414" />
+                            </svg>
+                            Please upload photos of:
+                          </p>
                           <ul className="text-xs text-orange-600 mt-1 ml-4 list-disc">
                             <li>Walls, ceilings, or floors with moisture damage</li>
                             <li>Areas with visible mould growth</li>
@@ -426,25 +650,26 @@ export default function PagesAnalyzer({ isOpen, onClose }) {
                       </div>
                     ) : (
                       <>
-                        {/* Meta row */}
-                        <div className="flex flex-wrap items-center gap-4 mb-4">
-                          <div className="text-sm bg-white px-3 py-2 rounded-lg border">
-                            <b>🎯 Confidence:</b> {result.confidence ?? "—"}%
-                          </div>
-                          <div>{severityPill(result.severity)}</div>
-                        </div>
-
-                        <hr className="my-4 border-dashed border-gray-300" />
-
                         {/* Affected areas */}
                         <div className="text-sm bg-white px-3 py-2 rounded-lg border mb-4">
-                          <b>📍 Affected areas:</b>{" "}
+                          <b className="flex items-center gap-2">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                            Affected areas:
+                          </b>{" "}
                           {result.affected?.length ? result.affected.join(", ") : "—"}
                         </div>
 
                         {/* Summary */}
                         <hr className="my-4 border-dashed border-gray-300" />
-                        <div className="font-semibold text-lg mb-3">📋 Analysis Summary</div>
+                        <div className="font-semibold text-lg mb-3 flex items-center gap-2">
+                          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                          Analysis Summary
+                        </div>
                         <div className="bg-white p-4 rounded-lg border">
                           <p className="leading-7 whitespace-pre-wrap text-gray-800">{result.summary}</p>
                         </div>
@@ -453,8 +678,11 @@ export default function PagesAnalyzer({ isOpen, onClose }) {
 
                     {/* Footer note */}
                     <hr className="my-4 border-dashed border-gray-300" />
-                    <p className="text-gray-500 text-sm bg-yellow-50 p-3 rounded-lg border border-yellow-200">
-                      ⚠️ This is a visual assessment based on the uploaded photo and any notes provided. 
+                    <p className="text-gray-500 text-sm bg-yellow-50 p-3 rounded-lg border border-yellow-200 flex items-start gap-2">
+                      <svg className="w-5 h-5 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                      </svg>
+                      This is a visual assessment based on the uploaded photo and any notes provided. 
                       For a full survey, consider a site visit and moisture readings.
                     </p>
                   </div>
@@ -464,6 +692,41 @@ export default function PagesAnalyzer({ isOpen, onClose }) {
           )}
         </div>
       </div>
+
+      {/* Image Modal */}
+      {expandedImage && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-2 md:p-4">
+          <div className="relative max-w-full md:max-w-5xl max-h-[90vh] w-full h-full flex items-center justify-center">
+            {/* Image container */}
+            <div className="relative w-full h-full flex items-center justify-center">
+              {/* Close button */}
+              <button
+                onClick={() => setExpandedImage(null)}
+                className="absolute top-4 right-4 z-10 p-2.5 md:p-3 bg-red-600 hover:bg-red-700 text-white rounded-full border-2 border-white/80 transition-all duration-300 hover:scale-110 flex items-center justify-center w-8 md:w-10 h-8 md:h-10 backdrop-blur-sm shadow-lg"
+              >
+                <svg className="w-4 h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+              <img
+                src={expandedImage.src}
+                alt={expandedImage.filename}
+                className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl"
+                onClick={() => setExpandedImage(null)}
+              />
+              {/* Image info */}
+              <div className="absolute bottom-2 md:bottom-4 left-1/2 transform -translate-x-1/2 bg-white/10 backdrop-blur-sm rounded-full px-4 md:px-6 py-2 md:py-3">
+                <p className="text-white text-xs md:text-sm font-medium">{expandedImage.filename}</p>
+              </div>
+            </div>
+          </div>
+          {/* Click outside to close */}
+          <div 
+            className="absolute inset-0 -z-10"
+            onClick={() => setExpandedImage(null)}
+          ></div>
+        </div>
+      )}
     </div>
   );
 }

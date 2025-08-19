@@ -257,7 +257,7 @@ export default function DampAndMouldAnalyzerPage() {
             </h2>
 
             <p className="text-lg sm:text-xl md:text-2xl lg:text-3xl max-w-2xl sm:max-w-3xl mx-auto leading-relaxed font-medium text-blue-100 px-2 sm:px-0">
-              Advanced technology to detect, analyze and prevent damp and mould issues
+              Advanced algorithms to detect, analyze and prevent damp and mould issues
             </p>
           </div>
 

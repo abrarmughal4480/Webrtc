@@ -131,7 +131,7 @@ function parseFields(text) {
   const severity = snapSeverity(severityLine);
   
   // Enhance confidence based on analysis quality
-  const enhancedConfidence = enhanceConfidence(confidence, summary);
+  const enhancedConfidence = enhanceConfidence(confidence, summary, severity);
 
   return { summary, confidence: enhancedConfidence, affected, severity, isInvalid: false };
 }
@@ -153,7 +153,7 @@ function parseNumber(text, regex) {
   return Math.min(100, Math.max(0, n));
 }
 
-function enhanceConfidence(confidence, summary) {
+function enhanceConfidence(confidence, summary, severity) {
   if (!confidence) return confidence;
   
   let enhancedConfidence = confidence;
@@ -175,6 +175,18 @@ function enhanceConfidence(confidence, summary) {
   
   // Boost confidence if moisture source is identified
   if (summary.match(/(rising|penetrating|condensation|leak)/i)) {
+    enhancedConfidence = Math.min(100, enhancedConfidence + 4);
+  }
+  
+  // Boost confidence if severity assessment is detailed
+  if (severity && severity !== "Invalid Image") {
+    if (summary.toLowerCase().includes(severity.toLowerCase().split(" ")[0])) {
+      enhancedConfidence = Math.min(100, enhancedConfidence + 6);
+    }
+  }
+  
+  // Boost confidence if affected areas are specific
+  if (summary.match(/(upper|lower|near|behind|under|corner|edge)/i)) {
     enhancedConfidence = Math.min(100, enhancedConfidence + 4);
   }
   
@@ -215,12 +227,104 @@ function title(s) {
 function snapSeverity(line) {
   if (!line) return null;
   const s = line.trim().toLowerCase();
+  
+  // Exact match first
   for (const lab of SEVERITY_LABELS) {
     if (s === lab.toLowerCase()) return lab;
   }
-  // loose prefix match
+  
+  // Enhanced keyword matching with severity indicators
+  const severityKeywords = {
+    "No mould or damp": [
+      "no", "none", "clear", "clean", "dry", "good condition", "no issues", "no problems",
+      "no visible", "no signs", "no evidence", "healthy", "sound", "intact"
+    ],
+    "Light mould/damp": [
+      "light", "minor", "slight", "small", "minimal", "beginning", "early stage",
+      "few spots", "tiny", "slight discoloration", "minor staining", "light moisture"
+    ],
+    "Moderate mould/damp": [
+      "moderate", "medium", "some", "noticeable", "visible", "apparent", "clear signs",
+      "several", "multiple", "spread", "covering", "affecting", "impacting"
+    ],
+    "Severe mould/damp": [
+      "severe", "serious", "extensive", "widespread", "large", "significant", "major",
+      "heavy", "thick", "dense", "covering large area", "substantial", "considerable"
+    ],
+    "Critical mould/damp": [
+      "critical", "dangerous", "hazardous", "extreme", "severe", "widespread", "extensive",
+      "structural", "damage", "unsafe", "health risk", "immediate action", "urgent"
+    ]
+  };
+  
+  // Check for keyword matches with scoring
+  let bestMatch = null;
+  let bestScore = 0;
+  
+  for (const [severity, keywords] of Object.entries(severityKeywords)) {
+    let score = 0;
+    for (const keyword of keywords) {
+      if (s.includes(keyword)) {
+        score += 1;
+        // Bonus for multiple keyword matches
+        if (s.includes(keyword + " ") || s.includes(" " + keyword)) {
+          score += 0.5;
+        }
+      }
+    }
+    if (score > bestScore) {
+      bestScore = score;
+      bestMatch = severity;
+    }
+  }
+  
+  // If we found a good keyword match, return it
+  if (bestScore >= 1) {
+    return bestMatch;
+  }
+  
+  // Loose prefix match as fallback
   for (const lab of SEVERITY_LABELS) {
     if (s.startsWith(lab.split(" ")[0].toLowerCase())) return lab;
   }
-  return line;
+  
+  // If still no match, try to infer from context
+  return inferSeverityFromContext(line);
+}
+
+function inferSeverityFromContext(text) {
+  const lowerText = text.toLowerCase();
+  
+  // Check for structural damage indicators
+  if (lowerText.includes("structural") || lowerText.includes("unsafe") || lowerText.includes("collapse")) {
+    return "Critical mould/damp";
+  }
+  
+  // Check for health risk indicators
+  if (lowerText.includes("health risk") || lowerText.includes("dangerous") || lowerText.includes("hazardous")) {
+    return "Critical mould/damp";
+  }
+  
+  // Check for extensive coverage
+  if (lowerText.includes("entire") || lowerText.includes("whole") || lowerText.includes("all over")) {
+    return "Severe mould/damp";
+  }
+  
+  // Check for multiple areas affected
+  if (lowerText.includes("multiple") || lowerText.includes("several") || lowerText.includes("various")) {
+    return "Moderate mould/damp";
+  }
+  
+  // Check for small/localized issues
+  if (lowerText.includes("small") || lowerText.includes("tiny") || lowerText.includes("spot")) {
+    return "Light mould/damp";
+  }
+  
+  // Check for no visible issues
+  if (lowerText.includes("no visible") || lowerText.includes("appears clean") || lowerText.includes("looks good")) {
+    return "No mould or damp";
+  }
+  
+  // Default to moderate if we can't determine
+  return "Moderate mould/damp";
 }
