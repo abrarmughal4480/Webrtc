@@ -112,7 +112,7 @@ export default function Page({ params }) {
   const {
     handleDisconnect, isConnected, screenshots, takeScreenshot, startPeerConnection, deleteScreenshot, handleVideoPlay, showVideoPlayError, isCapturingScreenshot, updateScreenshotProperties,
     handleMouseDown, handleMouseMove, handleMouseUp, handleMouseLeave, mousePosition, isMouseDown,
-    handleCameraZoom, handleCameraTorch, cameraReady
+    handleCameraZoom, handleCameraTorch
   } = useWebRTC(true, id, videoRef);
   const { setResetOpen, setMessageOpen, setLandlordDialogOpen, setTickerOpen, setFeedbackOpen, setFaqOpen, setShareLinkOpen, setInviteOpen } = useDialog();
   const { user, isAuth, setIsAuth, setUser } = useUser();
@@ -2688,12 +2688,6 @@ export default function Page({ params }) {
                 }} disabled={app.zoomLevel <= 0.5} title="Zoom Out User Camera">
                   <ZoomOut className={`w-4 h-4 ${app.zoomLevel <= 0.5 ? 'opacity-50' : ''}`} />
                 </button>
-
-                {/* NEW: Camera Ready Indicator */}
-                <div className="flex items-center gap-1 text-xs">
-                  <div className={`w-2 h-2 rounded-full ${cameraReady ? 'bg-green-400' : 'bg-red-400'}`} title={cameraReady ? 'User camera ready' : 'User camera not ready'}></div>
-                  <span className="text-white/70">{cameraReady ? 'Camera Ready' : 'Camera Offline'}</span>
-                </div>
               </div>
             </div>
 

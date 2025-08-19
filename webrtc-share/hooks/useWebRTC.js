@@ -73,11 +73,6 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
     const [isMouseDown, setIsMouseDown] = useState(false);
     const lastMouseEventTime = useRef(0);
 
-    // NEW: Dedicated camera control socket for better reliability
-    const cameraControlSocketRef = useRef(null);
-    const [cameraReady, setCameraReady] = useState(false);
-    const pendingCameraCommands = useRef([]);
-
     useEffect(() => {
         const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4000';
         const socketUrl = backendUrl.replace('/api/v1', '');
@@ -100,80 +95,6 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
                 console.log('🔌 User detected, waiting for admin');
             }
         });
-
-        // NEW: Initialize dedicated camera control socket
-        const initCameraControlSocket = () => {
-            const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4000';
-            const socketUrl = backendUrl.replace('/api/v1', '');
-            
-            cameraControlSocketRef.current = io(socketUrl, {
-                reconnectionAttempts: 10,
-                timeout: 15000,
-                transports: ['websocket'],
-                query: { type: 'camera-control', roomId, isAdmin }
-            });
-
-            cameraControlSocketRef.current.on('connect', () => {
-                console.log('📷 Camera control socket connected successfully');
-                cameraControlSocketRef.current.emit('join-camera-room', { roomId, isAdmin });
-                
-                // If user device, immediately emit camera-ready if stream is available
-                if (!isAdmin && localStream && localStream.getVideoTracks().length > 0) {
-                    console.log('📷 User device: Emitting camera-ready signal');
-                    cameraControlSocketRef.current.emit('camera-ready', { roomId });
-                }
-                
-                // NEW: Test socket communication with ping
-                if (isAdmin) {
-                    console.log('📷 Admin device: Sending test ping to verify socket communication');
-                    setTimeout(() => {
-                        if (cameraControlSocketRef.current) {
-                            cameraControlSocketRef.current.emit('camera-ping', { roomId, from: 'admin' });
-                        }
-                    }, 2000);
-                }
-            });
-
-            // Only users should listen to incoming camera commands
-            if (!isAdmin) {
-                cameraControlSocketRef.current.on('camera-zoom', handleIncomingCameraZoom);
-                cameraControlSocketRef.current.on('camera-torch', handleIncomingCameraTorch);
-                console.log('📷 User device: Camera command listeners attached');
-                
-                // NEW: Test ping event handler
-                cameraControlSocketRef.current.on('camera-ping', (data) => {
-                    console.log('📷 User device: Received ping from admin:', data);
-                    // Send pong back to confirm communication
-                    cameraControlSocketRef.current.emit('camera-pong', { roomId, from: 'user', receivedPing: data });
-                });
-            } else {
-                console.log('📷 Admin device: Camera command listeners not attached');
-                
-                // NEW: Test pong event handler for admin
-                cameraControlSocketRef.current.on('camera-pong', (data) => {
-                    console.log('📷 Admin device: Received pong from user:', data);
-                });
-            }
-            
-            cameraControlSocketRef.current.on('camera-ready', () => {
-                console.log('📷 Camera ready signal received');
-                setCameraReady(true);
-                // Process any pending commands
-                processPendingCameraCommands();
-            });
-
-            cameraControlSocketRef.current.on('connect_error', (error) => {
-                console.error('❌ Camera control socket error:', error);
-            });
-
-            cameraControlSocketRef.current.on('disconnect', (reason) => {
-                console.log('📷 Camera control socket disconnected:', reason);
-                setCameraReady(false);
-            });
-        };
-
-        // Initialize camera control socket
-        initCameraControlSocket();
 
         socketConnection.current.on('connect_error', (error) => {
             console.error('❌ Socket connection error:', error);
@@ -199,125 +120,6 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
             }
         };
     }, [roomId, isAdmin]);
-
-    // NEW: Set camera ready when local stream becomes available
-    useEffect(() => {
-        if (localStream && localStream.getVideoTracks().length > 0) {
-            console.log('📷 Local stream available, setting camera ready');
-            setCameraReady(true);
-            
-            // Notify admin that camera is ready
-            if (cameraControlSocketRef.current && !isAdmin) {
-                cameraControlSocketRef.current.emit('camera-ready', { roomId });
-            }
-            
-            // Process any pending commands
-            processPendingCameraCommands();
-        } else {
-            setCameraReady(false);
-        }
-    }, [localStream, isAdmin]);
-
-    // NEW: Separate useEffect for camera control socket
-    useEffect(() => {
-        console.log('📷 Camera control socket useEffect triggered:', { isAdmin, roomId, hasLocalStream: !!localStream });
-        
-        const initCameraControlSocket = () => {
-            const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4000';
-            const socketUrl = backendUrl.replace('/api/v1', '');
-            
-            console.log('📷 Initializing camera control socket for:', { isAdmin, roomId, socketUrl });
-            
-            // Disconnect existing socket if any
-            if (cameraControlSocketRef.current) {
-                console.log('📷 Disconnecting existing camera control socket');
-                cameraControlSocketRef.current.disconnect();
-                cameraControlSocketRef.current = null;
-            }
-            
-            cameraControlSocketRef.current = io(socketUrl, {
-                reconnectionAttempts: 10,
-                timeout: 15000,
-                transports: ['websocket'],
-                query: { type: 'camera-control', roomId, isAdmin }
-            });
-
-            cameraControlSocketRef.current.on('connect', () => {
-                console.log('📷 Camera control socket connected successfully');
-                cameraControlSocketRef.current.emit('join-camera-room', { roomId, isAdmin });
-                
-                // If user device, immediately emit camera-ready if stream is available
-                if (!isAdmin && localStream && localStream.getVideoTracks().length > 0) {
-                    console.log('📷 User device: Emitting camera-ready signal');
-                    cameraControlSocketRef.current.emit('camera-ready', { roomId });
-                }
-                
-                // NEW: Test socket communication with ping
-                if (isAdmin) {
-                    console.log('📷 Admin device: Sending test ping to verify socket communication');
-                    setTimeout(() => {
-                        if (cameraControlSocketRef.current) {
-                            cameraControlSocketRef.current.emit('camera-ping', { roomId, from: 'admin' });
-                        }
-                    }, 2000);
-                }
-            });
-
-            // Only users should listen to incoming camera commands
-            if (!isAdmin) {
-                cameraControlSocketRef.current.on('camera-zoom', handleIncomingCameraZoom);
-                cameraControlSocketRef.current.on('camera-torch', handleIncomingCameraTorch);
-                console.log('📷 User device: Camera command listeners attached');
-                
-                // NEW: Test ping event handler
-                cameraControlSocketRef.current.on('camera-ping', (data) => {
-                    console.log('📷 User device: Received ping from admin:', data);
-                    // Send pong back to confirm communication
-                    cameraControlSocketRef.current.emit('camera-pong', { roomId, from: 'user', receivedPing: data });
-                });
-            } else {
-                console.log('📷 Admin device: Camera command listeners not attached');
-                
-                // NEW: Test pong event handler for admin
-                cameraControlSocketRef.current.on('camera-pong', (data) => {
-                    console.log('📷 Admin device: Received pong from user:', data);
-                });
-            }
-            
-            cameraControlSocketRef.current.on('camera-ready', () => {
-                console.log('📷 Camera ready signal received');
-                setCameraReady(true);
-                // Process any pending commands
-                processPendingCameraCommands();
-            });
-
-            cameraControlSocketRef.current.on('connect_error', (error) => {
-                console.error('❌ Camera control socket error:', error);
-            });
-
-            cameraControlSocketRef.current.on('disconnect', (reason) => {
-                console.log('📷 Camera control socket disconnected:', reason);
-                setCameraReady(false);
-            });
-        };
-
-        // Initialize camera control socket
-        initCameraControlSocket();
-
-        // Cleanup camera control socket
-        return () => {
-            if (cameraControlSocketRef.current) {
-                console.log('📷 Cleaning up camera control socket');
-                cameraControlSocketRef.current.disconnect();
-                cameraControlSocketRef.current = null;
-            }
-            
-            // Cleanup debounced operations
-            if (debouncedCameraOperation.current) {
-                clearTimeout(debouncedCameraOperation.current);
-            }
-        };
-    }, [roomId, isAdmin, localStream]);
 
     // Enhanced getUserMedia with comprehensive device error handling
     const getUserMedia = async () => {
@@ -1383,19 +1185,18 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
 
     // Camera zoom control functions
     const handleCameraZoom = async (direction) => {
-        console.log('🔍 handleCameraZoom called with:', { direction, isAdmin, hasSocket: !!cameraControlSocketRef.current, roomId });
-        if (!isAdmin || !cameraControlSocketRef.current) {
-            console.error('❌ Cannot send zoom command:', { isAdmin, hasSocket: !!cameraControlSocketRef.current });
+        console.log('🔍 handleCameraZoom called with:', { direction, isAdmin, hasSocket: !!socketConnection.current, roomId });
+        if (!isAdmin || !socketConnection.current) {
+            console.error('❌ Cannot send zoom command:', { isAdmin, hasSocket: !!socketConnection.current });
             return;
         }
         
         try {
-            // Send zoom command to user via dedicated camera control socket
-            console.log('🔍 Emitting camera-zoom event via camera control socket');
-            cameraControlSocketRef.current.emit('camera-zoom', {
+            // Send zoom command to user
+            console.log('🔍 Emitting camera-zoom event');
+            socketConnection.current.emit('camera-zoom', {
                 direction: direction, // 'in' or 'out'
-                timestamp: Date.now(),
-                roomId: roomId
+                timestamp: Date.now()
             });
             
             console.log(`✅ Camera zoom ${direction} command sent successfully`);
@@ -1406,19 +1207,18 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
 
     // Camera torch control function
     const handleCameraTorch = async (enabled) => {
-        console.log('🔦 handleCameraTorch called with:', { enabled, isAdmin, hasSocket: !!cameraControlSocketRef.current, roomId });
-        if (!isAdmin || !cameraControlSocketRef.current) {
-            console.error('❌ Cannot send torch command:', { isAdmin, hasSocket: !!cameraControlSocketRef.current });
+        console.log('🔦 handleCameraTorch called with:', { enabled, isAdmin, hasSocket: !!socketConnection.current, roomId });
+        if (!isAdmin || !socketConnection.current) {
+            console.error('❌ Cannot send torch command:', { isAdmin, hasSocket: !!socketConnection.current });
             return;
         }
         
         try {
-            // Send torch command to user via dedicated camera control socket
-            console.log('🔦 Emitting camera-torch event via camera control socket');
-            cameraControlSocketRef.current.emit('camera-torch', {
+            // Send torch command to user
+            console.log('🔦 Emitting camera-torch event');
+            socketConnection.current.emit('camera-torch', {
                 enabled: enabled, // true or false
-                timestamp: Date.now(),
-                roomId: roomId
+                timestamp: Date.now()
             });
             
             console.log(`✅ Camera torch ${enabled ? 'ON' : 'OFF'} command sent successfully`);
@@ -1427,72 +1227,19 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
         }
     };
 
-    // NEW: Process pending camera commands when camera becomes ready
-    const processPendingCameraCommands = () => {
-        if (pendingCameraCommands.current.length > 0 && cameraReady) {
-            console.log('📷 Processing pending camera commands:', pendingCameraCommands.current.length);
-            pendingCameraCommands.current.forEach(cmd => {
-                if (cmd.type === 'zoom') {
-                    handleIncomingCameraZoom(cmd.data);
-                } else if (cmd.type === 'torch') {
-                    handleIncomingCameraTorch(cmd.data);
-                }
-            });
-            pendingCameraCommands.current = [];
-        }
-    };
-
-    // NEW: Performance optimization - debounced camera operations
-    const debouncedCameraOperation = useRef(null);
-    const lastCameraOperation = useRef(0);
-    const CAMERA_OPERATION_DELAY = isMobile ? 300 : 150; // Slower on mobile for better performance
-
-    const executeCameraOperation = async (operation, ...args) => {
-        const now = Date.now();
-        if (now - lastCameraOperation.current < CAMERA_OPERATION_DELAY) {
-            // Clear existing timeout
-            if (debouncedCameraOperation.current) {
-                clearTimeout(debouncedCameraOperation.current);
-            }
-            
-            // Debounce the operation
-            debouncedCameraOperation.current = setTimeout(() => {
-                operation(...args);
-                lastCameraOperation.current = Date.now();
-            }, CAMERA_OPERATION_DELAY);
-            return;
-        }
-        
-        // Execute immediately if enough time has passed
-        await operation(...args);
-        lastCameraOperation.current = now;
-    };
-
     // Handle incoming camera commands (for users)
     const handleIncomingCameraZoom = async (data) => {
-        console.log('🔍 handleIncomingCameraZoom received:', { data, isAdmin, hasLocalStream: !!localStream, cameraReady });
+        console.log('🔍 handleIncomingCameraZoom received:', { data, isAdmin, hasLocalStream: !!localStream });
         if (isAdmin) {
             console.log('⚠️ Admin received zoom command, ignoring');
             return; // Only users should handle camera commands
         }
         
-        // NEW: Queue command if camera is not ready
-        if (!cameraReady || !localStream || localStream.getVideoTracks().length === 0) {
-            console.log('📷 Camera not ready, queuing zoom command');
-            pendingCameraCommands.current.push({
-                type: 'zoom',
-                data: data,
-                timestamp: Date.now()
-            });
-            return;
-        }
-        
-        // Use performance-optimized execution
-        await executeCameraOperation(async () => {
-            try {
-                const { direction } = data;
-                console.log('🔍 Processing zoom command:', direction);
-                
+        try {
+            const { direction } = data;
+            console.log('🔍 Processing zoom command:', direction);
+            
+            if (localStream && localStream.getVideoTracks().length > 0) {
                 const videoTrack = localStream.getVideoTracks()[0];
                 const capabilities = videoTrack.getCapabilities();
                 console.log('🔍 Video track capabilities:', capabilities);
@@ -1508,70 +1255,55 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
                         newZoom = Math.max(currentZoom / 1.2, capabilities.zoom.min);
                     }
                     
-                    // NEW: Batch constraint updates for better performance
-                    const constraints = {
-                        advanced: [{ zoom: newZoom }]
-                    };
-                    
                     console.log('🔍 Applying zoom constraint:', { currentZoom, newZoom, direction });
-                    await videoTrack.applyConstraints(constraints);
+                    await videoTrack.applyConstraints({
+                        advanced: [{ zoom: newZoom }]
+                    });
                     
                     console.log(`✅ Camera zoom ${direction}: ${currentZoom} -> ${newZoom}`);
                 } else {
                     console.log('⚠️ Zoom not supported on this device');
                 }
-            } catch (error) {
-                console.error('❌ Error applying camera zoom:', error);
+            } else {
+                console.log('⚠️ No local stream or video tracks available');
             }
-        });
+        } catch (error) {
+            console.error('❌ Error applying camera zoom:', error);
+        }
     };
 
     const handleIncomingCameraTorch = async (data) => {
-        console.log('🔦 handleIncomingCameraTorch received:', { data, isAdmin, hasLocalStream: !!localStream, cameraReady });
+        console.log('🔦 handleIncomingCameraTorch received:', { data, isAdmin, hasLocalStream: !!localStream });
         if (isAdmin) {
             console.log('⚠️ Admin received torch command, ignoring');
             return; // Only users should handle camera commands
         }
         
-        // NEW: Queue command if camera is not ready
-        if (!cameraReady || !localStream || localStream.getVideoTracks().length === 0) {
-            console.log('📷 Camera not ready, queuing torch command');
-            pendingCameraCommands.current.push({
-                type: 'torch',
-                data: data,
-                timestamp: Date.now()
-            });
-            return;
-        }
-        
-        // Use performance-optimized execution
-        await executeCameraOperation(async () => {
-            try {
-                const { enabled } = data;
-                console.log('🔦 Processing torch command:', enabled);
-                
+        try {
+            const { enabled } = data;
+            console.log('🔦 Processing torch command:', enabled);
+            
+            if (localStream && localStream.getVideoTracks().length > 0) {
                 const videoTrack = localStream.getVideoTracks()[0];
                 const capabilities = videoTrack.getCapabilities();
                 console.log('🔦 Video track capabilities:', capabilities);
                 
                 if (capabilities.torch) {
                     console.log('🔦 Applying torch constraint:', enabled);
-                    
-                    // NEW: Batch constraint updates for better performance
-                    const constraints = {
+                    await videoTrack.applyConstraints({
                         advanced: [{ torch: enabled }]
-                    };
-                    
-                    await videoTrack.applyConstraints(constraints);
+                    });
                     
                     console.log(`✅ Camera torch ${enabled ? 'ON' : 'OFF'}`);
                 } else {
                     console.log('⚠️ Torch not supported on this device');
                 }
-            } catch (error) {
-                console.error('❌ Error applying camera torch:', error);
+            } else {
+                console.log('⚠️ No local stream or video tracks available');
             }
-        });
+        } catch (error) {
+            console.error('❌ Error applying camera torch:', error);
+        }
     };
 
     return {
@@ -1615,12 +1347,7 @@ const useWebRTC = (isAdmin, roomId, videoRef) => {
         handleCameraTorch,
         // Add incoming camera control handlers for users
         handleIncomingCameraZoom,
-        handleIncomingCameraTorch,
-        // Add camera ready state and pending commands processor
-        cameraReady,
-        processPendingCameraCommands,
-        // Add performance optimization functions
-        executeCameraOperation
+        handleIncomingCameraTorch
     }
 }
 
