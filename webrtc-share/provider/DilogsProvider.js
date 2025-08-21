@@ -11,6 +11,7 @@ import { useUser } from './UserProvider';
 import { toast } from 'sonner';
 import CustomDialog from "@/components/dialogs/CustomDialog";
 import { X } from "lucide-react";
+import AdminChatScreen from '@/components/AdminChatScreen';
 
 const DialogContext = createContext();
 
@@ -107,6 +108,8 @@ export const DialogProvider = ({ children }) => {
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [showTicketDetails, setShowTicketDetails] = useState(false);
   const [ticketSearchQuery, setTicketSearchQuery] = useState('');
+  const [adminChatOpen, setAdminChatOpen] = useState(false);
+  const [selectedTicketForChat, setSelectedTicketForChat] = useState(null);
 
   const supportCategories = ["Accessibility (eg. font size, button size, colour or contrast issues)", "'Actions' button issue", "Amending Message issue", "Dashboard issue", "Delete/Archive issue", "Export issue", "History issue", "Log in/Log out issue", "Payment/account queries", "Password/Security issue", "Saving videos or screenshots query", "Sending shared links to third parties", "Sending a text/email link to customers", "Uploading logo or profile image issue", "Video viewing page issue", "Any Other issue not listed above"];
 
@@ -612,7 +615,7 @@ export const DialogProvider = ({ children }) => {
     setSupportAttachments(prev => prev.filter((_, i) => i !== index));
   };
 
-  const loadUserTickets = async () => {
+  const loadUserTickets = useCallback(async () => {
     if (!isAuth) return;
     
     setTicketsLoading(true);
@@ -625,7 +628,7 @@ export const DialogProvider = ({ children }) => {
     } finally {
       setTicketsLoading(false);
     }
-  };
+  }, [isAuth]);
 
   const handleForgotPassword = async (e) => {
     e.preventDefault();
@@ -2081,6 +2084,9 @@ ${senderName}`;
     loadUserTickets,
     ticketSearchQuery,
     setTicketSearchQuery,
+    adminChatOpen,
+    setAdminChatOpen,
+    selectedTicketForChat,
   }), [resetOpen, hasTemporaryPassword, isAuth, loadMessageSettings, loadLandlordData, resetLandlordForm, selectedMeeting, exportLoading, openHistoryModal, historyOpen, selectedItemForHistory, historyLoading, shareLinkOpen, selectedMeetingForShare, messageSaving, tailoredMessageText, messageOption, defaultTextSize, tailoredTextSize, selectedButtonColor, messageSettingsLoaded, isCallbackOpen, isMeetingOpen, supportCategory, supportQuery, supportAttachments, supportLoading, viewTicketsOpen, userTickets, ticketsLoading, ticketSearchQuery]);
 
   useEffect(() => {
@@ -2167,6 +2173,12 @@ ${senderName}`;
       setInitialMeetingId(null);
     }
   }, [historyOpen, historyInterval]);
+
+  useEffect(() => {
+    if (viewTicketsOpen && isAuth) {
+      loadUserTickets(); // Automatically load tickets when modal opens
+    }
+  }, [viewTicketsOpen, isAuth, loadUserTickets]);
 
   useEffect(() => {
     if (!shareLinkOpen) setSelectedMeetingForShare(null);
@@ -4360,6 +4372,21 @@ ${senderName}`;
                             </div>
                           </div>
                         )}
+                        
+                        {/* Escalate Ticket Button */}
+                        <div className="mt-3 pt-3 border-t border-gray-100">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation(); 
+                              setSelectedTicketForChat(ticket);
+                              setAdminChatOpen(true);
+                            }}
+                            className="w-full px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium text-xs flex items-center justify-center gap-2"
+                          >
+                            <MailIcon className="w-3 h-3" />
+                            Escalate Ticket
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -4370,8 +4397,14 @@ ${senderName}`;
         </div>
       </DialogComponent>
 
-      {/* History Modal */}
-
+      <AdminChatScreen 
+        isOpen={adminChatOpen}
+        onClose={() => {
+          setAdminChatOpen(false);
+          setSelectedTicketForChat(null);
+        }}
+        ticketInfo={selectedTicketForChat}
+      />
 
     </DialogContext.Provider>
   );

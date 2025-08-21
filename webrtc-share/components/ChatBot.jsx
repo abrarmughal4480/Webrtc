@@ -1704,26 +1704,26 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
        
        {/* Enhanced Chat Container */}
        <div className="flex-1 relative overflow-y-auto pb-24 md:pb-32">
-         <div className="max-w-4xl mx-auto px-4 md:px-6 py-4 md:py-8">
+         <div className="w-full px-4 md:px-6 py-4 md:py-8">
            <div className="space-y-4 md:space-y-6">
              {messages.map((message, index) => (
                <div key={message.id} className={`group animate-in slide-in-from-bottom-2 duration-500 ${message.type === 'user' ? 'flex justify-end' : 'flex justify-start'}`} style={{ animationDelay: `${index * 100}ms` }}>
                  {message.type === 'user' ? (
                    <div className="max-w-[85%] md:max-w-[80%] relative">
-                                         <div className="bg-orange-500 text-white px-4 md:px-6 py-3 md:py-4 rounded-2xl md:rounded-3xl rounded-br-lg shadow-xl shadow-orange-500/25 hover:shadow-2xl hover:shadow-orange-500/30 transition-all duration-300 relative group">
+                     <div className="bg-orange-500 text-white px-4 md:px-6 py-3 md:py-4 rounded-2xl md:rounded-3xl rounded-br-lg shadow-xl shadow-orange-500/25 hover:shadow-2xl hover:shadow-orange-500/30 transition-all duration-300 relative group">
                        <p className="text-sm md:text-base leading-relaxed font-medium">{message.text}</p>
                        <div className="absolute inset-0 bg-orange-400/20 rounded-2xl md:rounded-3xl rounded-br-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                      </div>
-                    <div className="flex justify-end mt-2">
-                      <span className="text-xs text-gray-500 px-2">
-                        {formatMessageTime(message.timestamp)}
-                      </span>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="max-w-[90%] md:max-w-[85%] w-full">
-                    <div className="group relative">
-                                             <div className="bg-gradient-to-br from-[#9452FF] via-[#8a42fc] to-[#7c3aed] text-white rounded-2xl md:rounded-3xl rounded-bl-lg p-4 md:p-6 shadow-xl shadow-[#9452FF]/25 border border-[#8a42fc]/50 hover:shadow-2xl hover:shadow-[#9452FF]/30 transition-all duration-300 backdrop-blur-sm">
+                     <div className="flex justify-end mt-2">
+                       <span className="text-xs text-gray-500 px-2">
+                         {formatMessageTime(message.timestamp)}
+                       </span>
+                     </div>
+                   </div>
+                 ) : (
+                   <div className="max-w-[90%] md:max-w-[85%] w-full">
+                     <div className="group relative">
+                       <div className="bg-gradient-to-br from-[#9452FF] via-[#8a42fc] to-[#7c3aed] text-white rounded-2xl md:rounded-3xl rounded-bl-lg p-4 md:p-6 shadow-xl shadow-[#9452FF]/25 border border-[#8a42fc]/50 hover:shadow-2xl hover:shadow-[#9452FF]/30 transition-all duration-300 backdrop-blur-sm">
                          <div className="text-white text-sm md:text-base leading-relaxed">
                            <div 
                              className="whitespace-pre-wrap"
@@ -1811,7 +1811,7 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
       </div>
 
       {/* Enhanced Floating Input with Glass Effect */}
-      <div className="fixed bottom-4 md:bottom-6 left-1/2 transform -translate-x-1/2 z-50 w-full max-w-4xl px-4 md:px-6">
+      <div className="fixed bottom-4 md:bottom-6 left-1/2 transform -translate-x-1/2 z-50 w-full px-4 md:px-6">
         <div className="relative">
           <div className="absolute inset-0 bg-gradient-to-r from-white via-white to-white rounded-2xl md:rounded-3xl shadow-2xl shadow-slate-300/50 backdrop-blur-xl border border-white/50"></div>
           <div className="relative bg-white/90 rounded-2xl md:rounded-3xl shadow-2xl backdrop-blur-xl border border-slate-200/50 p-2 hover:shadow-3xl transition-all duration-300">

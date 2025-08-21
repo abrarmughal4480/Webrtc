@@ -1492,19 +1492,21 @@ export default function Page() {
                   <Button className={"bg-amber-500 text-white rounded-3xl flex items-center gap-2 text-xl"}>Actions <img src="/icons/arrow-down.svg" /></Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent className={'bg-white border-none shadow-sm'}>
-                  <DropdownMenuItem>
-                    <button className='bg-none border-none cursor-pointer' onClick={handleLogout}>Logout</button>
+                  <DropdownMenuItem className="hover:bg-gray-50 transition-colors duration-200 cursor-pointer">
+                    <button className='w-full text-left bg-none border-none cursor-pointer hover:text-gray-700 transition-colors duration-200' onClick={handleLogout}>Logout</button>
                   </DropdownMenuItem>
-                  <DropdownMenuItem>Dashboard</DropdownMenuItem>
-                  <DropdownMenuItem>
-                    <button className='bg-none border-none cursor-pointer' onClick={() => setTickerOpen(true)}>Raise Support Ticket</button>
+                  <DropdownMenuItem className="bg-blue-50 text-blue-700 font-medium cursor-default">
+                    <span className='w-full text-left cursor-default'>Dashboard</span>
                   </DropdownMenuItem>
-                  <DropdownMenuItem>
-                    <button className='bg-none border-none cursor-pointer' onClick={() => setViewTicketsOpen(true)}>View Existing Support Tickets</button>
+                  <DropdownMenuItem className="hover:bg-gray-50 transition-colors duration-200 cursor-pointer">
+                    <button className='w-full text-left bg-none border-none cursor-pointer hover:text-gray-700 transition-colors duration-200' onClick={() => setTickerOpen(true)}>Raise Support Ticket</button>
                   </DropdownMenuItem>
-                  <DropdownMenuItem>
+                  <DropdownMenuItem className="hover:bg-gray-50 transition-colors duration-200 cursor-pointer">
+                    <button className='w-full text-left bg-none border-none cursor-pointer hover:text-gray-700 transition-colors duration-200' onClick={() => setViewTicketsOpen(true)}>View Existing Support Tickets</button>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem className="hover:bg-gray-50 transition-colors duration-200 cursor-pointer">
                     <button 
-                      className={`w-full text-left flex items-center gap-2 ${hasTemporaryPassword ? 'text-red-600 font-semibold' : ''}`} 
+                      className={`w-full text-left bg-none border-none cursor-pointer hover:text-gray-700 transition-colors duration-200 ${hasTemporaryPassword ? 'text-red-600 font-semibold' : ''}`} 
                       onClick={() => setResetOpen(true)}
                     >
                       {hasTemporaryPassword ? (
@@ -1517,12 +1519,24 @@ export default function Page() {
                       )}
                     </button>
                   </DropdownMenuItem>
-                  <DropdownMenuItem > <button className='bg-none border-none cursor-pointer' onClick={() => setInviteOpen(true)}>Invite Coworkers</button></DropdownMenuItem>
-                  <DropdownMenuItem><button className='bg-none border-none cursor-pointer' onClick={() => setMessageOpen(true)}>Amend Message</button></DropdownMenuItem>
-                  <DropdownMenuItem > <button className='bg-none border-none cursor-pointer text-left' onClick={() => setLandlordDialogOpen(true)}>Add Landlord Name/Logo/ <br />Profile Image </button></DropdownMenuItem>
-                  <DropdownMenuItem > <button className='bg-none border-none cursor-pointer' onClick={() => setFaqOpen(true)}>FAQs</button></DropdownMenuItem>
-                  <DropdownMenuItem > <button className='bg-none border-none cursor-pointer' onClick={() => setFeedbackOpen(true)}>Give Feedback</button></DropdownMenuItem>
-                  <DropdownMenuItem > <button className='bg-none border-none cursor-pointer' onClick={() => setVideoGuidesOpen(true)}>How to Video Guides</button></DropdownMenuItem>
+                  <DropdownMenuItem className="hover:bg-gray-50 transition-colors duration-200 cursor-pointer">
+                    <button className='w-full text-left bg-none border-none cursor-pointer hover:text-gray-700 transition-colors duration-200' onClick={() => setInviteOpen(true)}>Invite Coworkers</button>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem className="hover:bg-gray-50 transition-colors duration-200 cursor-pointer">
+                    <button className='w-full text-left bg-none border-none cursor-pointer hover:text-gray-700 transition-colors duration-200' onClick={() => setMessageOpen(true)}>Amend Message</button>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem className="hover:bg-gray-50 transition-colors duration-200 cursor-pointer">
+                    <button className='w-full text-left bg-none border-none cursor-pointer hover:text-gray-700 transition-colors duration-200' onClick={() => setLandlordDialogOpen(true)}>Add Landlord Name/Logo/ <br />Profile Image </button>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem className="hover:bg-gray-50 transition-colors duration-200 cursor-pointer">
+                    <button className='bg-none border-none cursor-pointer hover:text-gray-700 transition-colors duration-200' onClick={() => setFaqOpen(true)}>FAQs</button>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem className="hover:bg-gray-50 transition-colors duration-200 cursor-pointer">
+                    <button className='bg-none border-none cursor-pointer hover:text-gray-700 transition-colors duration-200' onClick={() => setFeedbackOpen(true)}>Give Feedback</button>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem className="hover:bg-gray-50 transition-colors duration-200 cursor-pointer">
+                    <button className='bg-none border-none cursor-pointer hover:text-gray-700 transition-colors duration-200' onClick={() => setVideoGuidesOpen(true)}>How to Video Guides</button>
+                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
               )}
