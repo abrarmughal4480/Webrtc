@@ -1,11 +1,15 @@
 import { useState, useEffect } from 'react';
-import { Building2, Plus, X, Users } from "lucide-react";
+import { Building2, Plus, X, Users, AlertCircle } from "lucide-react";
 
 export default function AddCompanyDialog({ 
   isOpen, 
   onClose, 
   onSubmit, 
-  isLoading = false 
+  isLoading = false,
+  apiError = null,
+  onClearApiError = null,
+  mode = 'add', // 'add' or 'view'
+  companyData = null // Company data for view mode
 }) {
   const [formData, setFormData] = useState({
     name: '',
@@ -22,6 +26,26 @@ export default function AddCompanyDialog({
 
   const [errors, setErrors] = useState({});
 
+  // Format API error messages to be more user-friendly
+  const formatApiError = (errorMessage) => {
+    if (errorMessage.includes('Company with this name already exists')) {
+      return 'A company with this name already exists. Please choose a different name.';
+    }
+    if (errorMessage.includes('Company name, address fields, and users are required')) {
+      return 'Please fill in all required fields including company name, address, and user information.';
+    }
+    if (errorMessage.includes('Invalid role')) {
+      return 'Invalid user role specified. Please check the user roles.';
+    }
+    if (errorMessage.includes('Failed to create user')) {
+      return 'There was an issue creating one or more users. Please check the user information and try again.';
+    }
+    if (errorMessage.includes('email')) {
+      return 'Please check the email addresses for all users. Make sure they are valid and unique.';
+    }
+    return errorMessage;
+  };
+
   // Prevent background scrolling when popup is open
   useEffect(() => {
     if (isOpen) {
@@ -36,6 +60,24 @@ export default function AddCompanyDialog({
     };
   }, [isOpen]);
 
+  // Populate form data when in view or edit mode
+  useEffect(() => {
+    if ((mode === 'view' || mode === 'edit') && companyData) {
+      setFormData({
+        name: companyData.name || '',
+        house_name_number: companyData.house_name_number || '',
+        street_road: companyData.street_road || '',
+        city: companyData.city || '',
+        country: companyData.country || '',
+        post_code: companyData.post_code || '',
+        users: companyData.users || [
+          { id: 1, firstName: '', lastName: '', email: '', phone: '', jobTitle: '', role: 'company_admin' },
+          { id: 2, firstName: '', lastName: '', email: '', phone: '', jobTitle: '', role: 'landlord' }
+        ]
+      });
+    }
+  }, [mode, companyData]);
+
   const handleInputChange = (field, value) => {
     setFormData(prev => ({
       ...prev,
@@ -44,6 +86,10 @@ export default function AddCompanyDialog({
     // Clear error when user starts typing
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: '' }));
+    }
+    // Clear API error when user starts typing in company name
+    if (field === 'name' && apiError && onClearApiError) {
+      onClearApiError();
     }
   };
 
@@ -133,6 +179,12 @@ export default function AddCompanyDialog({
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    
+    // Don't submit if in view mode
+    if (mode === 'view') {
+      return;
+    }
+    
     if (validateForm()) {
       // Format the data for the API
       const formattedData = {
@@ -171,6 +223,9 @@ export default function AddCompanyDialog({
       ]
     });
     setErrors({});
+    if (onClearApiError) {
+      onClearApiError();
+    }
     onClose();
   };
 
@@ -186,7 +241,7 @@ export default function AddCompanyDialog({
             <div className="flex-1 flex items-center justify-center">
               <span className="text-sm sm:text-lg font-bold text-center flex items-center gap-2">
                 <Building2 className="w-4 h-4 sm:w-5 sm:h-5" />
-                Add New Company
+                {mode === 'view' ? 'View Company Details' : mode === 'edit' ? 'Edit Company' : 'Add New Company'}
               </span>
             </div>
             <button
@@ -216,10 +271,14 @@ export default function AddCompanyDialog({
                     value={formData.name}
                     onChange={(e) => handleInputChange('name', e.target.value)}
                     placeholder="Enter company name"
-                    className={`w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-sm mt-1 ${errors.name ? 'border-red-500' : ''}`}
+                    disabled={mode === 'view'}
+                    className={`w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-sm mt-1 ${errors.name || apiError ? 'border-red-500' : ''} ${mode === 'view' ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                   />
                   {errors.name && (
                     <p className="text-red-500 text-xs font-semibold mt-1 ml-1">{errors.name}</p>
+                  )}
+                  {apiError && (
+                    <p className="text-red-500 text-xs font-semibold mt-1 ml-1 flex items-center gap-1"><AlertCircle className="w-4 h-4" />{formatApiError(apiError)}</p>
                   )}
                 </div>
 
@@ -240,7 +299,8 @@ export default function AddCompanyDialog({
                         value={formData.house_name_number}
                         onChange={(e) => handleInputChange('house_name_number', e.target.value)}
                         placeholder="Building name, unit number, or office"
-                        className={`w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-sm mt-1 ${errors.house_name_number ? 'border-red-500' : ''}`}
+                        disabled={mode === 'view'}
+                        className={`w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-sm mt-1 ${errors.house_name_number ? 'border-red-500' : ''} ${mode === 'view' ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                       />
                       {errors.house_name_number && (
                         <p className="text-red-500 text-xs font-semibold mt-1 ml-1">{errors.house_name_number}</p>
@@ -256,7 +316,8 @@ export default function AddCompanyDialog({
                         value={formData.street_road}
                         onChange={(e) => handleInputChange('street_road', e.target.value)}
                         placeholder="Street name and number"
-                        className={`w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-sm mt-1 ${errors.street_road ? 'border-red-500' : ''}`}
+                        disabled={mode === 'view'}
+                        className={`w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-sm mt-1 ${errors.street_road ? 'border-red-500' : ''} ${mode === 'view' ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                       />
                       {errors.street_road && (
                         <p className="text-red-500 text-xs font-semibold mt-1 ml-1">{errors.street_road}</p>
@@ -275,7 +336,8 @@ export default function AddCompanyDialog({
                         value={formData.city}
                         onChange={(e) => handleInputChange('city', e.target.value)}
                         placeholder="City or town name"
-                        className={`w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-sm mt-1 ${errors.city ? 'border-red-500' : ''}`}
+                        disabled={mode === 'view'}
+                        className={`w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-sm mt-1 ${errors.city ? 'border-red-500' : ''} ${mode === 'view' ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                       />
                       {errors.city && (
                         <p className="text-red-500 text-xs font-semibold mt-1 ml-1">{errors.city}</p>
@@ -291,7 +353,8 @@ export default function AddCompanyDialog({
                         value={formData.country}
                         onChange={(e) => handleInputChange('country', e.target.value)}
                         placeholder="County (e.g., Greater London)"
-                        className={`w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-sm mt-1 ${errors.country ? 'border-red-500' : ''}`}
+                        disabled={mode === 'view'}
+                        className={`w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-sm mt-1 ${errors.country ? 'border-red-500' : ''} ${mode === 'view' ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                       />
                       {errors.country && (
                         <p className="text-red-500 text-xs font-semibold mt-1 ml-1">{errors.country}</p>
@@ -307,7 +370,8 @@ export default function AddCompanyDialog({
                         value={formData.post_code}
                         onChange={(e) => handleInputChange('post_code', e.target.value)}
                         placeholder="e.g., SW1A 1AA"
-                        className={`w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-sm mt-1 ${errors.post_code ? 'border-red-500' : ''}`}
+                        disabled={mode === 'view'}
+                        className={`w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-sm mt-1 ${errors.post_code ? 'border-red-500' : ''} ${mode === 'view' ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                       />
                       {errors.post_code && (
                         <p className="text-red-500 text-xs font-semibold mt-1 ml-1">{errors.post_code}</p>
@@ -323,14 +387,16 @@ export default function AddCompanyDialog({
                   <h3 className="text-base sm:text-lg font-semibold text-gray-800">
                     User Management
                   </h3>
-                  <button
-                    type="button"
-                    onClick={() => addUser('company_admin')}
-                    className="flex items-center justify-center gap-2 px-3 py-2 bg-purple-100 hover:bg-purple-200 text-purple-700 rounded-full transition-colors w-full sm:w-auto"
-                  >
-                    <Plus className="w-4 h-4" />
-                    <span className="text-sm font-medium">Add More</span>
-                  </button>
+                  {(mode !== 'view') && (
+                    <button
+                      type="button"
+                      onClick={() => addUser('company_admin')}
+                      className="flex items-center justify-center gap-2 px-3 py-2 bg-purple-100 hover:bg-purple-200 text-purple-700 rounded-full transition-colors w-full sm:w-auto"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span className="text-sm font-medium">Add More</span>
+                    </button>
+                  )}
                 </div>
                 
                 {/* Users List */}
@@ -358,7 +424,7 @@ export default function AddCompanyDialog({
                           <span className="text-xs sm:text-sm font-medium text-gray-600 capitalize bg-white px-2 py-1 rounded-full border">
                             {user.role === 'landlord' ? 'landlord officer' : user.role.replace('_', ' ')} #{displayNumber}
                           </span>
-                          {user.id > 2 && (
+                          {user.id > 2 && (mode !== 'view') && (
                             <button
                               type="button"
                               onClick={() => removeUser(user.id)}
@@ -381,7 +447,8 @@ export default function AddCompanyDialog({
                                 value={user.firstName || ''}
                                 onChange={(e) => updateUser(user.id, 'firstName', e.target.value)}
                                 placeholder="Enter first name"
-                                className={`w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-sm mt-1 ${errors[`user${index}FirstName`] ? 'border-red-500' : ''}`}
+                                disabled={mode === 'view'}
+                                className={`w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-sm mt-1 ${errors[`user${index}FirstName`] ? 'border-red-500' : ''} ${mode === 'view' ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                               />
                               {errors[`user${index}FirstName`] && (
                                 <p className="text-red-500 text-xs font-semibold mt-1 ml-1">{errors[`user${index}FirstName`]}</p>
@@ -397,7 +464,8 @@ export default function AddCompanyDialog({
                                 value={user.lastName || ''}
                                 onChange={(e) => updateUser(user.id, 'lastName', e.target.value)}
                                 placeholder="Enter last name"
-                                className={`w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-sm mt-1 ${errors[`user${index}LastName`] ? 'border-red-500' : ''}`}
+                                disabled={mode === 'view'}
+                                className={`w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-sm mt-1 ${errors[`user${index}LastName`] ? 'border-red-500' : ''} ${mode === 'view' ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                               />
                               {errors[`user${index}LastName`] && (
                                 <p className="text-red-500 text-xs font-semibold mt-1 ml-1">{errors[`user${index}LastName`]}</p>
@@ -416,7 +484,8 @@ export default function AddCompanyDialog({
                                 value={user.email}
                                 onChange={(e) => updateUser(user.id, 'email', e.target.value)}
                                 placeholder="Enter user email"
-                                className={`w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-sm mt-1 ${errors[`user${index}Email`] ? 'border-red-500' : ''}`}
+                                disabled={mode === 'view'}
+                                className={`w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-sm mt-1 ${errors[`user${index}Email`] ? 'border-red-500' : ''} ${mode === 'view' ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                               />
                               {errors[`user${index}Email`] && (
                                 <p className="text-red-500 text-xs font-semibold mt-1 ml-1">{errors[`user${index}Email`]}</p>
@@ -432,7 +501,8 @@ export default function AddCompanyDialog({
                                 value={user.phone || ''}
                                 onChange={(e) => updateUser(user.id, 'phone', e.target.value)}
                                 placeholder="Enter phone number"
-                                className={`w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-sm mt-1 ${errors[`user${index}Phone`] ? 'border-red-500' : ''}`}
+                                disabled={mode === 'view'}
+                                className={`w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-sm mt-1 ${errors[`user${index}Phone`] ? 'border-red-500' : ''} ${mode === 'view' ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                               />
                               {errors[`user${index}Phone`] && (
                                 <p className="text-red-500 text-xs font-semibold mt-1 ml-1">{errors[`user${index}Phone`]}</p>
@@ -450,7 +520,8 @@ export default function AddCompanyDialog({
                               value={user.jobTitle || ''}
                               onChange={(e) => updateUser(user.id, 'jobTitle', e.target.value)}
                               placeholder="Enter job title"
-                              className={`w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-sm mt-1 ${errors[`user${index}JobTitle`] ? 'border-red-500' : ''}`}
+                              disabled={mode === 'view'}
+                              className={`w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-sm mt-1 ${errors[`user${index}JobTitle`] ? 'border-red-500' : ''} ${mode === 'view' ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                             />
                             {errors[`user${index}JobTitle`] && (
                               <p className="text-red-500 text-xs font-semibold mt-1 ml-1">{errors[`user${index}JobTitle`]}</p>
@@ -471,25 +542,27 @@ export default function AddCompanyDialog({
                   className="w-full px-4 py-3 sm:py-2 border border-gray-300 text-gray-700 font-semibold rounded-full transition-all hover:bg-gray-50 disabled:opacity-60"
                   disabled={isLoading}
                 >
-                  Cancel
+                  {mode === 'view' ? 'Close' : 'Cancel'}
                 </button>
-                <button
-                  type="submit"
-                  className="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold px-4 py-3 sm:py-2 rounded-full transition-all disabled:opacity-60"
-                  disabled={isLoading}
-                >
-                  {isLoading ? (
-                    <div className="flex items-center justify-center gap-2">
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      Creating Company...
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-center gap-2">
-                      <Building2 className="w-4 h-4" />
-                      Create Company
-                    </div>
-                  )}
-                </button>
+                {mode !== 'view' && (
+                  <button
+                    type="submit"
+                    className="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold px-4 py-3 sm:py-2 rounded-full transition-all disabled:opacity-60"
+                    disabled={isLoading}
+                  >
+                    {isLoading ? (
+                      <div className="flex items-center justify-center gap-2">
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        {mode === 'edit' ? 'Updating Company...' : 'Creating Company...'}
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-center gap-2">
+                        <Building2 className="w-4 h-4" />
+                        {mode === 'edit' ? 'Update Company' : 'Create Company'}
+                      </div>
+                    )}
+                  </button>
+                )}
               </div>
             </form>
             

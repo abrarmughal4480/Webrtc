@@ -4,6 +4,51 @@ import { generateTemporaryPassword } from '../utils/generateTemporaryPassword.js
 import { sendTemporaryPasswordEmail, sendExistingUserRoleUpdateEmail } from '../services/temporaryPasswordEmailService.js';
 import sendResponse  from '../utils/sendResponse.js';
 
+// Migration function to handle existing users without new fields
+export const migrateExistingUsers = async (req, res) => {
+  try {
+    console.log('Starting user migration...');
+    
+    // Find users without firstName field (indicating they need migration)
+    const usersToMigrate = await User.find({
+      $or: [
+        { firstName: { $exists: false } },
+        { firstName: null },
+        { firstName: '' }
+      ]
+    });
+
+    console.log(`Found ${usersToMigrate.length} users to migrate`);
+
+    let migratedCount = 0;
+    for (const user of usersToMigrate) {
+      try {
+        // Set default values for new required fields
+        user.firstName = user.firstName || 'Unknown';
+        user.lastName = user.lastName || 'User';
+        user.phone = user.phone || 'Not provided';
+        user.jobTitle = user.jobTitle || 'Not specified';
+        
+        await user.save();
+        migratedCount++;
+        console.log(`Migrated user: ${user.email}`);
+      } catch (migrationError) {
+        console.error(`Failed to migrate user ${user.email}:`, migrationError);
+      }
+    }
+
+    console.log(`Migration completed. ${migratedCount} users migrated successfully.`);
+    return sendResponse(res, 200, true, 'User migration completed', {
+      totalUsers: usersToMigrate.length,
+      migratedUsers: migratedCount
+    });
+
+  } catch (error) {
+    console.error('Error during user migration:', error);
+    return sendResponse(res, 500, false, 'Failed to migrate users', error.message);
+  }
+};
+
 // Simple test function to check if the controller is working
 export const testCompanyController = async (req, res) => {
   try {
@@ -20,12 +65,11 @@ export const testCompanyController = async (req, res) => {
 
 // Create new company with users
 export const createCompany = async (req, res) => {
-  const { name, users } = req.body;
+  const { name, house_name_number, street_road, city, country, post_code, users } = req.body;
 
-  console.log('Creating company with data:', { name, users });
 
-  if (!name || !users || !Array.isArray(users) || users.length === 0) {
-    return sendResponse(res, 400, false, 'Company name and users are required');
+  if (!name || !house_name_number || !street_road || !city || !country || !post_code || !users || !Array.isArray(users) || users.length === 0) {
+    return sendResponse(res, 400, false, 'Company name, address fields, and users are required');
   }
 
   try {
@@ -35,9 +79,14 @@ export const createCompany = async (req, res) => {
       return sendResponse(res, 400, false, 'Company with this name already exists');
     }
 
-    // Create company
+    // Create company with address fields
     const company = new Company({
       name,
+      house_name_number,
+      street_road,
+      city,
+      country,
+      post_code,
       adminEmail: users.find(u => u.role === 'company_admin')?.email || users[0].email,
       companyAdmins: [],
       landlords: []
@@ -52,10 +101,10 @@ export const createCompany = async (req, res) => {
 
     // Process each user
     for (const userData of users) {
-      const { name: userName, email, role } = userData;
-      console.log('Processing user:', { userName, email, role });
+      const { firstName, lastName, email, phone, jobTitle, role } = userData;
+      console.log('Processing user:', { firstName, lastName, email, phone, jobTitle, role });
 
-      if (!userName || !email) {
+      if (!firstName || !lastName || !email || !phone || !jobTitle) {
         console.log('Skipping invalid user:', userData);
         continue; // Skip invalid users
       }
@@ -65,7 +114,7 @@ export const createCompany = async (req, res) => {
 
       if (existingUser) {
         console.log('Updating existing user:', existingUser._id);
-        // Update existing user's role - convert company_admin to company-admin
+        // Update existing user's role and new fields - convert company_admin to company-admin
         const normalizedRole = role === 'company_admin' ? 'company-admin' : role;
         
         // Validate the normalized role
@@ -76,6 +125,11 @@ export const createCompany = async (req, res) => {
         }
         
         existingUser.role = normalizedRole;
+        existingUser.firstName = firstName;
+        existingUser.lastName = lastName;
+        existingUser.phone = phone;
+        existingUser.jobTitle = jobTitle;
+        existingUser.company = createdCompany._id;
         await existingUser.save();
 
         // Add user to company based on role
@@ -87,7 +141,7 @@ export const createCompany = async (req, res) => {
 
         // Send role update email
         try {
-          await sendExistingUserRoleUpdateEmail(email, userName, company.name, normalizedRole);
+          await sendExistingUserRoleUpdateEmail(email, `${firstName} ${lastName}`, company.name, normalizedRole);
           updatedUsers++;
           console.log('Role update email sent to:', email);
         } catch (emailError) {
@@ -111,10 +165,15 @@ export const createCompany = async (req, res) => {
         
         try {
           const newUser = await User.create({
+            firstName,
+            lastName,
             email: email.toLowerCase(),
+            phone,
+            jobTitle,
             password: temporaryPassword,
             isTemporaryPassword: true,
-            role: normalizedRole
+            role: normalizedRole,
+            company: createdCompany._id
           });
 
           console.log('New user created:', newUser._id);
@@ -128,7 +187,7 @@ export const createCompany = async (req, res) => {
 
           // Send temporary password email
           try {
-            await sendTemporaryPasswordEmail(email, userName, temporaryPassword, company.name, normalizedRole);
+            await sendTemporaryPasswordEmail(email, `${firstName} ${lastName}`, temporaryPassword, company.name, normalizedRole);
             createdUsers++;
             console.log('Temporary password email sent to:', email);
           } catch (emailError) {
@@ -182,8 +241,8 @@ export const createCompany = async (req, res) => {
 export const getAllCompanies = async (req, res) => {
   try {
     const companies = await Company.find()
-      .populate('companyAdmins', 'email role landlordInfo.landlordName')
-      .populate('landlords', 'email role landlordInfo.landlordName')
+      .populate('companyAdmins', 'email firstName lastName phone jobTitle role landlordInfo.landlordName')
+      .populate('landlords', 'email firstName lastName phone jobTitle role landlordInfo.landlordName')
       .sort({ createdAt: -1 });
 
     return sendResponse(res, 200, true, 'Companies retrieved successfully', companies);
@@ -197,8 +256,8 @@ export const getAllCompanies = async (req, res) => {
 export const getCompanyById = async (req, res) => {
   try {
     const company = await Company.findById(req.params.id)
-      .populate('companyAdmins', 'email role landlordInfo.landlordName createdAt')
-      .populate('landlords', 'email role landlordInfo.landlordName createdAt');
+      .populate('companyAdmins', 'email firstName lastName phone jobTitle role landlordInfo.landlordName createdAt')
+      .populate('landlords', 'email firstName lastName phone jobTitle role landlordInfo.landlordName createdAt');
 
     if (!company) {
       return sendResponse(res, 404, false, 'Company not found');
@@ -214,7 +273,7 @@ export const getCompanyById = async (req, res) => {
 // Update company
 export const updateCompany = async (req, res) => {
   try {
-    const { name, status } = req.body;
+    const { name, house_name_number, street_road, city, country, post_code, status, users } = req.body;
     const company = await Company.findById(req.params.id);
 
     if (!company) {
@@ -235,10 +294,201 @@ export const updateCompany = async (req, res) => {
       company.name = name;
     }
 
+    // Update address fields if provided
+    if (house_name_number) company.house_name_number = house_name_number;
+    if (street_road) company.street_road = street_road;
+    if (city) company.city = city;
+    if (country) company.country = country;
+    if (post_code) company.post_code = post_code;
+
     if (status) {
       company.status = status;
     }
 
+    // Handle user updates if provided
+    if (users && Array.isArray(users)) {
+      let createdUsers = 0;
+      let updatedUsers = 0;
+      const emailErrors = [];
+      
+      // Store old user IDs to remove them later
+      const oldUserIds = [...company.companyAdmins, ...company.landlords];
+      const newUserIds = [];
+      
+      // Process each user
+      for (const userData of users) {
+        const { firstName, lastName, email, phone, jobTitle, role } = userData;
+        console.log('Processing user update:', { firstName, lastName, email, phone, jobTitle, role });
+
+        if (!firstName || !lastName || !email || !phone || !jobTitle) {
+          console.log('Skipping invalid user:', userData);
+          continue;
+        }
+
+        // Check if user already exists
+        let existingUser = await User.findOne({ email: email.toLowerCase() });
+
+        if (existingUser) {
+          console.log('Updating existing user:', existingUser._id);
+          console.log('Old user data:', {
+            firstName: existingUser.firstName,
+            lastName: existingUser.lastName,
+            phone: existingUser.phone,
+            jobTitle: existingUser.jobTitle,
+            role: existingUser.role
+          });
+          console.log('New user data:', { firstName, lastName, phone, jobTitle, role });
+          
+          // Update existing user's role and all fields - convert company_admin to company-admin
+          const normalizedRole = role === 'company_admin' ? 'company-admin' : role;
+          
+          // Validate the normalized role
+          const validRoles = ['company-admin', 'landlord'];
+          if (!validRoles.includes(normalizedRole)) {
+            console.error('Invalid role for existing user:', normalizedRole);
+            throw new Error(`Invalid role: ${normalizedRole}. Valid roles are: ${validRoles.join(', ')}`);
+          }
+          
+          // Update all user fields
+          existingUser.role = normalizedRole;
+          existingUser.firstName = firstName;
+          existingUser.lastName = lastName;
+          existingUser.phone = phone;
+          existingUser.jobTitle = jobTitle;
+          existingUser.email = email.toLowerCase(); // Make sure email is also updated if needed
+          
+          // Update company reference if it's different
+          if (!existingUser.company || existingUser.company.toString() !== company._id.toString()) {
+            existingUser.company = company._id;
+          }
+          
+          await existingUser.save();
+          console.log('User updated successfully:', existingUser._id);
+
+          // Add user to new user IDs list
+          newUserIds.push(existingUser._id);
+
+          // Send role update email
+          try {
+            await sendExistingUserRoleUpdateEmail(email, `${firstName} ${lastName}`, company.name, normalizedRole);
+            updatedUsers++;
+            console.log('Role update email sent to:', email);
+          } catch (emailError) {
+            console.error(`Failed to send role update email to ${email}:`, emailError);
+            emailErrors.push({ email, error: emailError.message });
+          }
+        } else {
+          console.log('Creating new user with role:', role);
+          // Create new user with temporary password - convert company_admin to company-admin
+          const temporaryPassword = generateTemporaryPassword();
+          const normalizedRole = role === 'company_admin' ? 'company-admin' : role;
+          
+          console.log('Creating user with normalized role:', normalizedRole);
+          
+          // Validate the normalized role
+          const validRoles = ['company-admin', 'landlord'];
+          if (!validRoles.includes(normalizedRole)) {
+            console.error('Invalid role:', normalizedRole);
+            throw new Error(`Invalid role: ${normalizedRole}. Valid roles are: ${validRoles.join(', ')}`);
+          }
+          
+          try {
+            const newUser = await User.create({
+              firstName,
+              lastName,
+              email: email.toLowerCase(),
+              phone,
+              jobTitle,
+              password: temporaryPassword,
+              isTemporaryPassword: true,
+              role: normalizedRole,
+              company: company._id
+            });
+
+            console.log('New user created:', newUser._id);
+
+            // Add user to new user IDs list
+            newUserIds.push(newUser._id);
+
+            // Send temporary password email
+            try {
+              await sendTemporaryPasswordEmail(email, `${firstName} ${lastName}`, temporaryPassword, company.name, normalizedRole);
+              createdUsers++;
+              console.log('Temporary password email sent to:', email);
+            } catch (emailError) {
+              console.error(`Failed to send temporary password email to ${email}:`, emailError);
+              emailErrors.push({ email, error: emailError.message });
+            }
+          } catch (userCreationError) {
+            console.error('Error creating user:', userCreationError);
+            console.error('User creation error details:', {
+              message: userCreationError.message,
+              name: userCreationError.name,
+              stack: userCreationError.stack,
+              validationErrors: userCreationError.errors
+            });
+            throw new Error(`Failed to create user ${email}: ${userCreationError.message}`);
+          }
+        }
+      }
+
+      // Update company with new user lists
+      // We need to check the actual user roles from the database
+      const companyAdminIds = [];
+      const landlordIds = [];
+      
+      for (const userId of newUserIds) {
+        const user = await User.findById(userId);
+        if (user) {
+          if (user.role === 'company-admin') {
+            companyAdminIds.push(userId);
+          } else if (user.role === 'landlord') {
+            landlordIds.push(userId);
+          }
+        }
+      }
+      
+      company.companyAdmins = companyAdminIds;
+      company.landlords = landlordIds;
+
+      // Remove old users from company
+      const usersToRemove = oldUserIds.filter(oldId => 
+        !newUserIds.some(newId => newId.toString() === oldId.toString())
+      );
+
+      if (usersToRemove.length > 0) {
+        console.log('Removing old users from company:', usersToRemove);
+        // Remove company references from old users
+        await User.updateMany(
+          { _id: { $in: usersToRemove } },
+          { $unset: { company: 1 } }
+        );
+      }
+
+      // Update company user count
+      await company.updateUserCount();
+      console.log('Company user count updated');
+
+      // Add response data for user updates
+      const response = {
+        company,
+        createdUsers,
+        updatedUsers,
+        removedUsers: usersToRemove.length,
+        emailErrors: emailErrors.length > 0 ? emailErrors : undefined
+      };
+
+      if (emailErrors.length > 0) {
+        console.warn('Some emails failed to send:', emailErrors);
+      }
+
+      company.updatedAt = new Date();
+      await company.save();
+
+      return sendResponse(res, 200, true, 'Company updated successfully', response);
+    }
+
+    // If no users provided, just update basic company info
     company.updatedAt = new Date();
     await company.save();
 

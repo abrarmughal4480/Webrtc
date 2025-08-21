@@ -11,7 +11,7 @@ import { getUserRoomInfo } from './controllers/userRoomInfoController.js';
 import Upload from './models/upload.js';
 
 // Company controller import
-import { createCompany, getAllCompanies, getCompanyById, updateCompany, deleteCompany, getCompanyStats, changeTemporaryPassword, checkTemporaryPasswordStatus, testCompanyController } from './controllers/companyController.js';
+import { createCompany, getAllCompanies, getCompanyById, updateCompany, deleteCompany, getCompanyStats, changeTemporaryPassword, checkTemporaryPasswordStatus, testCompanyController, migrateExistingUsers } from './controllers/companyController.js';
 
 // Support Ticket controller import
 import { createSupportTicket, getUserTickets, getTicketById, updateTicket, deleteTicket, getAllTickets, adminUpdateTicket, adminUpdateTicketComprehensive, getSuperAdminAllTickets, getDashboardStats, getTicketStats, bulkUpdateTickets, searchTickets, exportTickets, deleteAttachment } from './controllers/supportTicketController.js';
@@ -345,6 +345,18 @@ router.post('/companies/change-temporary-password', isAuthenticate, changeTempor
 
 // Route for users to check their temporary password status
 router.get('/companies/check-temporary-password', isAuthenticate, checkTemporaryPasswordStatus);
+
+// Migration route for existing users (Superadmin only)
+router.post('/companies/migrate-users', isAuthenticate, (req, res, next) => {
+    if (req.user.role === 'superadmin') {
+        next();
+    } else {
+        res.status(401).json({
+            success: false,
+            message: 'Only superadmin can perform user migration'
+        });
+    }
+}, migrateExistingUsers);
 
 // Support Ticket Routes
 // User routes (authenticated users)

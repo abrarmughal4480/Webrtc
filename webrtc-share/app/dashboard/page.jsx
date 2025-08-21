@@ -34,6 +34,7 @@ import { getMyUploadsRequest, getMyTrashedUploadsRequest, deleteUploadRequest, r
 import { publicApi } from "@/http";
 import useNotifications from "@/hooks/useNotifications";
 import VideoGuidesDialog from "@/components/dialogs/VideoGuidesDialog";
+import { companyHttp } from "@/http/companyHttp";
 
 export default function Page() {
   const { user, isAuth, setIsAuth, setUser } = useUser();
@@ -142,7 +143,7 @@ export default function Page() {
     }
   };
 
-  const { setResetOpen, setMessageOpen, setLandlordDialogOpen, setTickerOpen, setFeedbackOpen, setFaqOpen, setExportOpen, setHistoryOpen, setInviteOpen, historyOpen, selectedItemForHistory, historyLoading } = useDialog();
+  const { setResetOpen, setMessageOpen, setLandlordDialogOpen, setTickerOpen, setFeedbackOpen, setFaqOpen, setExportOpen, setHistoryOpen, setInviteOpen, historyOpen, selectedItemForHistory, historyLoading, setHasTemporaryPassword, hasTemporaryPassword, setOnTemporaryPasswordChangeSuccess, setViewTicketsOpen } = useDialog();
   
   // Video guides dialog state
   const [videoGuidesOpen, setVideoGuidesOpen] = useState(false);
@@ -1222,6 +1223,14 @@ export default function Page() {
     fetchUser();
   }, []);
 
+  // Check temporary password status when user and auth state are ready
+  useEffect(() => {
+    if (isAuth && user) {
+      // Check immediately since we're using user data directly
+      checkTemporaryPasswordStatus();
+    }
+  }, [isAuth, user]);
+
   // Get search fields based on user role and view mode
   const getSearchFieldsForCurrentView = () => {
     if (user?.role === 'resident') {
@@ -1299,6 +1308,58 @@ export default function Page() {
 
     return { total: uploadsArray.length, thisMonth, lastMonth, older };
   }, [displayedResidentUploads]);
+
+
+
+  // Function to check if user has temporary password
+  const checkTemporaryPasswordStatus = () => {
+    try {
+      // Only check if user is authenticated and user data is available
+      if (!isAuth || !user) {
+        console.log('User not authenticated, skipping temporary password check');
+        return;
+      }
+
+      // Check if user has temporary password directly from user data
+      const isTemp = user.isTemporaryPassword || false;
+      setHasTemporaryPassword(isTemp);
+      
+      if (isTemp) {
+        // User has temporary password, show reset popup
+        console.log('Temporary password detected, opening reset dialog');
+        // Set callback for when password is successfully changed
+        setOnTemporaryPasswordChangeSuccess(() => refreshTemporaryPasswordStatus);
+        setResetOpen(true);
+      } else {
+        console.log('User does not have temporary password');
+      }
+    } catch (error) {
+      console.error('Error checking temporary password status:', error);
+    }
+  };
+
+  // Function to refresh temporary password status (call this after successful password change)
+  // Usage: Call this function in your reset password dialog's success callback
+  // Example: onPasswordChangeSuccess={() => refreshTemporaryPasswordStatus()}
+  const refreshTemporaryPasswordStatus = async () => {
+    try {
+      // Reload user data to get updated temporary password status
+      const response = await loadMeRequest();
+      if (response.data.success && response.data.user) {
+        setUser(response.data.user);
+        const isTemp = response.data.user.isTemporaryPassword || false;
+        setHasTemporaryPassword(isTemp);
+        console.log('Temporary password status refreshed:', isTemp);
+        
+        // If password is no longer temporary, close the dialog
+        if (!isTemp) {
+          setResetOpen(false);
+        }
+      }
+    } catch (error) {
+      console.error('Error refreshing temporary password status:', error);
+    }
+  };
 
   return (
     <>
@@ -1438,7 +1499,24 @@ export default function Page() {
                   <DropdownMenuItem>
                     <button className='bg-none border-none cursor-pointer' onClick={() => setTickerOpen(true)}>Raise Support Ticket</button>
                   </DropdownMenuItem>
-                  <DropdownMenuItem><button className='bg-none border-none cursor-pointer' onClick={() => setResetOpen(true)}>Reset Password</button></DropdownMenuItem>
+                  <DropdownMenuItem>
+                    <button className='bg-none border-none cursor-pointer' onClick={() => setViewTicketsOpen(true)}>View Existing Support Tickets</button>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem>
+                    <button 
+                      className={`w-full text-left flex items-center gap-2 ${hasTemporaryPassword ? 'text-red-600 font-semibold' : ''}`} 
+                      onClick={() => setResetOpen(true)}
+                    >
+                      {hasTemporaryPassword ? (
+                        <>
+                          <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+                          Change Temporary Password
+                        </>
+                      ) : (
+                        'Reset Password'
+                      )}
+                    </button>
+                  </DropdownMenuItem>
                   <DropdownMenuItem > <button className='bg-none border-none cursor-pointer' onClick={() => setInviteOpen(true)}>Invite Coworkers</button></DropdownMenuItem>
                   <DropdownMenuItem><button className='bg-none border-none cursor-pointer' onClick={() => setMessageOpen(true)}>Amend Message</button></DropdownMenuItem>
                   <DropdownMenuItem > <button className='bg-none border-none cursor-pointer text-left' onClick={() => setLandlordDialogOpen(true)}>Add Landlord Name/Logo/ <br />Profile Image </button></DropdownMenuItem>

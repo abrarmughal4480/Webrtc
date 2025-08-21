@@ -1,11 +1,11 @@
 "use client"
 import { DialogComponent } from '@/components/dialogs/DialogCompnent';
-import React, { createContext, useState, useContext, useRef, useEffect } from 'react';
+import React, { createContext, useState, useContext, useRef, useEffect, useCallback, useMemo } from 'react';
 import { FileText, Archive, Trash2, Monitor, Smartphone, Save, History, ArchiveRestore, ExternalLink, FileSearch, MailIcon, Loader2, LockIcon, XIcon, Link, Copy, Eye, EyeOff, ChevronLeft, ArrowLeft, ChevronRight } from "lucide-react"
 import { Disclosure } from "@headlessui/react";
-import { ChevronDownIcon, ChevronDown } from "@heroicons/react/20/solid";
+import { ChevronDownIcon } from "@heroicons/react/20/solid";
 import { sendFriendLinkRequest, resetPasswordFromDashboardRequest, sendFeedbackRequest, raiseSupportTicketRequest, forgotPasswordRequest, updateLandlordInfoRequest, updateMessageSettingsRequest, getMessageSettingsRequest } from '@/http/authHttp';
-import { createSupportTicket, getUserTickets, getTicketById, updateTicket, deleteTicket, deleteAttachment, ticketUtils } from '@/http/supportTicketHttp';
+import { createSupportTicket, getUserTickets, deleteAttachment, ticketUtils } from '@/http/supportTicketHttp';
 import { getMeetingById } from '@/http/meetingHttp';
 import { useUser } from './UserProvider';
 import { toast } from 'sonner';
@@ -22,18 +22,7 @@ export const useDialog = () => {
   return context;
 };
 
-const faqs = [
-  "What is Videodesk?",
-  "How do I use Videodesk?",
-  "How do I send a video link?",
-  "Can I take videos in the call?",
-  "Can I take screenshots in the call?",
-  "How do I generate page links to saved videos and images?",
-  "What does the actions button do?",
-  "How do I provide feedback to Videodesk?",
-  "Can Videodesk develop other solutions and apps?",
-];
-
+const faqs = ["What is Videodesk?", "How do I use Videodesk?", "How do I send a video link?", "Can I take videos in the call?", "Can I take screenshots in the call?", "How do I generate page links to saved videos and images?", "What does the actions button do?", "How do I provide feedback to Videodesk?", "Can Videodesk develop other solutions and apps?"];
 
 export const DialogProvider = ({ children }) => {
   const [resetOpen, setResetOpen] = useState(false);
@@ -46,24 +35,20 @@ export const DialogProvider = ({ children }) => {
   const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false);
   const [forgotEmail, setForgotEmail] = useState('');
   const [forgotLoading, setForgotLoading] = useState(false);
-  const [checked, setIsCheked] = useState(false)
+  const [checked, setIsCheked] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
   const [resetLoading, setResetLoading] = useState(false);
-  // Add new state for message option
-  const [messageOption, setMessageOption] = useState(''); // '' for no default selection
-  const [defaultTextSize, setDefaultTextSize] = useState('14px'); // font size for default message
-  const [tailoredTextSize, setTailoredTextSize] = useState('14px'); // font size for tailored message
-  const [selectedButtonColor, setSelectedButtonColor] = useState('bg-green-800'); // button color state
+  const [messageOption, setMessageOption] = useState('');
+  const [defaultTextSize, setDefaultTextSize] = useState('14px');
+  const [tailoredTextSize, setTailoredTextSize] = useState('14px');
+  const [selectedButtonColor, setSelectedButtonColor] = useState('bg-green-800');
 
-  // Color options array - 5 colors plus green in the row (6 total)
   const buttonColors = [
     { name: 'Green Light', bgClass: 'bg-green-600', hoverClass: 'hover:bg-green-700', color: '#16a34a' },
     { name: 'Blue', bgClass: 'bg-blue-800', hoverClass: 'hover:bg-blue-900', color: '#1e40af' },
     { name: 'Red', bgClass: 'bg-red-800', hoverClass: 'hover:bg-red-900', color: '#dc2626' },
     { name: 'Purple', bgClass: 'bg-purple-800', hoverClass: 'hover:bg-purple-900', color: '#7c3aed' },
-    // Brighter orange
     { name: 'Orange', bgClass: 'bg-orange-400', hoverClass: 'hover:bg-orange-500', color: '#fb923c' },
-    // Slightly darker yellow
     { name: 'Yellow', bgClass: 'bg-yellow-500', hoverClass: 'hover:bg-yellow-600', color: '#eab308' }
   ];
 
@@ -74,87 +59,46 @@ export const DialogProvider = ({ children }) => {
   const [officerImageFile, setOfficerImageFile] = useState(null);
   const [redirectUrlDefault, setRedirectUrlDefault] = useState("www.videodesk.co.uk");
   const [redirectUrlTailored, setRedirectUrlTailored] = useState("www.");
-  const [profileShape, setProfileShape] = useState(""); // Changed from "square" to ""
+  const [profileShape, setProfileShape] = useState("");
   const [showSupportModal, setShowSupportModal] = useState(false);
-  // Removed duplicate declaration
   const [inviteEmails, setInviteEmails] = useState(['']);
   const { user, isAuth, setUser } = useUser();
   const [inviteLoading, setInviteLoading] = useState(false);
   const [inviteMessage, setInviteMessage] = useState(`Hey, I'm using Videodesk , check it out here www.videodesk.co.uk`);
-
-  // Add ref for textarea
   const inviteTextareaRef = useRef(null);
-
-  // New state for checkbox groups
-  const [profileImageOption, setProfileImageOption] = useState(''); // 'landlord' or 'officer'
-  const [redirectOption, setRedirectOption] = useState(''); // 'default' or 'tailored'
+  const [profileImageOption, setProfileImageOption] = useState('');
+  const [redirectOption, setRedirectOption] = useState('');
   const [exportOpen, setExportOpen] = useState(false);
-  const [landlordNameEnabled, setLandlordNameEnabled] = useState(false); // Will update to string below
+  const [landlordNameEnabled, setLandlordNameEnabled] = useState(false);
   const [landlordLogoEnabled, setLandlordLogoEnabled] = useState(false);
   const [landlordLogoUploading, setLandlordLogoUploading] = useState(false);
   const [officerImageUploading, setOfficerImageUploading] = useState(false);
   const [landlordSaving, setLandlordSaving] = useState(false);
   const [landlordDataLoaded, setLandlordDataLoaded] = useState(false);
   const [selectedMeeting, setSelectedMeeting] = useState(null);
-  const [exportLoading, setExportLoading] = useState({
-    word: false,
-    pdf: false,
-    copy: false,
-    share: false
-  });
-
-  // Add state for tracking what actions to perform on save
-  const [pendingActions, setPendingActions] = useState({
-    deleteLandlordLogo: false,
-    deleteOfficerImage: false
-  });
-
-  // Add new state for visitor access modal
+  const [exportLoading, setExportLoading] = useState({ word: false, pdf: false, copy: false, share: false });
+  const [pendingActions, setPendingActions] = useState({ deleteLandlordLogo: false, deleteOfficerImage: false });
+  const [onTemporaryPasswordChangeSuccess, setOnTemporaryPasswordChangeSuccess] = useState(null);
   const [visitorAccessOpen, setVisitorAccessOpen] = useState(false);
   const [visitorName, setVisitorName] = useState('');
   const [visitorEmail, setVisitorEmail] = useState('');
   const [visitorLoading, setVisitorLoading] = useState(false);
-  // Replace visitorAccessCallback state with a ref
   const visitorAccessCallbackRef = useRef(null);
-
-  // Add new state for history modal
   const [historyOpen, setHistoryOpen] = useState(false);
   const [selectedItemForHistory, setSelectedItemForHistory] = useState(null);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyInterval, setHistoryInterval] = useState(null);
-
-  // Add new state for share link dialog
   const [shareLinkOpen, setShareLinkOpen] = useState(false);
   const [selectedMeetingForShare, setSelectedMeetingForShare] = useState(null);
-
   const [addUserOpen, setAddUserOpen] = useState(false);
-
   const [isCallbackOpen, setIsCallbackOpen] = useState(false);
   const [isMeetingOpen, setISMeetingOpen] = useState(false);
+  const [hasTemporaryPassword, setHasTemporaryPassword] = useState(false);
 
-  // Add state and handlers for callback and meeting forms (from FooterComponent)
-  const [callbackFormData, setCallbackFormData] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    day: '',
-    customDate: '',
-    timeSlot: '',
-    customHour: '09',
-    customMinute: '00',
-    message: ''
-  });
-  const [meetingFormData, setMeetingFormData] = useState({
-    name: '',
-    email: '',
-    date: '',
-    hour: '08',
-    minute: '00',
-    message: ''
-  });
+  const [callbackFormData, setCallbackFormData] = useState({ name: '', email: '', phone: '', day: '', customDate: '', timeSlot: '', customHour: '09', customMinute: '00', message: '' });
+  const [meetingFormData, setMeetingFormData] = useState({ name: '', email: '', date: '', hour: '08', minute: '00', message: '' });
   const [callbackLoading, setCallbackLoading] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-
   const [supportCategory, setSupportCategory] = useState('');
   const [supportAttachments, setSupportAttachments] = useState([]);
   const [viewTicketsOpen, setViewTicketsOpen] = useState(false);
@@ -164,25 +108,7 @@ export const DialogProvider = ({ children }) => {
   const [showTicketDetails, setShowTicketDetails] = useState(false);
   const [ticketSearchQuery, setTicketSearchQuery] = useState('');
 
-  // Support categories array
-  const supportCategories = [
-    "Accessibility (eg. font size, button size, colour or contrast issues)",
-    "'Actions' button issue",
-    "Amending Message issue",
-    "Dashboard issue",
-    "Delete/Archive issue",
-    "Export issue",
-    "History issue",
-    "Log in/Log out issue",
-    "Payment/account queries",
-    "Password/Security issue",
-    "Saving videos or screenshots query",
-    "Sending shared links to third parties",
-    "Sending a text/email link to customers",
-    "Uploading logo or profile image issue",
-    "Video viewing page issue",
-    "Any Other issue not listed above"
-  ];
+  const supportCategories = ["Accessibility (eg. font size, button size, colour or contrast issues)", "'Actions' button issue", "Amending Message issue", "Dashboard issue", "Delete/Archive issue", "Export issue", "History issue", "Log in/Log out issue", "Payment/account queries", "Password/Security issue", "Saving videos or screenshots query", "Sending shared links to third parties", "Sending a text/email link to customers", "Uploading logo or profile image issue", "Video viewing page issue", "Any Other issue not listed above"];
 
   useEffect(() => {
     if (!isCallbackOpen) {
@@ -380,12 +306,9 @@ export const DialogProvider = ({ children }) => {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [recoveryWord, setRecoveryWord] = useState('');
-  // Password visibility toggle states for reset password modal
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-
-  // Auto-hide password timers
   const [currentPasswordTimer, setCurrentPasswordTimer] = useState(null);
   const [newPasswordTimer, setNewPasswordTimer] = useState(null);
   const [confirmPasswordTimer, setConfirmPasswordTimer] = useState(null);
@@ -494,8 +417,16 @@ export const DialogProvider = ({ children }) => {
       return;
     }
 
-    if (!currentPassword || !newPassword || !confirmPassword) {
-      toast("All fields required", {
+    // For temporary password change, current password is not required
+    if (!hasTemporaryPassword && !currentPassword) {
+      toast("Current password required", {
+        description: "Please enter your current password"
+      });
+      return;
+    }
+
+    if (!newPassword || !confirmPassword) {
+      toast("New password fields required", {
         description: "Please fill in all required fields"
       });
       return;
@@ -508,7 +439,8 @@ export const DialogProvider = ({ children }) => {
       return;
     }
 
-    if (currentPassword === newPassword) {
+    // For temporary password change, skip current password comparison
+    if (!hasTemporaryPassword && currentPassword === newPassword) {
       toast("Passwords must be different", {
         description: "New password must be different from current password"
       });
@@ -525,15 +457,22 @@ export const DialogProvider = ({ children }) => {
     setResetLoading(true);
 
     try {
-      const res = await resetPasswordFromDashboardRequest({
-        currentPassword,
+      // For temporary password change, we might need a different API or handle differently
+      const requestData = {
         newPassword,
         confirmPassword,
         recoveryWord
-      });
+      };
+      
+      // Only add currentPassword if it's not a temporary password change
+      if (!hasTemporaryPassword) {
+        requestData.currentPassword = currentPassword;
+      }
+      
+      const res = await resetPasswordFromDashboardRequest(requestData);
 
-      toast("Password Updated Successfully", {
-        description: "Your password has been updated successfully"
+      toast(hasTemporaryPassword ? "Temporary Password Changed Successfully" : "Password Updated Successfully", {
+        description: hasTemporaryPassword ? "Your temporary password has been changed to a permanent one" : "Your password has been updated successfully"
       });
 
       // Reset form
@@ -542,6 +481,11 @@ export const DialogProvider = ({ children }) => {
       setConfirmPassword('');
       setRecoveryWord('');
       setResetOpen(false);
+      
+      // If this was a temporary password change, refresh the status
+      if (hasTemporaryPassword && onTemporaryPasswordChangeSuccess) {
+        onTemporaryPasswordChangeSuccess();
+      }
     } catch (error) {
       toast("Failed to Update Password", {
         description: error?.response?.data?.message || error.message || "Please try again later"
@@ -917,12 +861,8 @@ export const DialogProvider = ({ children }) => {
     }
   };
 
-  // Load existing landlord data when modal opens
-  const loadLandlordData = () => {
+  const loadLandlordData = useCallback(() => {
     if (user?.landlordInfo && !landlordDataLoaded) {
-      console.log('📥 Loading existing landlord data:', user.landlordInfo);
-
-      // Load landlord name
       if (user.landlordInfo.landlordName) {
         if (user.landlordInfo.landlordName === 'Videodesk') {
           setLandlordNameEnabled('default');
@@ -932,46 +872,29 @@ export const DialogProvider = ({ children }) => {
           setLandlordName(user.landlordInfo.landlordName);
         }
       }
-
-      // Load landlord logo
       if (user.landlordInfo.landlordLogo) {
         setLandlordLogo(user.landlordInfo.landlordLogo);
         setLandlordLogoEnabled(true);
       }
-
-      // Load officer image
       if (user.landlordInfo.officerImage) {
         setOfficerImage(user.landlordInfo.officerImage);
         setProfileImageOption('officer');
       }
-
-      // Load profile settings
-      if (user.landlordInfo.useLandlordLogoAsProfile) {
-        setProfileImageOption('landlord');
-      }
-
-      if (user.landlordInfo.profileShape) {
-        setProfileShape(user.landlordInfo.profileShape);
-      }
-
-      // Load redirect URLs
+      if (user.landlordInfo.useLandlordLogoAsProfile) setProfileImageOption('landlord');
+      if (user.landlordInfo.profileShape) setProfileShape(user.landlordInfo.profileShape);
       if (user.landlordInfo.redirectUrlDefault && user.landlordInfo.redirectUrlDefault !== 'www.videodesk.co.uk') {
         setRedirectUrlDefault(user.landlordInfo.redirectUrlDefault);
         setRedirectOption('default');
       }
-
       if (user.landlordInfo.redirectUrlTailored && user.landlordInfo.redirectUrlTailored !== 'www.') {
         setRedirectUrlTailored(user.landlordInfo.redirectUrlTailored);
         setRedirectOption('tailored');
       }
-
       setLandlordDataLoaded(true);
-      console.log('✅ Landlord data loaded successfully');
     }
-  };
+  }, [user?.landlordInfo, landlordDataLoaded]);
 
-  // Reset form when modal closes
-  const resetLandlordForm = () => {
+  const resetLandlordForm = useCallback(() => {
     setLandlordName("");
     setLandlordNameEnabled(false);
     setLandlordLogo(null);
@@ -986,181 +909,104 @@ export const DialogProvider = ({ children }) => {
     setRedirectOption('');
     setLandlordDataLoaded(false);
     setPendingActions({ deleteLandlordLogo: false, deleteOfficerImage: false });
-    console.log('🔄 Landlord form reset');
-  };
+  }, []);
 
-  // Handle textarea focus and cursor positioning
-  const handleTextareaFocus = () => {
+  const handleTextareaFocus = useCallback(() => {
     if (inviteTextareaRef.current && inviteMessage === `Hey, I'm using Videodesk , check it out here www.videodesk.co.uk`) {
-      // Set cursor to end of text
       const textarea = inviteTextareaRef.current;
       textarea.focus();
       textarea.setSelectionRange(inviteMessage.length, inviteMessage.length);
     }
-  };
+  }, [inviteMessage]);
 
-  // Auto focus when modal opens
   useEffect(() => {
     if (inviteOpen) {
-      // Delay to ensure modal is fully rendered
-      const timer = setTimeout(() => {
-        handleTextareaFocus();
-      }, 100);
+      const timer = setTimeout(handleTextareaFocus, 100);
       return () => clearTimeout(timer);
     }
-  }, [inviteOpen]);
+  }, [inviteOpen, handleTextareaFocus]);
 
-  // Store the initial meeting ID when modal opens to avoid recreating interval
   const [initialMeetingId, setInitialMeetingId] = useState(null);
 
-  // Auto-fetch history data every 5 seconds when history modal is open
   useEffect(() => {
-    console.log('🔍 History useEffect triggered:', {
-      historyOpen,
-      selectedMeetingId: selectedItemForHistory?._id,
-      meetingName: selectedItemForHistory?.name,
-      meetingId: selectedItemForHistory?.meeting_id,
-      accessCode: selectedItemForHistory?.accessCode,
-      initialMeetingId
-    });
-
     if (historyOpen && selectedItemForHistory && (selectedItemForHistory._id || selectedItemForHistory.accessCode)) {
-      // Only fetch data for meetings (not uploads)
       if (selectedItemForHistory.meeting_id) {
-        // Function to fetch updated meeting data (for background refresh - no skeleton)
         const fetchHistoryDataSilent = async () => {
           try {
-            console.log('🔄 Silently fetching history data for:', selectedItemForHistory._id);
             const response = await getMeetingById(selectedItemForHistory._id);
-            console.log('📦 API Response:', response.data);
             if (response.data.success && response.data.data && response.data.data.meeting) {
-              console.log('✅ History data updated silently:', response.data.data.meeting.name);
               setSelectedItemForHistory(response.data.data.meeting);
-            } else {
-              console.log('❌ Invalid API response structure:', response.data);
             }
           } catch (error) {
-            console.error('❌ Error fetching history data:', error);
+            console.error('Error fetching history data:', error);
           }
         };
 
-        // Function to fetch updated meeting data (for initial load - with skeleton)
         const fetchHistoryDataWithLoading = async () => {
           try {
             setHistoryLoading(true);
-            console.log('🔄 Fetching history data with loading for:', selectedItemForHistory._id);
             const response = await getMeetingById(selectedItemForHistory._id);
-            console.log('📦 API Response:', response.data);
             if (response.data.success && response.data.data && response.data.data.meeting) {
-              console.log('✅ History data updated:', response.data.data.meeting.name);
               setSelectedItemForHistory(response.data.data.meeting);
-            } else {
-              console.log('❌ Invalid API response structure:', response.data);
             }
           } catch (error) {
-            console.error('❌ Error fetching history data:', error);
+            console.error('Error fetching history data:', error);
           } finally {
             setHistoryLoading(false);
           }
         };
 
-        // If modal just opened or meeting changed, immediately fetch data and set up interval
         if (!historyInterval || selectedItemForHistory._id !== initialMeetingId) {
-          console.log('✅ Starting auto-fetch for meeting:', selectedItemForHistory._id);
-
-          // Clean up existing interval if any
-          if (historyInterval) {
-            clearInterval(historyInterval);
-          }
-
-          // Set the initial meeting ID to track changes
+          if (historyInterval) clearInterval(historyInterval);
           setInitialMeetingId(selectedItemForHistory._id);
-
-          // Immediately fetch data with loading when modal opens
           fetchHistoryDataWithLoading();
-
-          // Set interval for silent auto-fetch every 5 seconds (no skeleton)
           const interval = setInterval(fetchHistoryDataSilent, 5000);
           setHistoryInterval(interval);
-          console.log('⏰ Auto-fetch interval started');
         }
       } else if (selectedItemForHistory.accessCode) {
-        // For uploads, no need to fetch data - just set loading to false
         setHistoryLoading(false);
       }
     } else if (!historyOpen) {
-      console.log('❌ Modal closed - cleaning up');
-      // Clear interval when modal closes
       if (historyInterval) {
-        console.log('🧹 Clearing existing interval');
         clearInterval(historyInterval);
         setHistoryInterval(null);
       }
-      // Reset initial meeting ID
-      if (initialMeetingId) {
-        console.log('🔄 Resetting initial meeting ID');
-        setInitialMeetingId(null);
-      }
+      if (initialMeetingId) setInitialMeetingId(null);
     }
-  }, [historyOpen, selectedItemForHistory?._id]);
+  }, [historyOpen, selectedItemForHistory?._id, historyInterval, initialMeetingId]);
 
-  // Cleanup interval on component unmount
   useEffect(() => {
     return () => {
-      if (historyInterval) {
-        console.log('🧹 Component unmount - clearing interval');
-        clearInterval(historyInterval);
-      }
+      if (historyInterval) clearInterval(historyInterval);
     };
   }, [historyInterval]);
 
-  // Helper function to get initials
-  const getInitials = (name) => {
+  const getInitials = useCallback((name) => {
     if (!name) return 'U';
     const words = name.trim().split(' ').filter(word => word.length > 0);
-    if (words.length === 1) {
-      return words[0].charAt(0).toUpperCase();
-    } else if (words.length >= 2) {
-      return (words[0].charAt(0) + words[words.length - 1].charAt(0)).toUpperCase();
-    }
+    if (words.length === 1) return words[0].charAt(0).toUpperCase();
+    if (words.length >= 2) return (words[0].charAt(0) + words[words.length - 1].charAt(0)).toUpperCase();
     return name.charAt(0).toUpperCase();
-  };
+  }, []);
 
-  // Generate share link with landlord info
-  const generateShareLink = (meetingId) => {
+  const generateShareLink = useCallback((meetingId) => {
     const baseUrl = window.location.origin;
     let shareUrl = `${baseUrl}/share/${meetingId}`;
-
-    // Add landlord info as URL parameters if available
     const urlParams = new URLSearchParams();
-
-    if (user?.landlordInfo?.landlordName) {
-      urlParams.append('senderName', encodeURIComponent(user.landlordInfo.landlordName));
-    }
-
-    // Add profile image info
+    if (user?.landlordInfo?.landlordName) urlParams.append('senderName', encodeURIComponent(user.landlordInfo.landlordName));
     if (user?.landlordInfo?.useLandlordLogoAsProfile && user?.landlordInfo?.landlordLogo) {
       urlParams.append('senderProfile', encodeURIComponent(user.landlordInfo.landlordLogo));
       urlParams.append('profileType', 'logo');
-      if (user?.landlordInfo?.profileShape) {
-        urlParams.append('profileShape', user.landlordInfo.profileShape);
-      }
+      if (user?.landlordInfo?.profileShape) urlParams.append('profileShape', user.landlordInfo.profileShape);
     } else if (user?.landlordInfo?.officerImage) {
       urlParams.append('senderProfile', encodeURIComponent(user.landlordInfo.officerImage));
       urlParams.append('profileType', 'officer');
-      if (user?.landlordInfo?.profileShape) {
-        urlParams.append('profileShape', user.landlordInfo.profileShape);
-      }
+      if (user?.landlordInfo?.profileShape) urlParams.append('profileShape', user.landlordInfo.profileShape);
     }
-
-    // Append parameters if any exist
     const paramString = urlParams.toString();
-    if (paramString) {
-      shareUrl += `?${paramString}`;
-    }
-
+    if (paramString) shareUrl += `?${paramString}`;
     return shareUrl;
-  };
+  }, [user?.landlordInfo]);
 
   // Open email client with pre-filled content (no clipboard copy)
   const handleCopyLink = async () => {
@@ -1999,121 +1845,79 @@ ${senderName}`;
     }
   };
 
-  // Remove visitor access handler with localStorage
-  const handleVisitorAccess = async (e) => {
+  const handleVisitorAccess = useCallback(async (e) => {
     e.preventDefault();
-
     if (!visitorName.trim()) {
-      toast("Name Required", {
-        description: "Please enter your name"
-      });
+      toast("Name Required", { description: "Please enter your name" });
       return;
     }
-
     if (!visitorEmail.trim()) {
-      toast("Email Required", {
-        description: "Please enter your email address"
-      });
+      toast("Email Required", { description: "Please enter your email address" });
       return;
     }
-
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(visitorEmail)) {
-      toast("Invalid Email", {
-        description: "Please enter a valid email address"
-      });
+      toast("Invalid Email", { description: "Please enter a valid email address" });
       return;
     }
-
     setVisitorLoading(true);
-
     try {
       if (visitorAccessCallbackRef.current) {
-        console.log("Calling visitorAccessCallback from modal (useRef)", visitorName, visitorEmail);
         await visitorAccessCallbackRef.current({
           visitor_name: visitorName.trim(),
           visitor_email: visitorEmail.trim().toLowerCase()
         });
-      } else {
-        console.log("visitorAccessCallback is NOT set! (useRef)");
       }
-      toast("Access Granted", {
-        description: "Your information has been recorded successfully"
-      });
-      // Reset form and close modal
+      toast("Access Granted", { description: "Your information has been recorded successfully" });
       setVisitorName('');
       setVisitorEmail('');
       setVisitorAccessOpen(false);
-      visitorAccessCallbackRef.current = null; // Clear after close
+      visitorAccessCallbackRef.current = null;
     } catch (error) {
-      toast("Failed to Record Access", {
-        description: error.message || "Please try again"
-      });
+      toast("Failed to Record Access", { description: error.message || "Please try again" });
     } finally {
       setVisitorLoading(false);
     }
-  };
+  }, [visitorName, visitorEmail, visitorAccessCallbackRef]);
 
-  // Function to open visitor access modal (always opens, no localStorage check)
-  const openVisitorAccessModal = (callback) => {
+  const openVisitorAccessModal = useCallback((callback) => {
     visitorAccessCallbackRef.current = callback;
     setVisitorAccessOpen(true);
-  };
+  }, []);
 
-  // Remove function to manually clear visitor access
-
-  // Helper function to format date for history
-  const formatHistoryDate = (dateString) => {
+  const formatHistoryDate = useCallback((dateString) => {
     if (!dateString) return 'Unknown';
     const date = new Date(dateString);
-
     const day = String(date.getDate()).padStart(2, '0');
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const year = date.getFullYear();
     const hours = date.getHours();
     const minutes = String(date.getMinutes()).padStart(2, '0');
-
     const ampm = hours >= 12 ? 'PM' : 'AM';
     const displayHours = String(hours % 12 || 12).padStart(2, '0');
-
     return `${day}/${month}/${year} at ${displayHours}:${minutes} ${ampm}`;
-  };
+  }, []);
 
-  // Helper function to get IP location (simplified)
-  const getLocationFromIP = (ip) => {
-    if (!ip || ip === 'unknown' || ip.includes('127.0.0.1') || ip.includes('::1')) {
-      return 'Local/Unknown';
-    }
-    // For demo purposes, return a placeholder. In production, you'd use a geolocation service
+  const getLocationFromIP = useCallback((ip) => {
+    if (!ip || ip === 'unknown' || ip.includes('127.0.0.1') || ip.includes('::1')) return 'Local/Unknown';
     return 'Location not available';
-  };
+  }, []);
 
-  // Helper function to parse user agent (simplified)
-  const parseUserAgent = (userAgent) => {
+  const parseUserAgent = useCallback((userAgent) => {
     if (!userAgent) return 'Unknown Browser';
-
-    // Simple browser detection
     if (userAgent.includes('Chrome')) return 'Google Chrome';
     if (userAgent.includes('Firefox')) return 'Mozilla Firefox';
     if (userAgent.includes('Safari') && !userAgent.includes('Chrome')) return 'Safari';
     if (userAgent.includes('Edge')) return 'Microsoft Edge';
     if (userAgent.includes('Opera')) return 'Opera';
-
     return 'Unknown Browser';
-  };
+  }, []);
 
-  // Helper function to get unique visitors by email
-  const getUniqueVisitors = (accessHistory) => {
+  const getUniqueVisitors = useCallback((accessHistory) => {
     if (!accessHistory || !Array.isArray(accessHistory)) return [];
-
     const uniqueEmails = new Set();
     const uniqueVisitors = [];
-
-    // Sort by access time (newest first) to get the latest entry for each email
-    const sortedHistory = [...accessHistory].sort((a, b) =>
-      new Date(b.access_time) - new Date(a.access_time)
-    );
-
+    const sortedHistory = [...accessHistory].sort((a, b) => new Date(b.access_time) - new Date(a.access_time));
     sortedHistory.forEach(access => {
       const email = access.visitor_email?.toLowerCase() || 'no-email';
       if (!uniqueEmails.has(email)) {
@@ -2121,124 +1925,84 @@ ${senderName}`;
         uniqueVisitors.push(access);
       }
     });
-
     return uniqueVisitors;
-  };
+  }, []);
 
-  // Add tailored message text state
   const [tailoredMessageText, setTailoredMessageText] = useState('');
   const [messageSettingsLoaded, setMessageSettingsLoaded] = useState(false);
   const [messageSaving, setMessageSaving] = useState(false);
 
-  // Load message settings when modal opens
-  const loadMessageSettings = async () => {
+  const loadMessageSettings = useCallback(async () => {
     if (!isAuth || messageSettingsLoaded) return;
-
     try {
-      console.log('📥 Loading message settings...');
       const response = await getMessageSettingsRequest();
-
       if (response.data.success && response.data.messageSettings) {
         const settings = response.data.messageSettings;
-
         setMessageOption(settings.messageOption || '');
         setDefaultTextSize(settings.defaultTextSize || '14px');
         setTailoredTextSize(settings.tailoredTextSize || '14px');
         setSelectedButtonColor(settings.selectedButtonColor || 'bg-green-800');
-
-        // For tailored message, we need a state for it
-        if (settings.tailoredMessage) {
-          setTailoredMessageText(settings.tailoredMessage);
-        }
-
+        if (settings.tailoredMessage) setTailoredMessageText(settings.tailoredMessage);
         setMessageSettingsLoaded(true);
-        console.log('✅ Message settings loaded:', settings);
-        console.log('🎨 Button color loaded:', settings.selectedButtonColor || 'bg-green-800');
       }
     } catch (error) {
-      console.error('❌ Error loading message settings:', error);
+      console.error('Error loading message settings:', error);
     }
-  };
+  }, [isAuth, messageSettingsLoaded]);
 
-  // Save message settings
-  const handleSaveMessageSettings = async () => {
+  const handleSaveMessageSettings = useCallback(async () => {
     if (!isAuth) {
       toast("Please Login First");
       return;
     }
-
     setMessageSaving(true);
-
     try {
-      const messageData = {
-        messageOption,
-        tailoredMessage: tailoredMessageText || '',
-        defaultTextSize,
-        tailoredTextSize,
-        selectedButtonColor
-      };
-
-      console.log('💾 Saving message settings:', messageData);
-
+      const messageData = { messageOption, tailoredMessage: tailoredMessageText || '', defaultTextSize, tailoredTextSize, selectedButtonColor };
       const response = await updateMessageSettingsRequest(messageData);
-
       if (response.data.success) {
-        // Update user context
         setUser(response.data.user);
-
         toast("Message settings saved successfully");
         setMessageOpen(false);
-
-        console.log('✅ Message settings saved successfully');
       }
     } catch (error) {
-      console.error('❌ Error saving message settings:', error);
+      console.error('Error saving message settings:', error);
       toast(error?.response?.data?.message || "Failed to save message settings");
     } finally {
       setMessageSaving(false);
     }
-  };
+  }, [isAuth, messageOption, tailoredMessageText, defaultTextSize, tailoredTextSize, selectedButtonColor, setUser]);
 
-  // Helper function to open history modal with meeting
-  const openHistoryModal = (open, item = null) => {
-    console.log('🔍 openHistoryModal called:', { open, item: item?.name || item?.accessCode || 'none' });
+  const openHistoryModal = useCallback((open, item = null) => {
     setHistoryOpen(open);
     if (open && item) {
-      console.log('🔍 Setting selected item for history:', item);
       setSelectedItemForHistory(item);
-      // Set loading to true when opening modal to show skeleton immediately
       setHistoryLoading(true);
     } else if (!open) {
-      console.log('🔍 Clearing selected item for history');
       setSelectedItemForHistory(null);
       setHistoryLoading(false);
     }
-  };
+  }, []);
 
-  const closeVisitorAccessModal = () => {
+  const closeVisitorAccessModal = useCallback(() => {
     setVisitorAccessOpen(false);
     setVisitorName('');
     setVisitorEmail('');
     visitorAccessCallbackRef.current = null;
-  };
+  }, []);
 
-  const value = {
+  const value = useMemo(() => ({
     setResetOpen,
+    setHasTemporaryPassword,
+    hasTemporaryPassword,
+    setOnTemporaryPasswordChangeSuccess,
     setMessageOpen: (open) => {
       setMessageOpen(open);
-      if (open && isAuth) {
-        loadMessageSettings();
-      }
+      if (open && isAuth) loadMessageSettings();
     },
     setLandlordDialogOpen: (open) => {
       setLandlordDialogOpen(open);
-      if (open) {
-        loadLandlordData();
-      } else {
-        setTimeout(() => {
-          resetLandlordForm();
-        }, 300);
-      }
+      if (open) loadLandlordData();
+      else setTimeout(resetLandlordForm, 300);
     },
     setTickerOpen,
     setInviteOpen,
@@ -2247,9 +2011,7 @@ ${senderName}`;
     setForgotPasswordOpen,
     setExportOpen: (open, meeting = null) => {
       setExportOpen(open);
-      if (meeting) {
-        setSelectedMeeting(meeting);
-      }
+      if (meeting) setSelectedMeeting(meeting);
     },
     selectedMeeting,
     setSelectedMeeting,
@@ -2262,17 +2024,14 @@ ${senderName}`;
     closeVisitorAccessModal,
     visitorAccessOpen,
     setVisitorAccessOpen,
-    checkVisitorAccess: () => true, // Add this for external checks if needed
+    checkVisitorAccess: () => true,
     setHistoryOpen: openHistoryModal,
     historyOpen,
     selectedItemForHistory,
     historyLoading,
-    // Add new share link dialog methods
     setShareLinkOpen: (open, meeting = null) => {
       setShareLinkOpen(open);
-      if (meeting) {
-        setSelectedMeetingForShare(meeting);
-      }
+      if (meeting) setSelectedMeetingForShare(meeting);
     },
     shareLinkOpen,
     selectedMeetingForShare,
@@ -2280,7 +2039,6 @@ ${senderName}`;
     messageSaving,
     tailoredMessageText,
     setTailoredMessageText,
-    // Message settings context
     messageOption,
     setMessageOption,
     defaultTextSize,
@@ -2292,19 +2050,14 @@ ${senderName}`;
     buttonColors,
     messageSettingsLoaded,
     loadMessageSettings,
-    // User message preferences for video links
-    getUserMessageSettings: () => {
-      const settings = {
-        messageOption,
-        tailoredMessage: tailoredMessageText,
-        defaultTextSize,
-        tailoredTextSize,
-        selectedButtonColor,
-        isLoaded: messageSettingsLoaded
-      };
-      console.log('🎨 getUserMessageSettings returning:', settings);
-      return settings;
-    },
+    getUserMessageSettings: () => ({
+      messageOption,
+      tailoredMessage: tailoredMessageText,
+      defaultTextSize,
+      tailoredTextSize,
+      selectedButtonColor,
+      isLoaded: messageSettingsLoaded
+    }),
     setAddUserOpen,
     isCallbackOpen,
     setIsCallbackOpen,
@@ -2328,7 +2081,7 @@ ${senderName}`;
     loadUserTickets,
     ticketSearchQuery,
     setTicketSearchQuery,
-  };
+  }), [resetOpen, hasTemporaryPassword, isAuth, loadMessageSettings, loadLandlordData, resetLandlordForm, selectedMeeting, exportLoading, openHistoryModal, historyOpen, selectedItemForHistory, historyLoading, shareLinkOpen, selectedMeetingForShare, messageSaving, tailoredMessageText, messageOption, defaultTextSize, tailoredTextSize, selectedButtonColor, messageSettingsLoaded, isCallbackOpen, isMeetingOpen, supportCategory, supportQuery, supportAttachments, supportLoading, viewTicketsOpen, userTickets, ticketsLoading, ticketSearchQuery]);
 
   useEffect(() => {
     if (!resetOpen) {
@@ -2339,15 +2092,6 @@ ${senderName}`;
     }
   }, [resetOpen]);
 
-  // Track button color changes
-  useEffect(() => {
-    console.log('🎨 selectedButtonColor changed to:', selectedButtonColor);
-  }, [selectedButtonColor]);
-
-  // Remove the duplicate function definitions that were at the bottom
-  // ...existing code...
-
-  // Reset form fields when reset password modal closes
   useEffect(() => {
     if (!resetOpen) {
       setCurrentPassword('');
@@ -2360,7 +2104,6 @@ ${senderName}`;
     }
   }, [resetOpen]);
 
-  // Reset form fields when message modal closes
   useEffect(() => {
     if (!messageOpen) {
       setMessageOption('');
@@ -2372,16 +2115,10 @@ ${senderName}`;
     }
   }, [messageOpen]);
 
-  // Reset form fields when landlord dialog closes
   useEffect(() => {
-    if (!landlordDialogOpen) {
-      setTimeout(() => {
-        resetLandlordForm();
-      }, 300);
-    }
-  }, [landlordDialogOpen]);
+    if (!landlordDialogOpen) setTimeout(resetLandlordForm, 300);
+  }, [landlordDialogOpen, resetLandlordForm]);
 
-  // Reset form fields when support ticket modal closes
   useEffect(() => {
     if (!ticketOpen) {
       setSupportCategory('');
@@ -2389,7 +2126,6 @@ ${senderName}`;
     }
   }, [ticketOpen]);
 
-  // Reset form fields when invite modal closes
   useEffect(() => {
     if (!inviteOpen) {
       setInviteEmails(['']);
@@ -2397,46 +2133,32 @@ ${senderName}`;
     }
   }, [inviteOpen]);
 
-  // Reset form fields when feedback modal closes
   useEffect(() => {
-    if (!feedbackOpen) {
-      setFeedbackText('');
-    }
+    if (!feedbackOpen) setFeedbackText('');
   }, [feedbackOpen]);
 
-  // Reset form fields when forgot password modal closes
   useEffect(() => {
-    if (!forgotPasswordOpen) {
-      setForgotEmail('');
-    }
+    if (!forgotPasswordOpen) setForgotEmail('');
   }, [forgotPasswordOpen]);
 
-  // Reset form fields when export modal closes
   useEffect(() => {
     if (!exportOpen) {
       setSelectedMeeting(null);
-      setExportLoading({
-        word: false,
-        pdf: false,
-        copy: false,
-        share: false
-      });
+      setExportLoading({ word: false, pdf: false, copy: false, share: false });
     }
   }, [exportOpen]);
 
-  // Reset form fields when visitor access modal closes
   useEffect(() => {
     if (!visitorAccessOpen) {
       setVisitorName('');
       setVisitorEmail('');
-      visitorAccessCallbackRef.current = null; // Clear after close
+      visitorAccessCallbackRef.current = null;
     }
   }, [visitorAccessOpen]);
 
-  // Reset form fields when history modal closes
   useEffect(() => {
     if (!historyOpen) {
-              setSelectedItemForHistory(null);
+      setSelectedItemForHistory(null);
       setHistoryLoading(false);
       if (historyInterval) {
         clearInterval(historyInterval);
@@ -2444,49 +2166,15 @@ ${senderName}`;
       }
       setInitialMeetingId(null);
     }
-  }, [historyOpen]);
+  }, [historyOpen, historyInterval]);
 
-  // Reset form fields when share link modal closes
   useEffect(() => {
-    if (!shareLinkOpen) {
-      setSelectedMeetingForShare(null);
-    }
+    if (!shareLinkOpen) setSelectedMeetingForShare(null);
   }, [shareLinkOpen]);
 
-  // Reset form fields when FAQ modal closes
-  useEffect(() => {
-    if (!faqOpen) {
-      // FAQ modal doesn't have form fields to reset
-    }
-  }, [faqOpen]);
 
 
 
-  // Add this function to log creator access automatically
-  const logCreatorAccessIfNeeded = async (meetingId, user, isAuth, accessGranted, setAccessGranted, closeVisitorAccessModal) => {
-    if (!meetingId || !user || !isAuth || accessGranted) return;
-    try {
-      // Only log if not already granted
-      setAccessGranted(true);
-      if (typeof closeVisitorAccessModal === 'function') closeVisitorAccessModal();
-      // Call the backend to log creator access
-      const { recordVisitorAccessRequest } = await import('@/http/meetingHttp');
-      await recordVisitorAccessRequest(meetingId, {
-        visitor_name: 'You',
-        visitor_email: user.email || 'creator@system',
-        creator: true
-      });
-    } catch (err) {
-      // Ignore errors for now
-    }
-  };
-
-  // In the DialogProvider, add a useEffect to auto-log creator access
-  useEffect(() => {
-    // You may need to get meetingId from context or props, or pass it in
-    // For this provider, assume a global or context value is available
-    // If not, this should be called from the /share/[id] page after user loads
-  }, []);
 
   return (
     <DialogContext.Provider value={value}>
@@ -2513,46 +2201,52 @@ ${senderName}`;
         }
       `}</style>
 
-      <DialogComponent open={resetOpen} setOpen={setResetOpen} isCloseable={true}>
+      <DialogComponent open={resetOpen} setOpen={setResetOpen} isCloseable={!hasTemporaryPassword}>
         <div className="w-[360px] max-h-[90vh] rounded-2xl bg-purple-500 shadow-md overflow-hidden">
           {/* Header */}
           <div className="flex items-center justify-center bg-purple-500 text-white p-4 m-0 relative">
             <div className="flex items-center gap-2">
               <LockIcon className="w-5 h-5 text-white" />
-              <h2 className="text-base font-semibold">Reset Password</h2>
+              <h2 className="text-base font-semibold">
+                {hasTemporaryPassword ? 'Change Temporary Password' : 'Reset Password'}
+              </h2>
             </div>
-            <button
-              onClick={() => setResetOpen(false)}
-              aria-label="Close"
-              className="absolute right-4 text-white hover:text-gray-200"
-            >
-              <XIcon className="w-4 h-4" />
-            </button>
+            {!hasTemporaryPassword && (
+              <button
+                onClick={() => setResetOpen(false)}
+                aria-label="Close"
+                className="absolute right-4 text-white hover:text-gray-200"
+              >
+                <XIcon className="w-4 h-4" />
+              </button>
+            )}
           </div>
 
           <div className="p-5 bg-white rounded-b-2xl max-h-[calc(90vh-4rem)] overflow-y-auto">
             <form onSubmit={handleResetPassword}>
               {/* Fields */}              <div className="space-y-3">
-                <div className="relative">
-                  <input
-                    type={showCurrentPassword ? "text" : "password"}
-                    placeholder="Enter current password"
-                    className="w-full px-3 py-2 pr-10 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    value={currentPassword}
-                    onChange={(e) => setCurrentPassword(e.target.value)}
-                    required
-                  />                  <button
-                    type="button"
-                    onClick={() => togglePasswordVisibility('current')}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none"
-                  >
-                    {showCurrentPassword ? (
-                      <EyeOff className="w-4 h-4" />
-                    ) : (
-                      <Eye className="w-4 h-4" />
-                    )}
-                  </button>
-                </div>
+                {!hasTemporaryPassword && (
+                  <div className="relative">
+                    <input
+                      type={showCurrentPassword ? "text" : "password"}
+                      placeholder="Enter current password"
+                      className="w-full px-3 py-2 pr-10 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                      required
+                    />                  <button
+                      type="button"
+                      onClick={() => togglePasswordVisibility('current')}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none"
+                    >
+                      {showCurrentPassword ? (
+                        <EyeOff className="w-4 h-4" />
+                      ) : (
+                        <Eye className="w-4 h-4" />
+                      )}
+                    </button>
+                  </div>
+                )}
                 <div className="relative">
                   <input
                     type={showNewPassword ? "text" : "password"}

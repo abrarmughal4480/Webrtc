@@ -20,6 +20,12 @@ export default function CompanyManagementSection({
   const [itemsPerPage, setItemsPerPage] = useState(20);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [apiError, setApiError] = useState(null);
+  const [dialogMode, setDialogMode] = useState('add'); // 'add' or 'view'
+  const [selectedCompanyData, setSelectedCompanyData] = useState(null);
+  const [errors, setErrors] = useState({});
+  const [viewLoadingCompanies, setViewLoadingCompanies] = useState(new Set());
+  const [editLoadingCompanies, setEditLoadingCompanies] = useState(new Set());
 
   // Load companies from API on component mount
   useEffect(() => {
@@ -81,47 +87,285 @@ export default function CompanyManagementSection({
     }
   };
 
+  const clearApiError = () => {
+    setApiError(null);
+  };
+
   const handleAddCompany = async (companyData) => {
     setIsLoading(true);
+    setApiError(null); // Clear previous errors
     try {
-      const response = await companyHttp.createCompany(companyData);
+      let response;
       
-      if (response.success) {
-        // Add the new company to the companies list immediately
-        const newCompany = response.data.company;
+      if (dialogMode === 'edit' && selectedCompanyData?._id) {
+        // Update existing company
+        response = await companyHttp.updateCompany(selectedCompanyData._id, companyData);
         
-        // Format the company data to match the expected structure
-        const formattedCompany = {
-          _id: newCompany._id,
-          name: newCompany.name,
-          adminEmail: newCompany.adminEmail,
-          userCount: newCompany.userCount,
-          status: newCompany.status,
-          createdAt: newCompany.createdAt
-        };
-        
-        setCompanies(prevCompanies => [formattedCompany, ...prevCompanies]);
-        
-        // Show success message with details
-        const message = `Company created successfully! ${response.data.createdUsers} new users created, ${response.data.updatedUsers} existing users updated.`;
-        toast.success(message);
-        
-        // Close the dialog
-        setIsAddDialogOpen(false);
-        
-        // Show email errors if any
-        if (response.data.emailErrors) {
-          toast.error(`Some emails failed to send. Check console for details.`);
-          console.warn('Email errors:', response.data.emailErrors);
+        if (response.success) {
+          // Update the company in the companies list
+          setCompanies(prevCompanies => 
+            prevCompanies.map(company => 
+              company._id === selectedCompanyData._id 
+                ? { 
+                    ...company, 
+                    name: companyData.name,
+                    userCount: response.data.company.userCount || company.userCount
+                  }
+                : company
+            )
+          );
+          
+          // Show success message
+          toast.success('Company updated successfully');
+          
+          // Show email errors if any
+          if (response.data.emailErrors) {
+            toast.error(`Some emails failed to send. Check console for details.`);
+            console.warn('Email errors:', response.data.emailErrors);
+          }
+          
+          closeDialog();
+        } else {
+          toast.error(response.message || 'Failed to update company');
+          setApiError(response.message || 'Failed to update company');
         }
       } else {
-        toast.error(response.message || 'Failed to create company');
+        // Create new company
+        response = await companyHttp.createCompany(companyData);
+        
+        if (response.success) {
+          // Add the new company to the companies list immediately
+          const newCompany = response.data.company;
+          
+          // Format the company data to match the expected structure
+          const formattedCompany = {
+            _id: newCompany._id,
+            name: newCompany.name,
+            adminEmail: newCompany.adminEmail,
+            userCount: newCompany.userCount,
+            status: newCompany.status,
+            createdAt: newCompany.createdAt
+          };
+          
+          setCompanies(prevCompanies => [formattedCompany, ...prevCompanies]);
+          
+          // Show success message
+          toast.success('Company added successfully');
+          
+          // Close the dialog
+          closeDialog();
+          
+          // Show email errors if any
+          if (response.data.emailErrors) {
+            toast.error(`Some emails failed to send. Check console for details.`);
+            console.warn('Email errors:', response.data.emailErrors);
+          }
+        } else {
+          toast.error(response.message || 'Failed to create company');
+          setApiError(response.message || 'Failed to create company');
+        }
       }
     } catch (error) {
-      console.error('Error adding company:', error);
-      toast.error('Failed to create company. Please try again.');
+      console.error('Error handling company:', error);
+      
+      // Extract specific error message from API response
+      let errorMessage = dialogMode === 'edit' ? 'Failed to update company. Please try again.' : 'Failed to create company. Please try again.';
+      
+      if (error.response?.data?.message) {
+        // Backend validation error (e.g., "Company with this name already exists")
+        errorMessage = error.response.data.message;
+        setApiError(errorMessage);
+      } else if (error.message) {
+        // Network or other error
+        errorMessage = error.message;
+        setApiError(errorMessage);
+      }
+      
+      toast.error(errorMessage);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const openAddDialog = () => {
+    setDialogMode('add');
+    setSelectedCompanyData(null);
+    setIsAddDialogOpen(true);
+  };
+
+  const openViewDialog = async (companyId) => {
+    try {
+      // Set loading state for this specific company
+      setViewLoadingCompanies(prev => new Set(prev).add(companyId));
+      
+      // Find the company data from the list
+      const company = companies.find(c => c._id === companyId);
+      if (company) {
+        // Fetch complete company details from API
+        const response = await companyHttp.getCompanyById(companyId);
+        if (response.success) {
+          const fullCompanyData = response.data;
+          
+          // Transform the data structure to match what AddCompanyDialog expects
+          const transformedData = {
+            _id: fullCompanyData._id, // Keep the company ID for editing
+            name: fullCompanyData.name,
+            house_name_number: fullCompanyData.house_name_number,
+            street_road: fullCompanyData.street_road,
+            city: fullCompanyData.city,
+            country: fullCompanyData.country,
+            post_code: fullCompanyData.post_code,
+            users: []
+          };
+          
+          // Transform company admins
+          if (fullCompanyData.companyAdmins && fullCompanyData.companyAdmins.length > 0) {
+            fullCompanyData.companyAdmins.forEach((admin, index) => {
+              transformedData.users.push({
+                id: index + 1,
+                firstName: admin.firstName || '',
+                lastName: admin.lastName || '',
+                email: admin.email || '',
+                phone: admin.phone || '',
+                jobTitle: admin.jobTitle || '',
+                role: 'company_admin'
+              });
+            });
+          }
+          
+          // Transform landlords
+          if (fullCompanyData.landlords && fullCompanyData.landlords.length > 0) {
+            fullCompanyData.landlords.forEach((landlord, index) => {
+              transformedData.users.push({
+                id: transformedData.users.length + index + 1,
+                firstName: landlord.firstName || '',
+                lastName: landlord.lastName || '',
+                email: landlord.email || '',
+                phone: landlord.phone || '',
+                jobTitle: landlord.jobTitle || '',
+                role: 'landlord'
+              });
+            });
+          }
+          
+          // If no users found, add default empty users
+          if (transformedData.users.length === 0) {
+            transformedData.users = [
+              { id: 1, firstName: '', lastName: '', email: '', phone: '', jobTitle: '', role: 'company_admin' },
+              { id: 2, firstName: '', lastName: '', email: '', phone: '', jobTitle: '', role: 'landlord' }
+            ];
+          }
+          
+          setSelectedCompanyData(transformedData);
+          setDialogMode('view');
+          setIsAddDialogOpen(true);
+        } else {
+          toast.error('Failed to load company details');
+        }
+      }
+    } catch (error) {
+      console.error('Error loading company details:', error);
+      toast.error('Failed to load company details');
+    } finally {
+      // Remove loading state for this specific company
+      setViewLoadingCompanies(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(companyId);
+        return newSet;
+      });
+    }
+  };
+
+  const openEditDialog = async (companyId) => {
+    try {
+      // Set loading state for this specific company
+      setEditLoadingCompanies(prev => new Set(prev).add(companyId));
+      
+      // Find the company data from the list
+      const company = companies.find(c => c._id === companyId);
+      if (company) {
+        // Fetch complete company details from API
+        const response = await companyHttp.getCompanyById(companyId);
+        if (response.success) {
+          const fullCompanyData = response.data;
+          
+          // Transform the data structure to match what AddCompanyDialog expects
+          const transformedData = {
+            _id: fullCompanyData._id, // Keep the company ID for editing
+            name: fullCompanyData.name,
+            house_name_number: fullCompanyData.house_name_number,
+            street_road: fullCompanyData.street_road,
+            city: fullCompanyData.city,
+            country: fullCompanyData.country,
+            post_code: fullCompanyData.post_code,
+            users: []
+          };
+          
+          // Transform company admins
+          if (fullCompanyData.companyAdmins && fullCompanyData.companyAdmins.length > 0) {
+            fullCompanyData.companyAdmins.forEach((admin, index) => {
+              transformedData.users.push({
+                id: index + 1,
+                firstName: admin.firstName || '',
+                lastName: admin.lastName || '',
+                email: admin.email || '',
+                phone: admin.phone || '',
+                jobTitle: admin.jobTitle || '',
+                role: 'company_admin'
+              });
+            });
+          }
+          
+          // Transform landlords
+          if (fullCompanyData.landlords && fullCompanyData.landlords.length > 0) {
+            fullCompanyData.landlords.forEach((landlord, index) => {
+              transformedData.users.push({
+                id: transformedData.users.length + index + 1,
+                firstName: landlord.firstName || '',
+                lastName: landlord.lastName || '',
+                email: landlord.email || '',
+                phone: landlord.phone || '',
+                jobTitle: landlord.jobTitle || '',
+                role: 'landlord'
+              });
+            });
+          }
+          
+          // If no users found, add default empty users
+          if (transformedData.users.length === 0) {
+            transformedData.users = [
+              { id: 1, firstName: '', lastName: '', email: '', phone: '', jobTitle: '', role: 'company_admin' },
+              { id: 2, firstName: '', lastName: '', email: '', phone: '', jobTitle: '', role: 'landlord' }
+            ];
+          }
+          
+          setSelectedCompanyData(transformedData);
+          setDialogMode('edit');
+          setIsAddDialogOpen(true);
+        } else {
+          toast.error('Failed to load company details');
+        }
+      }
+    } catch (error) {
+      console.error('Error loading company details:', error);
+      toast.error('Failed to load company details');
+    } finally {
+      // Remove loading state for this specific company
+      setEditLoadingCompanies(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(companyId);
+        return newSet;
+      });
+    }
+  };
+
+  const closeDialog = () => {
+    setIsAddDialogOpen(false);
+    setDialogMode('add');
+    setSelectedCompanyData(null);
+    setErrors({});
+    if (clearApiError) {
+      clearApiError();
     }
   };
 
@@ -216,8 +460,8 @@ export default function CompanyManagementSection({
             
             {/* Enhanced Add Company Button */}
             <Button 
-              onClick={() => setIsAddDialogOpen(true)}
-              className="w-full sm:w-48 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white py-2.5 rounded-full transition-all duration-300 transform hover:scale-105 shadow-xl hover:shadow-2xl border-0 font-semibold text-sm h-10"
+              onClick={openAddDialog}
+              className="w-full sm:w-48 bg-gradient-to-r from-purple-700 to-purple-800 hover:from-purple-800 hover:to-purple-900 text-white py-2.5 rounded-full transition-all duration-300 transform hover:scale-105 shadow-xl hover:shadow-2xl border-0 font-semibold text-sm h-10"
             >
               <Plus className="w-5 h-5 mr-2" />
               Add Company
@@ -307,20 +551,30 @@ export default function CompanyManagementSection({
                          <span className="text-xs text-gray-500 font-medium mb-0.5">Actions</span>
                          <div className="flex flex-row gap-1 w-full justify-center">
                            <button
-                             onClick={() => handleCompanyAction('view', company._id)}
-                             className="flex items-center justify-center gap-1 text-blue-600 hover:text-blue-800 text-sm transition-all duration-200 hover:bg-blue-50 px-2 py-1.5 rounded-lg"
+                             onClick={() => openViewDialog(company._id)}
+                             disabled={viewLoadingCompanies.has(company._id)}
+                             className="flex items-center justify-center gap-1 text-blue-600 hover:text-blue-800 text-sm transition-all duration-200 hover:bg-blue-50 px-2 py-1.5 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
                              title="View company details"
                            >
-                             <Eye className="w-3 h-3" />
-                             <span>View</span>
+                             {viewLoadingCompanies.has(company._id) ? (
+                               <div className="w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                             ) : (
+                               <Eye className="w-3 h-3" />
+                             )}
+                             <span>{viewLoadingCompanies.has(company._id) ? 'Loading...' : 'View'}</span>
                            </button>
                            <button
-                             onClick={() => handleCompanyAction('edit', company._id)}
-                             className="flex items-center justify-center gap-1 text-green-600 hover:text-green-800 text-sm transition-all duration-200 hover:bg-green-50 px-2 py-1.5 rounded-lg"
+                             onClick={() => openEditDialog(company._id)}
+                             disabled={editLoadingCompanies.has(company._id)}
+                             className="flex items-center justify-center gap-1 text-green-600 hover:text-green-800 text-sm transition-all duration-200 hover:bg-green-50 px-2 py-1.5 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
                              title="Edit company"
                            >
-                             <Edit className="w-3 h-3" />
-                             <span>Edit</span>
+                             {editLoadingCompanies.has(company._id) ? (
+                               <div className="w-3 h-3 border-2 border-green-600 border-t-transparent rounded-full animate-spin"></div>
+                             ) : (
+                               <Edit className="w-3 h-3" />
+                             )}
+                             <span>{editLoadingCompanies.has(company._id) ? 'Loading...' : 'Edit'}</span>
                            </button>
                            <button
                              onClick={() => handleCompanyAction('delete', company._id)}
@@ -378,9 +632,13 @@ export default function CompanyManagementSection({
       {/* Add Company Dialog */}
       <AddCompanyDialog
         isOpen={isAddDialogOpen}
-        onClose={() => setIsAddDialogOpen(false)}
+        onClose={closeDialog}
         onSubmit={handleAddCompany}
         isLoading={isLoading}
+        apiError={apiError}
+        onClearApiError={clearApiError}
+        mode={dialogMode}
+        companyData={selectedCompanyData}
       />
     </div>
   );

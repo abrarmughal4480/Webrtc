@@ -481,15 +481,25 @@ export const resetPassword = catchAsyncError(async (req, res, next) => {
 export const resetPasswordFromDashboard = catchAsyncError(async (req, res, next) => {
     const { currentPassword, newPassword, confirmPassword, recoveryWord } = req.body;
     
-    if (!currentPassword || !newPassword || !confirmPassword) {
-        return next(new ErrorHandler("All fields are required", 400));
+    // Check if user has temporary password
+    const user = await UserModel.findById(req.user._id);
+    const isTemporaryPassword = user.isTemporaryPassword || false;
+    
+    // For temporary password users, currentPassword is not required
+    if (!isTemporaryPassword && !currentPassword) {
+        return next(new ErrorHandler("Current password is required", 400));
+    }
+    
+    if (!newPassword || !confirmPassword) {
+        return next(new ErrorHandler("New password and confirm password are required", 400));
     }
     
     if (newPassword !== confirmPassword) {
         return next(new ErrorHandler("New passwords do not match", 400));
     }
     
-    if (currentPassword === newPassword) {
+    // For temporary password users, skip current password comparison
+    if (!isTemporaryPassword && currentPassword === newPassword) {
         return next(new ErrorHandler("New password must be different from current password", 400));
     }
     
@@ -497,19 +507,20 @@ export const resetPasswordFromDashboard = catchAsyncError(async (req, res, next)
         return next(new ErrorHandler("Password must be at least 8 characters long", 400));
     }
     
-    const user = await UserModel.findById(req.user._id);
-    
-    // Verify current password
-    const isCurrentPasswordMatch = await user.comparePassword(currentPassword);
-    if (!isCurrentPasswordMatch) {
-        return next(new ErrorHandler("Current password is incorrect", 400));
+    // Verify current password only for non-temporary password users
+    if (!isTemporaryPassword) {
+        const isCurrentPasswordMatch = await user.comparePassword(currentPassword);
+        if (!isCurrentPasswordMatch) {
+            return next(new ErrorHandler("Current password is incorrect", 400));
+        }
     }
     
-    // Update password
+    // Update password and mark as permanent
     user.password = newPassword;
+    user.isTemporaryPassword = false; // Mark password as permanent
     await user.save();
     
-    	sendResponse(res, 200, true, null, "Password updated successfully");
+    sendResponse(res, 200, true, null, isTemporaryPassword ? "Temporary password changed successfully" : "Password updated successfully");
 });
 
 

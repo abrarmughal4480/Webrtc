@@ -10,6 +10,31 @@ const userSchema = new mongoose.Schema({
         unique: true,
         validation: validator.isEmail
     },
+    // New user fields
+    firstName: {
+        type: String,
+        required: false, // Not required initially to avoid breaking existing users
+        trim: true,
+        default: 'Unknown'
+    },
+    lastName: {
+        type: String,
+        required: false, // Not required initially to avoid breaking existing users
+        trim: true,
+        default: 'User'
+    },
+    phone: {
+        type: String,
+        required: false, // Not required initially to avoid breaking existing users
+        trim: true,
+        default: 'Not provided'
+    },
+    jobTitle: {
+        type: String,
+        required: false, // Not required initially to avoid breaking existing users
+        trim: true,
+        default: 'Not specified'
+    },
     password: {
         type: String,
         required: true,
