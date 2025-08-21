@@ -6,6 +6,7 @@ import { saveChatSession, getChatSessions, getChatSession, deleteChatSession, up
 import { createUpload, createUploadSession, uploadFile, completeUpload, getUploadProgress, getUploadByAccessCode, getMyUploads, getMyLatestUpload, deleteUpload, restoreUpload, permanentDeleteUpload, getMyTrashedUploads, markNotificationSent, checkNotificationStatus, searchUploads, recordVisitorAccess } from './controllers/uploadController.js';
 import {isAuthenticate} from "./middlewares/auth.js"
 import { create, getAllMeetings, getMeetingById, updateMeetingController, deleteMeeting, getMeetingForShare, getMeetingByMeetingId, deleteRecording, deleteScreenshot, archiveMeeting, unarchiveMeeting, getArchivedCount, recordVisitorAccess as recordMeetingVisitorAccess, restoreMeeting, permanentDeleteMeeting, searchMeetings, getSpecialNotes, saveSpecialNotes, getStructuredSpecialNotes, saveStructuredSpecialNotes } from './controllers/meetingController.js';
+import { saveFeedback, removeFeedback, getUserFeedback, getFeedbackStats } from './controllers/feedbackController.js';
 import { getUserRoomInfo } from './controllers/userRoomInfoController.js';
 import Upload from './models/upload.js';
 
@@ -477,5 +478,11 @@ router.put('/demo-meetings/:id', isAuthenticate, updateDemoMeetingRequest);
 router.post('/demo-meetings/:id/reschedule', isAuthenticate, rescheduleDemoMeeting);
 router.delete('/demo-meetings/:id', isAuthenticate, deleteDemoMeetingRequest);
 router.get('/demo-meetings/stats', isAuthenticate, getDemoMeetingStats);
+
+// Feedback routes
+router.post('/feedback/save', isAuthenticate, saveFeedback);
+router.post('/feedback/remove', isAuthenticate, removeFeedback);
+router.get('/feedback/user/:userEmail', isAuthenticate, getUserFeedback);
+router.get('/feedback/stats', isAuthenticate, getFeedbackStats);
 
 export default router;

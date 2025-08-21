@@ -171,18 +171,42 @@ export const Header = () => {
         const dropdown = document.querySelector('.desktop-dropdown');
         const hamburgerButton = document.querySelector('.hamburger-button');
         const profileAvatar = document.querySelector('.profile-avatar-button');
+        const mobileMenu = document.querySelector('.mobile-menu');
         
-        if (dropdown && !dropdown.contains(event.target) && 
-            hamburgerButton && !hamburgerButton.contains(event.target) &&
-            profileAvatar && !profileAvatar.contains(event.target)) {
+        // Check if click is outside all menu elements
+        const isOutsideDropdown = !dropdown || !dropdown.contains(event.target);
+        const isOutsideHamburger = !hamburgerButton || !hamburgerButton.contains(event.target);
+        const isOutsideProfileAvatar = !profileAvatar || !profileAvatar.contains(event.target);
+        const isOutsideMobileMenu = !mobileMenu || !mobileMenu.contains(event.target);
+        
+        if (isOutsideDropdown && isOutsideHamburger && isOutsideProfileAvatar && isOutsideMobileMenu) {
+          setMobileMenuOpen(false);
+        }
+      }
+    };
+
+    // Also handle clicks on the document body to close dropdown
+    const handleBodyClick = (event) => {
+      if (mobileMenuOpen) {
+        // If clicking on body or any element that's not part of the dropdown system
+        const target = event.target;
+        const isDropdownElement = target.closest('.desktop-dropdown') || 
+                                 target.closest('.hamburger-button') || 
+                                 target.closest('.profile-avatar-button') || 
+                                 target.closest('.mobile-menu');
+        
+        if (!isDropdownElement) {
           setMobileMenuOpen(false);
         }
       }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('click', handleBodyClick);
+    
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('click', handleBodyClick);
     };
   }, [mobileMenuOpen]);
 
@@ -596,7 +620,7 @@ const handleLogout = async () => {
 
         {/* Mobile Navigation Menu */}
         {mobileMenuOpen && (
-          <div className="md:hidden bg-white border-t shadow-lg">
+          <div className="mobile-menu md:hidden bg-white border-t shadow-lg">
             <div className="px-4 py-2 space-y-2">
               <a href="#about" className="block py-2 text-gray-700 hover:text-amber-500 transition-colors" onClick={(e) => { 
                 e.preventDefault();

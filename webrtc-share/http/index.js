@@ -57,6 +57,7 @@ export * from './chatHttp.js';
 export * from './companyHttp.js';
 export * from './userHttp.js';
 export * from './supportTicketHttp.js';
+export * from './feedbackHttp.js';
 
 export { 
     recordVisitorAccessRequest as recordMeetingVisitorAccess,

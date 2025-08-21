@@ -9,9 +9,14 @@ export default function AddCompanyDialog({
 }) {
   const [formData, setFormData] = useState({
     name: '',
+    house_name_number: '',
+    street_road: '',
+    city: '',
+    country: '',
+    post_code: '',
     users: [
-      { id: 1, name: '', email: '', role: 'company_admin' },
-      { id: 2, name: '', email: '', role: 'landlord' }
+      { id: 1, firstName: '', lastName: '', email: '', phone: '', jobTitle: '', role: 'company_admin' },
+      { id: 2, firstName: '', lastName: '', email: '', phone: '', jobTitle: '', role: 'landlord' }
     ]
   });
 
@@ -45,8 +50,11 @@ export default function AddCompanyDialog({
   const addUser = (role) => {
     const newUser = {
       id: Date.now(),
-      name: '',
+      firstName: '',
+      lastName: '',
       email: '',
+      phone: '',
+      jobTitle: '',
       role: 'landlord'
     };
     setFormData(prev => ({
@@ -81,15 +89,41 @@ export default function AddCompanyDialog({
       newErrors.name = 'Company name is required';
     }
 
+    // Validate address fields
+    if (!formData.house_name_number?.trim()) {
+      newErrors.house_name_number = 'Building/Unit is required';
+    }
+    if (!formData.street_road?.trim()) {
+      newErrors.street_road = 'Street Address is required';
+    }
+    if (!formData.city?.trim()) {
+      newErrors.city = 'City/Town is required';
+    }
+    if (!formData.country?.trim()) {
+      newErrors.country = 'County is required';
+    }
+    if (!formData.post_code?.trim()) {
+      newErrors.post_code = 'Postcode is required';
+    }
+
     // Validate users
     formData.users.forEach((user, index) => {
-      if (!user.name.trim()) {
-        newErrors[`user${index}Name`] = 'User name is required';
+      if (!user.firstName?.trim()) {
+        newErrors[`user${index}FirstName`] = 'First name is required';
+      }
+      if (!user.lastName?.trim()) {
+        newErrors[`user${index}LastName`] = 'Last name is required';
       }
       if (!user.email.trim()) {
         newErrors[`user${index}Email`] = 'User email is required';
       } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(user.email)) {
         newErrors[`user${index}Email`] = 'Please enter a valid email address';
+      }
+      if (!user.phone?.trim()) {
+        newErrors[`user${index}Phone`] = 'Phone number is required';
+      }
+      if (!user.jobTitle?.trim()) {
+        newErrors[`user${index}JobTitle`] = 'Job title is required';
       }
     });
 
@@ -103,9 +137,18 @@ export default function AddCompanyDialog({
       // Format the data for the API
       const formattedData = {
         name: formData.name.trim(),
+        house_name_number: formData.house_name_number?.trim() || '',
+        street_road: formData.street_road?.trim() || '',
+        city: formData.city?.trim() || '',
+        country: formData.country?.trim() || '',
+        post_code: formData.post_code?.trim() || '',
         users: formData.users.map(user => ({
-          name: user.name.trim(),
+          firstName: user.firstName?.trim() || '',
+          lastName: user.lastName?.trim() || '',
+          name: `${user.firstName?.trim() || ''} ${user.lastName?.trim() || ''}`.trim(), // Keep name for backward compatibility
           email: user.email.trim().toLowerCase(),
+          phone: user.phone?.trim() || '',
+          jobTitle: user.jobTitle?.trim() || '',
           role: user.role
         }))
       };
@@ -117,9 +160,14 @@ export default function AddCompanyDialog({
   const handleClose = () => {
     setFormData({
       name: '',
+      house_name_number: '',
+      street_road: '',
+      city: '',
+      country: '',
+      post_code: '',
       users: [
-        { id: 1, name: '', email: '', role: 'company_admin' },
-        { id: 2, name: '', email: '', role: 'landlord' }
+        { id: 1, firstName: '', lastName: '', email: '', phone: '', jobTitle: '', role: 'company_admin' },
+        { id: 2, firstName: '', lastName: '', email: '', phone: '', jobTitle: '', role: 'landlord' }
       ]
     });
     setErrors({});
@@ -174,6 +222,99 @@ export default function AddCompanyDialog({
                     <p className="text-red-500 text-xs font-semibold mt-1 ml-1">{errors.name}</p>
                   )}
                 </div>
+
+                {/* Company Address Fields */}
+                <div className="space-y-3">
+                  <h4 className="text-sm font-semibold text-gray-700 border-b border-gray-200 pb-1">
+                    Company Address
+                  </h4>
+                  
+                  {/* Building/Unit and Street - Side by side */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-semibold text-gray-600 ml-1 block">
+                        Building/Unit<span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.house_name_number}
+                        onChange={(e) => handleInputChange('house_name_number', e.target.value)}
+                        placeholder="Building name, unit number, or office"
+                        className={`w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-sm mt-1 ${errors.house_name_number ? 'border-red-500' : ''}`}
+                      />
+                      {errors.house_name_number && (
+                        <p className="text-red-500 text-xs font-semibold mt-1 ml-1">{errors.house_name_number}</p>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-semibold text-gray-600 ml-1 block">
+                        Street Address<span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.street_road}
+                        onChange={(e) => handleInputChange('street_road', e.target.value)}
+                        placeholder="Street name and number"
+                        className={`w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-sm mt-1 ${errors.street_road ? 'border-red-500' : ''}`}
+                      />
+                      {errors.street_road && (
+                        <p className="text-red-500 text-xs font-semibold mt-1 ml-1">{errors.street_road}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* City, County, and Postcode - Side by side */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="text-xs font-semibold text-gray-600 ml-1 block">
+                        City/Town<span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.city}
+                        onChange={(e) => handleInputChange('city', e.target.value)}
+                        placeholder="City or town name"
+                        className={`w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-sm mt-1 ${errors.city ? 'border-red-500' : ''}`}
+                      />
+                      {errors.city && (
+                        <p className="text-red-500 text-xs font-semibold mt-1 ml-1">{errors.city}</p>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-semibold text-gray-600 ml-1 block">
+                        County<span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.country}
+                        onChange={(e) => handleInputChange('country', e.target.value)}
+                        placeholder="County (e.g., Greater London)"
+                        className={`w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-sm mt-1 ${errors.country ? 'border-red-500' : ''}`}
+                      />
+                      {errors.country && (
+                        <p className="text-red-500 text-xs font-semibold mt-1 ml-1">{errors.country}</p>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-semibold text-gray-600 ml-1 block">
+                        Postcode<span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.post_code}
+                        onChange={(e) => handleInputChange('post_code', e.target.value)}
+                        placeholder="e.g., SW1A 1AA"
+                        className={`w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-sm mt-1 ${errors.post_code ? 'border-red-500' : ''}`}
+                      />
+                      {errors.post_code && (
+                        <p className="text-red-500 text-xs font-semibold mt-1 ml-1">{errors.post_code}</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
               </div>
 
               {/* User Management */}
@@ -215,7 +356,7 @@ export default function AddCompanyDialog({
                       <div key={user.id} className="border border-gray-200 rounded-lg p-3 sm:p-4 space-y-3 bg-gray-50">
                         <div className="flex items-center justify-between">
                           <span className="text-xs sm:text-sm font-medium text-gray-600 capitalize bg-white px-2 py-1 rounded-full border">
-                            {user.role.replace('_', ' ')} #{displayNumber}
+                            {user.role === 'landlord' ? 'landlord officer' : user.role.replace('_', ' ')} #{displayNumber}
                           </span>
                           {user.id > 2 && (
                             <button
@@ -228,36 +369,91 @@ export default function AddCompanyDialog({
                           )}
                         </div>
                         
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="space-y-3">
+                          {/* First Name and Last Name side by side */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                              <label className="text-xs font-semibold text-gray-600 ml-1 block">
+                                First Name<span className="text-red-500">*</span>
+                              </label>
+                              <input
+                                type="text"
+                                value={user.firstName || ''}
+                                onChange={(e) => updateUser(user.id, 'firstName', e.target.value)}
+                                placeholder="Enter first name"
+                                className={`w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-sm mt-1 ${errors[`user${index}FirstName`] ? 'border-red-500' : ''}`}
+                              />
+                              {errors[`user${index}FirstName`] && (
+                                <p className="text-red-500 text-xs font-semibold mt-1 ml-1">{errors[`user${index}FirstName`]}</p>
+                              )}
+                            </div>
+
+                            <div>
+                              <label className="text-xs font-semibold text-gray-600 ml-1 block">
+                                Last Name<span className="text-red-500">*</span>
+                              </label>
+                              <input
+                                type="text"
+                                value={user.lastName || ''}
+                                onChange={(e) => updateUser(user.id, 'lastName', e.target.value)}
+                                placeholder="Enter last name"
+                                className={`w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-sm mt-1 ${errors[`user${index}LastName`] ? 'border-red-500' : ''}`}
+                              />
+                              {errors[`user${index}LastName`] && (
+                                <p className="text-red-500 text-xs font-semibold mt-1 ml-1">{errors[`user${index}LastName`]}</p>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Email and Phone Number side by side */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                              <label className="text-xs font-semibold text-gray-600 ml-1 block">
+                                Email<span className="text-red-500">*</span>
+                              </label>
+                              <input
+                                type="email"
+                                value={user.email}
+                                onChange={(e) => updateUser(user.id, 'email', e.target.value)}
+                                placeholder="Enter user email"
+                                className={`w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-sm mt-1 ${errors[`user${index}Email`] ? 'border-red-500' : ''}`}
+                              />
+                              {errors[`user${index}Email`] && (
+                                <p className="text-red-500 text-xs font-semibold mt-1 ml-1">{errors[`user${index}Email`]}</p>
+                              )}
+                            </div>
+
+                            <div>
+                              <label className="text-xs font-semibold text-gray-600 ml-1 block">
+                                Phone Number<span className="text-red-500">*</span>
+                              </label>
+                              <input
+                                type="tel"
+                                value={user.phone || ''}
+                                onChange={(e) => updateUser(user.id, 'phone', e.target.value)}
+                                placeholder="Enter phone number"
+                                className={`w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-sm mt-1 ${errors[`user${index}Phone`] ? 'border-red-500' : ''}`}
+                              />
+                              {errors[`user${index}Phone`] && (
+                                <p className="text-red-500 text-xs font-semibold mt-1 ml-1">{errors[`user${index}Phone`]}</p>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Job Title - Full width */}
                           <div>
                             <label className="text-xs font-semibold text-gray-600 ml-1 block">
-                              Name<span className="text-red-500">*</span>
+                              Job Title<span className="text-red-500">*</span>
                             </label>
                             <input
                               type="text"
-                              value={user.name}
-                              onChange={(e) => updateUser(user.id, 'name', e.target.value)}
-                              placeholder="Enter user name"
-                              className={`w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-sm mt-1 ${errors[`user${index}Name`] ? 'border-red-500' : ''}`}
+                              value={user.jobTitle || ''}
+                              onChange={(e) => updateUser(user.id, 'jobTitle', e.target.value)}
+                              placeholder="Enter job title"
+                              className={`w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-sm mt-1 ${errors[`user${index}JobTitle`] ? 'border-red-500' : ''}`}
                             />
-                            {errors[`user${index}Name`] && (
-                              <p className="text-red-500 text-xs font-semibold mt-1 ml-1">{errors[`user${index}Name`]}</p>
-                            )}
-                          </div>
-
-                          <div>
-                            <label className="text-xs font-semibold text-gray-600 ml-1 block">
-                              Email<span className="text-red-500">*</span>
-                            </label>
-                            <input
-                              type="email"
-                              value={user.email}
-                              onChange={(e) => updateUser(user.id, 'email', e.target.value)}
-                              placeholder="Enter user email"
-                              className={`w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-sm mt-1 ${errors[`user${index}Email`] ? 'border-red-500' : ''}`}
-                            />
-                            {errors[`user${index}Email`] && (
-                              <p className="text-red-500 text-xs font-semibold mt-1 ml-1">{errors[`user${index}Email`]}</p>
+                            {errors[`user${index}JobTitle`] && (
+                              <p className="text-red-500 text-xs font-semibold mt-1 ml-1">{errors[`user${index}JobTitle`]}</p>
                             )}
                           </div>
                         </div>

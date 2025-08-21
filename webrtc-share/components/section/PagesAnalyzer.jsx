@@ -1,6 +1,8 @@
 "use client"
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from '@/components/ui/button';
+import { saveFeedbackRequest, removeFeedbackRequest } from '@/http';
+import { useUser } from '@/provider/UserProvider';
 
 const AFFECTED_COLOURS = {
   Walls: "bg-blue-50 border-blue-200 text-blue-800",
@@ -12,6 +14,7 @@ const AFFECTED_COLOURS = {
 };
 
 export default function PagesAnalyzer({ isOpen, onClose }) {
+  const { user, isAuth } = useUser();
   const [files, setFiles] = useState([]);
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(false);
@@ -245,6 +248,46 @@ export default function PagesAnalyzer({ isOpen, onClose }) {
   };
 
   const speakRef = useRef(null);
+  
+  // Function to speak only the summary
+  const handleSpeakSummary = (summary) => {
+    if (!summary) return;
+    
+    // Check if speech synthesis is supported
+    if (typeof window === 'undefined' || !window.speechSynthesis) {
+      setIsAudioPlaying(false);
+      return;
+    }
+    
+    const synth = window.speechSynthesis;
+    if (!synth) {
+      setIsAudioPlaying(false);
+      return;
+    }
+
+    // Immediately set audio playing state for instant button change
+    setIsAudioPlaying(true);
+
+    try {
+      let voices = synth.getVoices();
+      
+      // If no voices are loaded yet, wait for them
+      if (voices.length === 0) {
+        synth.addEventListener('voiceschanged', () => {
+          voices = synth.getVoices();
+          proceedWithSummarySpeech(voices, summary, synth);
+        }, { once: true });
+        return;
+      }
+      
+      proceedWithSummarySpeech(voices, summary, synth);
+      
+    } catch (error) {
+      speakRef.current = null;
+      setIsAudioPlaying(false);
+    }
+  };
+  
   const handleSpeak = (result) => {
     if (!result) return;
     
@@ -276,6 +319,56 @@ export default function PagesAnalyzer({ isOpen, onClose }) {
       }
       
       proceedWithSpeech(voices, result, synth);
+      
+    } catch (error) {
+      speakRef.current = null;
+      setIsAudioPlaying(false);
+    }
+  };
+
+  const proceedWithSummarySpeech = (voices, summary, synth) => {
+    try {
+      // Prioritize British female voices
+      let voice = voices.find(v => 
+        /en-GB/i.test(v.lang) && 
+        (v.name.includes('Female') || v.name.includes('female') || v.name.includes('Samantha') || v.name.includes('Victoria'))
+      ) || voices.find(v => /en-GB/i.test(v.lang)) || voices.find(v => /^en/i.test(v.lang)) || null;
+
+      if (!voice) {
+        // If no British voice found, try to find any English voice
+        voice = voices.find(v => /^en/i.test(v.lang));
+      }
+
+      const text = `Summary: ${summary}`;
+
+      const utter = new SpeechSynthesisUtterance(text);
+      
+      if (voice) {
+        utter.voice = voice;
+      }
+      
+      // Optimize for British accent
+      utter.rate = 0.85; // Slightly slower for clarity
+      utter.pitch = 1.05; // Slightly higher pitch for female voice
+      utter.lang = voice?.lang || "en-GB";
+      
+      // Stop any current speech
+      synth.cancel();
+      
+      // Add event listeners for better control
+      utter.onend = () => {
+        speakRef.current = null;
+        setIsAudioPlaying(false); // Reset state when audio ends
+      };
+      
+      utter.onerror = (event) => {
+        speakRef.current = null;
+        setIsAudioPlaying(false); // Reset state on error
+      };
+      
+      // Start new speech
+      synth.speak(utter);
+      speakRef.current = utter;
       
     } catch (error) {
       speakRef.current = null;
@@ -349,20 +442,124 @@ export default function PagesAnalyzer({ isOpen, onClose }) {
     }
   };
 
-  const handleFeedback = (imageIndex, type) => {
-    console.log(`Feedback for image ${imageIndex}: ${type}`);
+  const handleFeedback = async (imageIndex, type) => {
+    // Get current result data
+    const currentResult = results[imageIndex];
+    if (!currentResult) return;
     
-    // Update the result to show filled state immediately
-    setResults(prev => ({
-      ...prev,
-      [imageIndex]: {
-        ...prev[imageIndex],
-        feedback: type
+    // IMMEDIATE UI UPDATE - No waiting for API
+    if (type === currentResult.feedback) {
+      // User is unchecking the same feedback - remove it immediately
+      setResults(prev => ({
+        ...prev,
+        [imageIndex]: {
+          ...prev[imageIndex],
+          feedback: null
+        }
+      }));
+    } else {
+      // User is giving new feedback or changing feedback - update immediately
+      setResults(prev => ({
+        ...prev,
+        [imageIndex]: {
+          ...prev[imageIndex],
+          feedback: type
+        }
+      }));
+    }
+    
+    // Now make API call in background (async)
+    try {
+      // Determine user email - either from logged in user or guest
+      let userEmail = 'guest@anonymous.com';
+      
+      if (isAuth && user) {
+        userEmail = user.email;
+      } else {
+        // Fallback: check localStorage as well
+        const localStorageUser = window.localStorage.getItem('user');
+        const localStorageToken = window.localStorage.getItem('token');
+        
+        if (localStorageUser && localStorageToken) {
+          try {
+            const user = JSON.parse(localStorageUser);
+            userEmail = user.email;
+          } catch (error) {
+            // Silent fail
+          }
+        }
       }
-    }));
-    
-    // You can add backend feedback saving here if needed
-    // For now, it's just stored in local state
+      
+      // Always save feedback regardless of login status
+      // Use existing analysisId or generate new one
+      let analysisId = currentResult.analysisId;
+      if (!analysisId) {
+        analysisId = `analysis_${Date.now()}_${imageIndex}`;
+        setResults(prev => ({
+          ...prev,
+          [imageIndex]: {
+            ...prev[imageIndex],
+            analysisId
+          }
+        }));
+      }
+      
+      // Get image data - convert blob URL to base64
+      const imageUrl = getThumbUrl(imageIndex);
+      let imageData = imageUrl;
+      
+      if (imageUrl.startsWith('blob:')) {
+        try {
+          const response = await fetch(imageUrl);
+          const blob = await response.blob();
+          const reader = new FileReader();
+          imageData = await new Promise((resolve) => {
+            reader.onloadend = () => resolve(reader.result);
+            reader.readAsDataURL(blob);
+          });
+        } catch (error) {
+          // Silent fail
+        }
+      }
+      
+      // Prepare analysis response data
+      const analysisResponse = {
+        summary: currentResult.summary,
+        severity: currentResult.severity,
+        confidence: currentResult.confidence,
+        affected: currentResult.affected || [],
+        analysedAt: currentResult.analysedAt
+      };
+      
+      if (type === currentResult.feedback) {
+        // User is unchecking the same feedback - remove it
+        try {
+          await removeFeedbackRequest({
+            userEmail,
+            imageIndex,
+            analysisId
+          });
+        } catch (error) {
+          // Silent fail
+        }
+      } else {
+        // User is giving new feedback or changing feedback
+        try {
+          await saveFeedbackRequest({
+            userEmail,
+            imageIndex,
+            analysisId,
+            feedbackType: type,
+            imageData,
+            analysisResponse
+          });
+        } catch (error) {
+          // Silent fail
+        }
+      }
+    } catch (error) {
+      // Silent fail - no user notification as requested
+    }
   };
 
   const severityPill = (label) => {
@@ -438,7 +635,7 @@ export default function PagesAnalyzer({ isOpen, onClose }) {
                       <div className="flex items-center justify-between mb-3">
                         <p className="text-sm font-medium text-gray-700">Selected Photos ({files.length})</p>
                         <button
-                          onClick={() => setFiles([])}
+                          onClick={resetForm}
                           className="text-red-600 hover:text-red-700 text-sm font-medium hover:bg-red-50 px-3 py-1 rounded-md transition-colors"
                         >
                           Clear All
@@ -561,31 +758,7 @@ export default function PagesAnalyzer({ isOpen, onClose }) {
               {Object.entries(results).map(([imageIndex, result]) => (
                 <div key={imageIndex} className="bg-gradient-to-br from-gray-50 to-white rounded-xl shadow-lg border border-gray-200 p-6">
                   <div className="max-w-[794px] mx-auto">
-                    {/* Audio Button - Right Side */}
-                    <div className="flex justify-end mb-4">
-                      {!isAudioPlaying ? (
-                        <button
-                          onClick={() => handleSpeak(result)}
-                          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
-                        >
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
-                          </svg>
-                          Listen to Analysis
-                        </button>
-                      ) : (
-                        <button
-                          onClick={stopSpeak}
-                          className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
-                        >
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
-                          </svg>
-                          Stop
-                        </button>
-                      )}
-                    </div>
+
 
                     {/* Three Column Layout */}
                     <div className="flex flex-col md:flex-row items-center justify-center gap-0 mb-6">
@@ -735,20 +908,46 @@ export default function PagesAnalyzer({ isOpen, onClose }) {
                       <>
                         {/* Summary */}
                         <hr className="my-4 border-dashed border-gray-300" />
-                        <div className="font-semibold text-lg mb-3 flex items-center gap-2">
-                          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                          </svg>
-                          Analysis Summary
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="font-semibold text-lg flex items-center gap-2">
+                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            Analysis Summary
+                          </div>
+                          
+                          {/* Audio Button - Right Side */}
+                          {!isAudioPlaying ? (
+                            <button
+                              onClick={() => handleSpeakSummary(result.summary)}
+                              className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 text-sm"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                              </svg>
+                              Listen
+                            </button>
+                          ) : (
+                            <button
+                              onClick={stopSpeak}
+                              className="bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 text-sm"
+                            >
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
+                              </svg>
+                              Stop
+                            </button>
+                          )}
                         </div>
                         <div className="bg-white p-4 rounded-lg border">
                           <p className="leading-7 whitespace-pre-wrap text-gray-800">{result.summary}</p>
                         </div>
 
                         {/* Feedback Section */}
-                        <div className="mt-4 flex items-center justify-between">
-                          <span className="text-xs text-gray-500">Rate this analysis</span>
+                        <div className="mt-4 flex items-center justify-end">
                           <div className="flex items-center space-x-2">
+                            <span className="text-xs text-gray-500 mr-2">Rate this analysis</span>
                             <button
                               onClick={() => handleFeedback(parseInt(imageIndex), 'thumbsUp')}
                               className={`p-2 rounded-lg transition-colors duration-200 ${

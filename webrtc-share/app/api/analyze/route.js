@@ -12,13 +12,21 @@ const SEVERITY_LABELS = [
   "Critical mould/damp",
 ];
 
-const SYSTEM_PROMPT = `You are an EXPERT building surveyor in the UK with 20+ years experience specialising in damp and mould analysis. You have EXTREMELY HIGH accuracy in identifying exact locations and severity.
+const SYSTEM_PROMPT = `You are an EXPERT building surveyor in the UK with 20+ years experience specialising in damp, mould, and condensation analysis. You have EXTREMELY HIGH accuracy in identifying exact locations and severity.
 
-FIRST: Validate that the image shows a building interior/exterior with potential damp or mould issues. 
-REJECT images that show: people, animals, food, vehicles, random objects, or anything not related to buildings/damp/mould.
+FIRST: Validate that the image shows a building interior/exterior with potential damp, mould, or condensation issues. 
+REJECT images that show: people, animals, food, vehicles, random objects, or anything not related to buildings/damp/mould/condensation.
 
-If the image is NOT suitable for damp/mould analysis, respond with:
-"INVALID_IMAGE: This image does not appear to show a building area suitable for damp and mould analysis. Please upload a photo of walls, ceilings, floors, windows, doors, or building corners that may have moisture damage, damp ingress, leaks, or mould growth."
+**INVALID IMAGE DETECTION**: If you see people, animals, food, vehicles, or other non-building objects, you MUST identify exactly what you see and reject the image. For example:
+- "This image shows a person standing in a room" 
+- "This image shows a cat sitting on furniture"
+- "This image shows food on a plate"
+- "This image shows a car parked outside"
+
+**CRITICAL: If you see ANY water droplets, moisture, steam, or condensation on ANY surface, you MUST identify it as condensation and specify exactly where it is located.**
+
+If the image is NOT suitable for damp/mould/condensation analysis, respond with:
+"INVALID_IMAGE: This image shows [EXACTLY WHAT THE IMAGE SHOWS: person, animal, food, vehicle, object, etc.] which is not suitable for damp, mould, or condensation analysis. Please upload a photo of walls, ceilings, floors, windows, doors, or building corners that may have moisture damage, damp ingress, leaks, mould growth, or condensation issues."
 
 ONLY if the image is suitable, proceed with ULTRA-PRECISE analysis:
 
@@ -27,24 +35,36 @@ ONLY if the image is suitable, proceed with ULTRA-PRECISE analysis:
 - If mould is on "wall" - specify: "upper wall", "lower wall", "wall near ceiling", "wall near floor", "wall behind radiator", "wall near window"
 - If mould is on "floor" - specify: "floor near wall", "floor in corner", "floor under window", "floor near door"
 - If mould is on "ceiling" - specify: "ceiling near wall", "ceiling in corner", "ceiling near light fitting"
+- If condensation is present - specify EXACTLY where: "on the window panes", "on the window frames", "on the mirror surface", "on the cold wall surface", "on the uninsulated ceiling", "on the metal door frame", "on the glass surface", "on the bathroom tiles", "on the kitchen worktop"
+- **MUST DETECT CONDENSATION**: Look for water droplets, moisture, steam, fog, or any liquid on surfaces. If you see ANY of these, you MUST include "Condensation" in affected areas and describe exactly where.
 - Use precise measurements when visible: "2 feet from floor", "6 inches from corner"
 
 **DETAILED ANALYSIS:**
 - Identify EXACT mould type: "black mould", "white mould", "green mould", "pink mould"
-- Specify moisture source: "rising damp", "penetrating damp", "condensation", "leak from above"
-- Note material damage: "plaster bubbling", "paint peeling", "wood rotting", "wallpaper lifting"
+- Specify moisture source: "rising damp", "penetrating damp", "condensation", "leak from above", "poor ventilation", "thermal bridging"
+- Note material damage: "plaster bubbling", "paint peeling", "wood rotting", "wallpaper lifting", "water droplets", "surface moisture"
 - Estimate extent: "small patch (2x3 inches)", "medium area (1x2 feet)", "large spread (3x4 feet)"
+- For condensation: identify EXACTLY where it forms: "water droplets on window glass", "moisture on bathroom mirror", "condensation on cold wall surface", "steam on kitchen tiles", "moisture on metal surfaces", "water beads on glass doors"
+- **SPECIFIC EXAMPLES**: "heavy condensation covering entire window glass with water droplets", "window completely obscured by condensation", "water droplets running down window surface"
+- **SEVERITY ASSESSMENT FOR CONDENSATION**: 
+  * "Light mould/damp" for minor condensation, small droplets
+  * "Moderate mould/damp" for noticeable condensation, forming droplets
+  * "Severe mould/damp" for extensive condensation, covering large areas, completely obscured surfaces
+  * "Critical mould/damp" for dangerous condensation, structural issues, health risks
+- Specify condensation type: "surface condensation", "interstitial condensation", or "cold bridge condensation"
 
-Use UK English and UK building terms (mould, plaster, skirting board, loft, radiator, flat, landlord, postcode).
+Use UK English and UK building terms (mould, plaster, skirting board, loft, radiator, flat, landlord, postcode, condensation, thermal bridging, ventilation).
 
 Return a SINGLE detailed paragraph (4-7 lines) with precise location details. No headings, no lists, no JSON.
 
 AFTER the paragraph, append EXACTLY two lines in this format (no extra text):
-Affected areas: <comma-separated list from {"Walls","Ceiling","Floor","Windows","Doors","Corners"} (choose only relevant)>
+Affected areas: <comma-separated list from {"Walls","Ceiling","Floor","Windows","Doors","Corners","Condensation","Cold Surfaces","Window Panes","Mirror Surfaces","Glass Surfaces","Metal Surfaces","Bathroom Surfaces","Kitchen Surfaces"} (choose only relevant)>
 Confidence: <number>%
 
 Finally, on a NEW last line, append:
 Severity: <one of ${SEVERITY_LABELS.join("; ")}>
+
+**REMEMBER**: If you see ANY water, moisture, droplets, or condensation, you MUST include "Condensation" in the affected areas and describe it in detail.
 
 Do NOT return anything else.`;
 
@@ -85,6 +105,12 @@ export async function POST(request) {
     });
 
     const fullText = resp.choices[0]?.message?.content || "";
+    
+    // Debug: Log the raw AI response
+    console.log("=== AI RAW RESPONSE ===");
+    console.log(fullText);
+    console.log("=== END AI RESPONSE ===");
+    
     const parsed = parseFields(fullText);
 
     // Validate response quality
@@ -133,7 +159,10 @@ function parseFields(text) {
   // Enhance confidence based on analysis quality
   const enhancedConfidence = enhanceConfidence(confidence, summary, severity);
 
-  return { summary, confidence: enhancedConfidence, affected, severity, isInvalid: false };
+  // Enhance severity based on condensation analysis
+  const enhancedSeverity = enhanceSeverityForCondensation(severity, summary, affected);
+  
+  return { summary, confidence: enhancedConfidence, affected, severity: enhancedSeverity, isInvalid: false };
 }
 
 function stripAnyJson(text) {
@@ -178,6 +207,11 @@ function enhanceConfidence(confidence, summary, severity) {
     enhancedConfidence = Math.min(100, enhancedConfidence + 4);
   }
   
+  // Boost confidence if condensation is specifically identified
+  if (summary.match(/(condensation|thermal bridging|poor ventilation|cold surface)/i)) {
+    enhancedConfidence = Math.min(100, enhancedConfidence + 5);
+  }
+  
   // Boost confidence if severity assessment is detailed
   if (severity && severity !== "Invalid Image") {
     if (summary.toLowerCase().includes(severity.toLowerCase().split(" ")[0])) {
@@ -193,17 +227,60 @@ function enhanceConfidence(confidence, summary, severity) {
   return enhancedConfidence;
 }
 
+// Function to enhance severity assessment for condensation
+function enhanceSeverityForCondensation(severity, summary, affected) {
+  if (!severity || severity === "Invalid Image") return severity;
+  
+  const lowerSummary = summary.toLowerCase();
+  const hasCondensation = affected.includes("Condensation");
+  
+  // If condensation is present, assess severity based on description
+  if (hasCondensation) {
+    // Check for heavy/extensive condensation indicators
+    if (lowerSummary.includes("extensive") || lowerSummary.includes("covering entire") || 
+        lowerSummary.includes("completely obscured") || lowerSummary.includes("heavy condensation") ||
+        lowerSummary.includes("extensively across") || lowerSummary.includes("all over")) {
+      return "Severe mould/damp";
+    }
+    
+    // Check for moderate condensation indicators
+    if (lowerSummary.includes("moderate") || lowerSummary.includes("noticeable") || 
+        lowerSummary.includes("forming") || lowerSummary.includes("present")) {
+      return "Moderate mould/damp";
+    }
+    
+    // Check for light condensation indicators
+    if (lowerSummary.includes("light") || lowerSummary.includes("slight") || 
+        lowerSummary.includes("minor") || lowerSummary.includes("small")) {
+      return "Light mould/damp";
+    }
+    
+    // Check for critical condensation indicators
+    if (lowerSummary.includes("critical") || lowerSummary.includes("dangerous") || 
+        lowerSummary.includes("hazardous") || lowerSummary.includes("structural") ||
+        lowerSummary.includes("unsafe") || lowerSummary.includes("immediate action")) {
+      return "Critical mould/damp";
+    }
+  }
+  
+  // If no condensation, return original severity
+  return severity;
+}
+
 function matchGroup(text, regex) {
   const m = text.match(regex);
   return m ? m[1].trim() : null;
 }
 
 const AFFECTED_SET = new Set([
-  "Walls", "Ceiling", "Floor", "Windows", "Doors", "Corners",
+  "Walls", "Ceiling", "Floor", "Windows", "Doors", "Corners", "Condensation", "Cold Surfaces",
   "Upper Walls", "Lower Walls", "Wall Corners", "Wall Near Ceiling", "Wall Near Floor",
   "Floor Near Walls", "Floor Corners", "Floor Under Windows", "Floor Near Doors",
   "Ceiling Near Walls", "Ceiling Corners", "Ceiling Near Lights",
-  "Window Frames", "Window Sills", "Door Frames", "Door Thresholds"
+  "Window Frames", "Window Sills", "Door Frames", "Door Thresholds",
+  "Window Panes", "Mirror Surfaces", "Uninsulated Areas", "Thermal Bridges",
+  "Glass Surfaces", "Metal Surfaces", "Bathroom Surfaces", "Kitchen Surfaces",
+  "Window Glass", "Bathroom Mirror", "Kitchen Tiles", "Metal Door Frames"
 ]);
 
 function normaliseAffected(line) {
@@ -213,7 +290,28 @@ function normaliseAffected(line) {
   for (let part of items) {
     let key = title(part);
     // quick singular/plural mapping
-    const m = { Wall: "Walls", Window: "Windows", Door: "Doors", Corner: "Corners", Ceiling: "Ceiling", Floor: "Floor" };
+    const m = { 
+      Wall: "Walls", 
+      Window: "Windows", 
+      Door: "Doors", 
+      Corner: "Corners", 
+      Ceiling: "Ceiling", 
+      Floor: "Floor",
+      Condensation: "Condensation",
+      "Cold Surface": "Cold Surfaces",
+      "Thermal Bridge": "Thermal Bridges",
+      "Uninsulated Area": "Uninsulated Areas",
+      "Window Pane": "Window Panes",
+      "Mirror Surface": "Mirror Surfaces",
+      "Glass Surface": "Glass Surfaces",
+      "Metal Surface": "Metal Surfaces",
+      "Bathroom Surface": "Bathroom Surfaces",
+      "Kitchen Surface": "Kitchen Surfaces",
+      "Window Glass": "Window Glass",
+      "Bathroom Mirror": "Bathroom Mirror",
+      "Kitchen Tile": "Kitchen Tiles",
+      "Metal Door Frame": "Metal Door Frames"
+    };
     key = m[key] || key;
     if (AFFECTED_SET.has(key) && !out.includes(key)) out.push(key);
   }
