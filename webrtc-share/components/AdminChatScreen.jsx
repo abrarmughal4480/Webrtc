@@ -35,107 +35,96 @@ const AdminChatScreen = ({ isOpen, onClose, ticketInfo }) => {
     exportMessages
   } = useChatSocket(ticketInfo?._id);
 
-  // Handle incoming media messages
-  const handleIncomingMediaMessage = useCallback((messageData) => {
-    if (messageData.media) {
-      // Convert incoming message format to local format
-      const mediaMessage = {
-        id: messageData.id,
-        text: messageData.message || messageData.text,
-        sender: messageData.senderRole === 'admin' ? 'admin' : 'user',
-        timestamp: new Date(messageData.timestamp),
-        media: {
-          type: messageData.media.type,
-          name: messageData.media.name,
-          size: messageData.media.size,
-          mimeType: messageData.media.mimeType,
-          url: messageData.media.url || null,
-          serverId: messageData.id
-        }
-      };
-      
-      setMessages(prev => {
-        // Check if message already exists
-        const exists = prev.find(msg => msg.id === mediaMessage.id);
-        if (!exists) {
-          console.log('✅ Adding incoming media message:', mediaMessage);
-          return [...prev, mediaMessage];
-        }
-        return prev;
-      });
-    }
-  }, [setMessages]);
 
-  // Listen for incoming media messages from the hook
+
+
+
+  // Listen for incoming media messages and handle progress
   useEffect(() => {
     if (isConnected) {
-      // The useChatSocket hook already handles incoming messages
-      // We just need to ensure media messages are processed correctly
-      console.log('🔌 Chat connected, listening for media messages...');
-      
-      // Note: We don't need to listen for new-ticket-message events here
-      // because the useChatSocket hook already handles them internally
-      // This prevents duplicate message handling
-    }
-  }, [isConnected]);
-
-  // Listen for media upload acknowledgment and success
-  useEffect(() => {
-    if (isConnected) {
-      // Listen for media upload acknowledgment from the hook
-      const handleMediaAcknowledged = (data) => {
-        console.log('📤 [AdminChatScreen] Media upload acknowledged:', data);
-        setProgressPercent(100); // Go directly to 100% when acknowledged
-        setUploadProgress({
-          status: 'acknowledged',
-          fileName: data.fileName,
-          fileSize: data.fileSize,
-          message: 'File received by server, processing...'
-        });
+      // Listen for new ticket messages (including media) from the hook
+      const handleNewTicketMessage = (event) => {
+        const messageData = event.detail;
+        console.log('📨 [AdminChatScreen] New ticket message received:', messageData);
+        
+        // Check if this is a media message that we sent
+        if (messageData.media && messageData.senderId === user?._id) {
+          console.log('✅ [AdminChatScreen] Our media message confirmed by server:', messageData);
+          
+          // Update progress to 100% when our media is confirmed
+          setProgressPercent(100);
+          setUploadProgress(prev => ({
+            ...prev,
+            status: 'confirmed',
+            message: 'Media sent successfully!'
+          }));
+          
+          // Update the local message with the server-generated ID
+          setMessages(prev => prev.map(msg => {
+            if (msg.id && msg.id.startsWith('temp_') && msg.media && msg.media.isLocal) {
+              // This is a local media message, update it with server info
+              return {
+                ...msg,
+                id: messageData.id,
+                serverConfirmed: true,
+                media: {
+                  ...msg.media,
+                  isLocal: false,
+                  serverId: messageData.id,
+                  url: messageData.media.url || msg.media.localUrl // Use server URL if available
+                }
+              };
+            }
+            return msg;
+          }));
+          
+          // Clear everything after showing 100% for a moment
+          setTimeout(() => {
+            setUploadProgress(null);
+            setIsUploading(false);
+            setProgressPercent(0);
+            removeSelectedMedia();
+          }, 1500); // Show 100% for 1.5 seconds before clearing
+        } else if (messageData.media && messageData.senderId !== user?._id) {
+          // This is a media message from another user, add it to our messages
+          console.log('📨 [AdminChatScreen] Media message from another user:', messageData);
+          
+          // Convert incoming message format to local format
+          const mediaMessage = {
+            id: messageData.id,
+            text: messageData.message || messageData.text || '',
+            sender: messageData.senderRole === 'admin' ? 'admin' : 'user',
+            timestamp: new Date(messageData.timestamp),
+            media: {
+              type: messageData.media.type,
+              name: messageData.media.name,
+              size: messageData.media.size,
+              mimeType: messageData.media.mimeType,
+              url: messageData.media.url || null,
+              serverId: messageData.id
+            }
+          };
+          
+          setMessages(prev => {
+            // Check if message already exists
+            const exists = prev.find(msg => msg.id === mediaMessage.id);
+            if (!exists) {
+              console.log('✅ Adding incoming media message:', mediaMessage);
+              return [...prev, mediaMessage];
+            }
+            return prev;
+          });
+        }
       };
 
-      // Listen for media upload success from the hook
-      const handleMediaSuccess = (data) => {
-        console.log('✅ [AdminChatScreen] Media upload confirmed by server:', data);
-        
-        // Update the local message with the server-generated ID
-        setMessages(prev => prev.map(msg => {
-          if (msg.id && msg.id.startsWith('temp_') && msg.media && msg.media.isLocal) {
-            // This is a local media message, update it with server info
-            return {
-              ...msg,
-              id: data.messageId,
-              serverConfirmed: true,
-              media: {
-                ...msg.media,
-                isLocal: false,
-                serverId: data.messageId,
-                url: data.mediaUrl || msg.media.localUrl // Use server URL if available
-              }
-            };
-          }
-          return msg;
-        }));
-        
-        // Progress is already at 100% from acknowledgment, just clear everything
-        setTimeout(() => {
-          setUploadProgress(null);
-          setIsUploading(false);
-          setProgressPercent(0);
-          removeSelectedMedia();
-        }, 1000); // Show 100% for 1 second before clearing
-      };
-
-      // We'll use custom events since the hook handles the socket events
-      window.addEventListener('media-upload-acknowledged', handleMediaAcknowledged);
-      window.addEventListener('media-upload-success', handleMediaSuccess);
+      // Listen for the event dispatched by useChatSocket
+      window.addEventListener('new-ticket-message', handleNewTicketMessage);
       
       return () => {
-        window.removeEventListener('media-upload-acknowledged', handleMediaAcknowledged);
-        window.removeEventListener('media-upload-success', handleMediaSuccess);
+        window.removeEventListener('new-ticket-message', handleNewTicketMessage);
       };
     }
-  }, [isConnected, setMessages]);
+  }, [isConnected, setMessages, user?._id]);
 
   // Auto-detect user role from UserProvider
   const isAdminRole = user?.role === 'admin' || user?.role === 'superadmin' || user?.role === 'company-admin';
