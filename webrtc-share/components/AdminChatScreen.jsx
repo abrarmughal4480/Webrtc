@@ -61,17 +61,25 @@ const AdminChatScreen = ({ isOpen, onClose, ticketInfo }) => {
     });
   }, [messages]);
 
-  // Initialize messages based on auto-detected user role
+  // Initialize messages based on auto-detected user role - ONLY ONCE
   useEffect(() => {
     if (isOpen && userRole === 'client' && messages.length === 0) {
-      // Add default welcome message for client
-      const welcomeMessage = {
-        id: 'welcome',
-        text: "Hello! What is your query? Please let us know how we can help you.",
-        sender: 'admin',
-        timestamp: new Date(Date.now() - 60000)
-      };
-      setMessages([welcomeMessage]);
+      // Check if we already showed the welcome message for this session
+      const hasShownWelcome = sessionStorage.getItem('chatWelcomeShown');
+      
+      if (!hasShownWelcome) {
+        // Add default welcome message for client - ONLY ONCE
+        const welcomeMessage = {
+          id: 'welcome',
+          text: "Hello! What is your query? Please let us know how we can help you.",
+          sender: 'admin',
+          timestamp: new Date(Date.now() - 60000)
+        };
+        setMessages([welcomeMessage]);
+        
+        // Mark that we've shown the welcome message for this session
+        sessionStorage.setItem('chatWelcomeShown', 'true');
+      }
     }
   }, [isOpen, userRole, messages.length]);
 
@@ -235,18 +243,7 @@ const AdminChatScreen = ({ isOpen, onClose, ticketInfo }) => {
         }, 100);
       }
 
-      // Auto-response for client users
-      if (userRole === 'client') {
-        setTimeout(() => {
-          const autoResponse = {
-            id: Date.now() + 1,
-            text: "Thank you for your query! Our team will contact you soon and we will send you an email notification.",
-            sender: 'admin',
-            timestamp: new Date()
-          };
-          setMessages(prev => [...prev, autoResponse]);
-        }, 2000); // 2 second delay
-      }
+      // No auto-response - let admins respond manually
     }
   };
 
