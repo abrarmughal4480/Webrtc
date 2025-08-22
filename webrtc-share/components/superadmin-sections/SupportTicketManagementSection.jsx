@@ -2,10 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Loader2, FileText, Archive, Trash2, Monitor, Smartphone, Save, History, ArchiveRestore, ExternalLink, FileSearch, MailIcon, Loader2 as Loader2Icon, LockIcon, XIcon, X, Link, Copy, Eye, EyeOff, ChevronLeft, ArrowLeft, ChevronRight, Phone, Calendar } from 'lucide-react';
+import { Loader2, FileText, Archive, Trash2, Monitor, Smartphone, Save, History, ArchiveRestore, ExternalLink, FileSearch, MailIcon, Loader2 as Loader2Icon, LockIcon, XIcon, X, Link, Copy, Eye, EyeOff, ChevronLeft, ArrowLeft, ChevronRight, Phone, Calendar, MessageCircle } from 'lucide-react';
 import { getAllTickets, updateTicketByAdmin, assignTicket, getDashboardStats, getSuperAdminAllTickets } from '@/http/supportTicketHttp';
 import { toast } from 'sonner';
+import AdminChatScreen from '@/components/AdminChatScreen';
 
 const SupportTicketManagementSection = () => {
     const [tickets, setTickets] = useState([]);
@@ -18,7 +18,6 @@ const SupportTicketManagementSection = () => {
     const [showTicketDetails, setShowTicketDetails] = useState(false);
     const [selectedTicket, setSelectedTicket] = useState(null);
     const [activeTab, setActiveTab] = useState(() => {
-        // Get the saved tab from localStorage, default to 'tickets'
         if (typeof window !== 'undefined') {
             return localStorage.getItem('support-tickets-active-tab') || 'tickets';
         }
@@ -29,8 +28,11 @@ const SupportTicketManagementSection = () => {
     const [editingCallbackStatusValue, setEditingCallbackStatusValue] = useState('');
     const [editingDemoStatus, setEditingDemoStatus] = useState(null);
     const [editingDemoStatusValue, setEditingDemoStatusValue] = useState('');
+    
+    // Chat screen state
+    const [isChatOpen, setIsChatOpen] = useState(false);
+    const [chatTicketInfo, setChatTicketInfo] = useState(null);
 
-    // Save active tab to localStorage whenever it changes
     useEffect(() => {
         if (typeof window !== 'undefined') {
             localStorage.setItem('support-tickets-active-tab', activeTab);
@@ -496,6 +498,12 @@ const SupportTicketManagementSection = () => {
         setEditingDemoStatusValue('');
     };
 
+    // Handle chat button click
+    const handleChatClick = (ticket) => {
+        setChatTicketInfo(ticket);
+        setIsChatOpen(true);
+    };
+
     return (
         <div className="space-y-6">
             {/* Toggle Buttons */}
@@ -618,6 +626,15 @@ const SupportTicketManagementSection = () => {
                                                             title="View ticket details"
                                                         >
                                                             <span>Details</span>
+                                                        </button>
+                                                        
+                                                        {/* Support Chat Button */}
+                                                        <button
+                                                            onClick={() => handleChatClick(ticket)}
+                                                            className="flex items-center justify-center gap-1 text-green-600 hover:text-green-800 text-sm transition-all duration-200 hover:bg-green-50 px-2 py-1.5 rounded-lg"
+                                                            title="Open support chat"
+                                                        >
+                                                            <span>Support Chat</span>
                                                         </button>
                                                         
                                                         {/* Quick Status Update */}
@@ -1018,6 +1035,15 @@ const SupportTicketManagementSection = () => {
                         </div>
                     </div>
                 </>
+            )}
+
+            {/* Chat Screen */}
+            {isChatOpen && chatTicketInfo && (
+                <AdminChatScreen
+                    isOpen={isChatOpen}
+                    onClose={() => setIsChatOpen(false)}
+                    ticketInfo={chatTicketInfo}
+                />
             )}
         </div>
     );

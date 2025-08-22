@@ -8,6 +8,12 @@ const onlineUsers = new Map(); // socketId -> userData
 const userSockets = new Map(); // userId -> socketId
 const adminWaitingRooms = new Map(); // token -> socketId (admin waiting)
 
+// Chat system storage
+const chatConnections = new Map(); // socketId -> userData
+const ticketRooms = new Map(); // ticketId -> Set of socketIds
+const userTicketMap = new Map(); // userId -> ticketId
+const adminConnections = new Map(); // socketId -> adminData
+
 export const initializeSocket = (server) => {
   io = new Server(server, {
     cors: {
@@ -277,6 +283,196 @@ export const setupSocketListeners = () => {
       }
     });
 
+    // ===== CHAT SYSTEM EVENTS =====
+    
+    // Handle user joining a ticket chat
+    socket.on('join-ticket-chat', (data) => {
+      try {
+        const { ticketId, userId, userEmail, userRole, ticketInfo } = data;
+        
+        // Store connection info
+        chatConnections.set(socket.id, {
+          userId,
+          userEmail,
+          userRole,
+          ticketId,
+          socketId: socket.id,
+          connectedAt: new Date(),
+          lastActivity: new Date()
+        });
+
+        // Map user to ticket
+        userTicketMap.set(userId, ticketId);
+
+        // Create or join ticket room
+        if (!ticketRooms.has(ticketId)) {
+          ticketRooms.set(ticketId, new Set());
+        }
+        ticketRooms.get(ticketId).add(socket.id);
+        socket.join(`ticket-${ticketId}`);
+
+        // If user is admin/superadmin, store admin connection
+        if (userRole === 'admin' || userRole === 'superadmin') {
+          adminConnections.set(socket.id, {
+            userId,
+            userEmail,
+            userRole,
+            ticketId,
+            socketId: socket.id
+          });
+        }
+
+        // Notify others in the ticket room that someone joined
+        socket.to(`ticket-${ticketId}`).emit('user-joined-ticket', {
+          userId,
+          userEmail,
+          userRole,
+          ticketId,
+          timestamp: new Date()
+        });
+
+        // Send current ticket info to the user
+        socket.emit('ticket-chat-joined', {
+          ticketId,
+          message: `Joined ticket chat for: ${ticketInfo?.title || ticketId}`,
+          timestamp: new Date()
+        });
+
+        logger.info(`User ${userEmail} (${userRole}) joined ticket chat: ${ticketId}`);
+      } catch (error) {
+        logger.error('Error in join-ticket-chat:', error);
+        socket.emit('chat-error', { message: 'Failed to join ticket chat' });
+      }
+    });
+
+    // Handle sending messages in ticket chat
+    socket.on('send-ticket-message', (data) => {
+      try {
+        const { ticketId, message, senderId, senderEmail, senderRole } = data;
+        
+        // Validate that user is in the ticket room
+        const userData = chatConnections.get(socket.id);
+        if (!userData || userData.ticketId !== ticketId) {
+          socket.emit('chat-error', { message: 'Not authorized to send message in this ticket' });
+          return;
+        }
+
+        // Create message object with unique ID
+        const messageObj = {
+          id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}_${socket.id.slice(-6)}`,
+          ticketId,
+          message,
+          senderId,
+          senderEmail,
+          senderRole,
+          timestamp: new Date(),
+          socketId: socket.id
+        };
+
+        // Broadcast message to all users in the ticket room
+        io.to(`ticket-${ticketId}`).emit('new-ticket-message', messageObj);
+
+        // Log message
+        logger.info(`Message sent in ticket ${ticketId} by ${senderEmail} (${senderRole}): ${message}`);
+
+        // Update last activity
+        userData.lastActivity = new Date();
+        chatConnections.set(socket.id, userData);
+
+      } catch (error) {
+        logger.error('Error in send-ticket-message:', error);
+        socket.emit('chat-error', { message: 'Failed to send message' });
+      }
+    });
+
+
+
+    // Handle user leaving ticket chat
+    socket.on('leave-ticket-chat', (data) => {
+      try {
+        const { ticketId, userId } = data;
+        const userData = chatConnections.get(socket.id);
+        
+        if (userData && userData.ticketId === ticketId) {
+          // Remove from ticket room
+          if (ticketRooms.has(ticketId)) {
+            ticketRooms.get(ticketId).delete(socket.id);
+            
+            // If room is empty, remove it
+            if (ticketRooms.get(ticketId).size === 0) {
+              ticketRooms.delete(ticketId);
+            }
+          }
+
+          // Remove from user ticket map
+          userTicketMap.delete(userId);
+
+          // Remove admin connection if applicable
+          if (adminConnections.has(socket.id)) {
+            adminConnections.delete(socket.id);
+          }
+
+          // Notify others that user left
+          socket.to(`ticket-${ticketId}`).emit('user-left-ticket', {
+            ticketId,
+            userId,
+            userEmail: userData.userEmail,
+            userRole: userData.userRole,
+            timestamp: new Date()
+          });
+
+          logger.info(`User ${userData.userEmail} left ticket chat: ${ticketId}`);
+        }
+      } catch (error) {
+        logger.error('Error in leave-ticket-chat:', error);
+      }
+    });
+
+    // Handle user activity (heartbeat)
+    socket.on('chat-activity', (data) => {
+      try {
+        const { ticketId } = data;
+        const userData = chatConnections.get(socket.id);
+        
+        if (userData && userData.ticketId === ticketId) {
+          userData.lastActivity = new Date();
+          chatConnections.set(socket.id, userData);
+        }
+      } catch (error) {
+        logger.error('Error in chat-activity:', error);
+      }
+    });
+
+    // Handle admin requesting ticket info
+    socket.on('get-ticket-info', (data) => {
+      try {
+        const { ticketId } = data;
+        const userData = chatConnections.get(socket.id);
+        
+        if (userData && (userData.userRole === 'admin' || userData.userRole === 'superadmin')) {
+          // Get all users in this ticket
+          const usersInTicket = Array.from(chatConnections.values())
+            .filter(conn => conn.ticketId === ticketId)
+            .map(conn => ({
+              userId: conn.userId,
+              userEmail: conn.userEmail,
+              userRole: conn.userRole,
+              connectedAt: conn.connectedAt,
+              lastActivity: conn.lastActivity
+            }));
+
+          socket.emit('ticket-info', {
+            ticketId,
+            users: usersInTicket,
+            totalUsers: usersInTicket.length,
+            timestamp: new Date()
+          });
+        }
+      } catch (error) {
+        logger.error('Error in get-ticket-info:', error);
+      }
+    });
+
     socket.on('disconnect', () => {
       try {
         // Get user data before removing
@@ -366,6 +562,54 @@ export const sendNotification = (email, notificationData) => {
   }
   io.to(`notifications-${email}`).emit('new-notification', notificationData);
   logger.info(`Notification sent to user: ${email}`);
+};
+
+// ===== CHAT SYSTEM UTILITY FUNCTIONS =====
+
+export const getTicketUsers = (ticketId) => {
+  if (!ticketRooms.has(ticketId)) return [];
+  
+  return Array.from(ticketRooms.get(ticketId))
+    .map(socketId => chatConnections.get(socketId))
+    .filter(Boolean);
+};
+
+export const isUserInTicket = (userId, ticketId) => {
+  return userTicketMap.get(userId) === ticketId;
+};
+
+export const getActiveTickets = () => {
+  return Array.from(ticketRooms.keys());
+};
+
+export const getChatStats = () => {
+  return {
+    totalConnections: chatConnections.size,
+    activeTickets: ticketRooms.size,
+    adminConnections: adminConnections.size,
+    timestamp: new Date()
+  };
+};
+
+export const sendSystemMessage = (ticketId, message, systemData = {}) => {
+  if (!io) {
+    throw new Error('Socket.io not initialized!');
+  }
+
+  const systemMessage = {
+    id: `system-${Date.now()}`,
+    ticketId,
+    message,
+    senderId: 'system',
+    senderEmail: 'system',
+    senderRole: 'system',
+    timestamp: new Date(),
+    isSystemMessage: true,
+    ...systemData
+  };
+
+  io.to(`ticket-${ticketId}`).emit('new-ticket-message', systemMessage);
+  logger.info(`System message sent to ticket ${ticketId}: ${message}`);
 };
 
 // Export as class for compatibility with existing imports
