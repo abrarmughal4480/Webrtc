@@ -16,7 +16,7 @@ const useChatSocket = (ticketId) => {
   // Save messages to local storage
   const saveMessagesToStorage = useCallback((messagesToSave) => {
     if (!storageKey) return;
-    
+
     try {
       localStorage.setItem(storageKey, JSON.stringify(messagesToSave));
     } catch (error) {
@@ -33,7 +33,7 @@ const useChatSocket = (ticketId) => {
   // Load messages from local storage
   const loadMessagesFromStorage = useCallback(() => {
     if (!storageKey) return [];
-    
+
     try {
       const stored = localStorage.getItem(storageKey);
       if (stored && stored !== 'null' && stored !== 'undefined') {
@@ -56,7 +56,7 @@ const useChatSocket = (ticketId) => {
   // Clear messages for a specific ticket
   const clearTicketMessages = useCallback(() => {
     if (!storageKey) return;
-    
+
     try {
       localStorage.removeItem(storageKey);
       setMessages([]);
@@ -69,7 +69,7 @@ const useChatSocket = (ticketId) => {
   // Export messages for backup
   const exportMessages = useCallback(() => {
     if (!storageKey || messages.length === 0) return null;
-    
+
     try {
       const exportData = {
         ticketId,
@@ -77,7 +77,7 @@ const useChatSocket = (ticketId) => {
         messageCount: messages.length,
         messages: messages
       };
-      
+
       const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -87,7 +87,7 @@ const useChatSocket = (ticketId) => {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      
+
       console.log('📤 Exported', messages.length, 'messages for ticket:', ticketId);
       return true;
     } catch (error) {
@@ -102,14 +102,23 @@ const useChatSocket = (ticketId) => {
 
     try {
       console.log('🔌 Initializing chat socket connection...');
-      
+
       // Create socket connection
       socketRef.current = io(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000', {
         transports: ['websocket', 'polling'],
         withCredentials: true,
         autoConnect: false, // Don't auto-connect, we'll do it manually
         forceNew: false, // Reuse existing connection if possible
-        timeout: 20000
+        timeout: 20000,
+        // --- LARGE FILE HANDLING ---
+        maxHttpBufferSize: 50 * 1024 * 1024, // 50MB buffer
+        maxPayload: 50 * 1024 * 1024, // 50MB max payload
+        // --- CONNECTION STABILITY ---
+        connectTimeout: 45000, // 45s connection timeout
+        upgradeTimeout: 10000, // 10s upgrade timeout
+        // --- HEARTBEAT OPTIMIZATION ---
+        heartbeatTimeout: 60000, // 60s heartbeat timeout
+        heartbeatInterval: 25000 // 25s heartbeat interval
       });
 
       const socket = socketRef.current;
@@ -133,9 +142,19 @@ const useChatSocket = (ticketId) => {
       // Connect manually
       socket.connect();
 
-      socket.on('disconnect', () => {
-        console.log('🔴 Chat socket disconnected');
+      socket.on('disconnect', (reason) => {
+        console.log('🔴 Chat socket disconnected:', reason);
         setIsConnected(false);
+        
+        // Auto-reconnect for certain disconnect reasons
+        if (reason === 'io server disconnect' || reason === 'transport close') {
+          console.log('🔄 Attempting to reconnect...');
+          setTimeout(() => {
+            if (socketRef.current) {
+              socketRef.current.connect();
+            }
+          }, 1000);
+        }
       });
 
       socket.on('connect_error', (error) => {
@@ -144,36 +163,83 @@ const useChatSocket = (ticketId) => {
         setIsConnected(false);
       });
 
+      socket.on('error', (error) => {
+        console.error('❌ Chat socket error:', error);
+        setConnectionError('Socket error occurred');
+      });
+
       // Chat events
       socket.on('ticket-chat-joined', (data) => {
         console.log('✅ Joined ticket chat:', data);
         // Don't add system message - just log it
       });
 
+      // Chat events
       socket.on('new-ticket-message', (messageData) => {
-        console.log('📨 New message received:', messageData);
-        
+        console.log('📨 [useChatSocket] New message received:', {
+          id: messageData.id,
+          message: messageData.message,
+          hasMedia: !!messageData.media,
+          mediaType: messageData.media?.type,
+          senderRole: messageData.senderRole
+        });
+
         // Check if message already exists to prevent duplicates
         setMessagesWithStorage(prev => {
           const messageExists = prev.some(msg => msg.id === messageData.id);
           if (messageExists) {
-            console.log('⚠️ Message already exists, skipping duplicate:', messageData.id);
+            console.log('⚠️ [useChatSocket] Message already exists, skipping duplicate:', messageData.id);
             return prev;
           }
-          
+
+          // Also check for messages with the same content and timestamp to prevent duplicates
+          const duplicateContent = prev.some(msg =>
+            msg.text === messageData.message &&
+            Math.abs(new Date(msg.timestamp).getTime() - new Date(messageData.timestamp).getTime()) < 1000 &&
+            msg.media?.name === messageData.media?.name
+          );
+
+          if (duplicateContent) {
+            console.log('⚠️ [useChatSocket] Duplicate content message, skipping:', messageData.message);
+            return prev;
+          }
+
           const newMessage = {
             id: messageData.id,
-            text: messageData.message,
+            text: messageData.message || '', // Handle empty message for media-only
             sender: messageData.senderRole === 'admin' || messageData.senderRole === 'superadmin' ? 'admin' : 'user',
             timestamp: new Date(messageData.timestamp),
             senderId: messageData.senderId,
             senderEmail: messageData.senderEmail,
-            senderRole: messageData.senderRole
+            senderRole: messageData.senderRole,
+            // Add media support with file data
+            media: messageData.media ? {
+              type: messageData.media.type,
+              name: messageData.media.name,
+              size: messageData.media.size,
+              mimeType: messageData.media.mimeType,
+              // Use the file data from server for display
+              localUrl: messageData.media.data || messageData.media.url || null,
+              url: messageData.media.url || null,
+              data: messageData.media.data || null,
+              uploadId: messageData.media.uploadId || null,
+              isLocal: false // This is a server message
+            } : null
           };
-          
-          console.log('✅ Adding new message to storage:', newMessage);
+
+          console.log('✅ [useChatSocket] Adding new message to storage:', {
+            id: newMessage.id,
+            hasText: !!newMessage.text,
+            hasMedia: !!newMessage.media,
+            mediaHasData: !!newMessage.media?.data,
+            mediaHasLocalUrl: !!newMessage.media?.localUrl
+          });
+
           return [...prev, newMessage];
         });
+
+        // Dispatch custom event for components to listen to
+        window.dispatchEvent(new CustomEvent('new-ticket-message', { detail: messageData }));
 
         // Dispatch global event for background message receiving (only when component is not mounted)
         if (!document.querySelector('[data-chat-open="true"]')) {
@@ -186,6 +252,25 @@ const useChatSocket = (ticketId) => {
         }
       });
 
+      // Add media upload acknowledgment handler
+      socket.on('media-upload-acknowledged', (data) => {
+        console.log('📤 [useChatSocket] Media upload acknowledged by server:', data);
+        // Dispatch custom event for components to listen to
+        window.dispatchEvent(new CustomEvent('media-upload-acknowledged', { detail: data }));
+      });
+
+      // Add media upload success handler
+      socket.on('media-upload-success', (data) => {
+        console.log('✅ Media upload successful:', data);
+        // Dispatch custom event for components to listen to
+        window.dispatchEvent(new CustomEvent('media-upload-success', { detail: data }));
+      });
+
+      // Add chat error handler
+      socket.on('chat-error', (error) => {
+        console.error('❌ Chat error:', error);
+        setConnectionError(error.message);
+      });
 
 
       socket.on('user-joined-ticket', (data) => {
@@ -208,11 +293,6 @@ const useChatSocket = (ticketId) => {
         setOnlineUsers(data.users);
       });
 
-      socket.on('chat-error', (error) => {
-        console.error('❌ Chat error:', error);
-        setConnectionError(error.message);
-      });
-
     } catch (error) {
       console.error('❌ Error setting up chat socket:', error);
       setConnectionError('Failed to initialize chat connection');
@@ -223,7 +303,7 @@ const useChatSocket = (ticketId) => {
   const disconnectSocket = useCallback(() => {
     if (socketRef.current) {
       console.log('🔌 Disconnecting chat socket...');
-      
+
       try {
         // Leave ticket chat
         if (isConnected && ticketId && user?._id) {
@@ -235,17 +315,17 @@ const useChatSocket = (ticketId) => {
 
         // Remove all event listeners
         socketRef.current.removeAllListeners();
-        
+
         // Disconnect socket
         socketRef.current.disconnect();
         socketRef.current = null;
-        
+
         // Reset state
         setIsConnected(false);
         setMessages([]);
         setOnlineUsers([]);
         setConnectionError(null);
-        
+
         console.log('✅ Chat socket disconnected and cleaned up');
       } catch (error) {
         console.error('❌ Error during socket cleanup:', error);
@@ -271,6 +351,49 @@ const useChatSocket = (ticketId) => {
       return true;
     } catch (error) {
       console.error('❌ Error sending message:', error);
+      return false;
+    }
+  }, [socketRef, isConnected, ticketId, user]);
+
+  // Send media message
+  const sendMediaMessage = useCallback((mediaData) => {
+    console.log('📤 [useChatSocket] Attempting to send media:', {
+      fileName: mediaData.fileName,
+      fileType: mediaData.fileType,
+      fileSize: mediaData.fileSize,
+      hasFileData: !!mediaData.fileData
+    });
+    console.log('📤 [useChatSocket] Socket state:', {
+      hasSocket: !!socketRef.current,
+      isConnected,
+      hasTicketId: !!ticketId,
+      hasUser: !!user
+    });
+
+    if (!socketRef.current || !isConnected || !ticketId || !user) {
+      console.error('❌ [useChatSocket] Cannot send media: socket not ready');
+      return false;
+    }
+
+    try {
+      const payload = {
+        ticketId,
+        fileName: mediaData.fileName,
+        fileType: mediaData.fileType,
+        fileSize: mediaData.fileSize,
+        fileData: mediaData.fileData, // Send the actual file data
+        senderId: user._id,
+        senderEmail: user.email,
+        senderRole: user.role
+      };
+
+      console.log('📤 [useChatSocket] Emitting upload-media with payload size:', payload.fileData?.length || 0);
+      socketRef.current.emit('upload-media', payload);
+
+      console.log('✅ [useChatSocket] Media upload event emitted successfully');
+      return true;
+    } catch (error) {
+      console.error('❌ [useChatSocket] Error sending media:', error);
       return false;
     }
   }, [socketRef, isConnected, ticketId, user]);
@@ -309,14 +432,14 @@ const useChatSocket = (ticketId) => {
   useEffect(() => {
     if (user && ticketId) {
       console.log('🔄 Setting up chat socket for ticket:', ticketId);
-      
+
       // Load existing messages from local storage
       const storedMessages = loadMessagesFromStorage();
       if (storedMessages.length > 0) {
         console.log('📚 Loaded', storedMessages.length, 'messages from local storage');
         setMessages(storedMessages);
       }
-      
+
       connectSocket();
     }
 
@@ -366,7 +489,7 @@ const useChatSocket = (ticketId) => {
       if (event.detail && event.detail.ticketId === ticketId) {
         const newMessage = event.detail.message;
         console.log('📨 Global message received for ticket:', ticketId, newMessage);
-        
+
         // Check if message already exists to prevent duplicates
         setMessagesWithStorage(prev => {
           const messageExists = prev.some(msg => msg.id === newMessage.id);
@@ -374,7 +497,7 @@ const useChatSocket = (ticketId) => {
             console.log('⚠️ Global message already exists, skipping duplicate:', newMessage.id);
             return prev;
           }
-          
+
           const messageToAdd = {
             id: newMessage.id,
             text: newMessage.message,
@@ -382,9 +505,15 @@ const useChatSocket = (ticketId) => {
             timestamp: new Date(newMessage.timestamp),
             senderId: newMessage.senderId,
             senderEmail: newMessage.senderEmail,
-            senderRole: newMessage.senderRole
+            senderRole: newMessage.senderRole,
+            // Add media support with file data
+            media: newMessage.media ? {
+              ...newMessage.media,
+              // Use the file data from server for display
+              localUrl: newMessage.media.data || newMessage.media.url || null
+            } : null
           };
-          
+
           console.log('✅ Adding global message to storage:', messageToAdd);
           return [...prev, messageToAdd];
         });
@@ -393,7 +522,7 @@ const useChatSocket = (ticketId) => {
 
     // Listen for global message events
     window.addEventListener('new-chat-message', handleGlobalMessage);
-    
+
     return () => {
       window.removeEventListener('new-chat-message', handleGlobalMessage);
     };
@@ -403,22 +532,21 @@ const useChatSocket = (ticketId) => {
     // Connection state
     isConnected,
     connectionError,
-    
+
     // Messages
     messages,
     setMessages: setMessagesWithStorage,
-    
+
     // Online users
     onlineUsers,
-    
+
     // Actions
     sendMessage,
+    sendMediaMessage,
     markMessageAsRead,
     getTicketInfo,
     clearTicketMessages,
     exportMessages,
-    
-    // Connection management
     connectSocket,
     disconnectSocket
   };

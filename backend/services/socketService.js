@@ -29,7 +29,17 @@ export const initializeSocket = (server) => {
     // --- PERFORMANCE OPTIMIZATION ---
     pingInterval: 10000, // 10s
     pingTimeout: 20000,  // 20s
-    perMessageDeflate: true // compress signaling
+    perMessageDeflate: true, // compress signaling
+    // --- LARGE FILE HANDLING ---
+    maxHttpBufferSize: 50 * 1024 * 1024, // 50MB buffer for large files
+    maxPayload: 50 * 1024 * 1024, // 50MB max payload
+    // --- CONNECTION STABILITY ---
+    connectTimeout: 45000, // 45s connection timeout
+    upgradeTimeout: 10000, // 10s upgrade timeout
+    allowUpgrades: true,
+    // --- HEARTBEAT OPTIMIZATION ---
+    heartbeatTimeout: 60000, // 60s heartbeat timeout
+    heartbeatInterval: 25000 // 25s heartbeat interval
   });
   return io;
 };
@@ -348,7 +358,7 @@ export const setupSocketListeners = () => {
     // Handle sending messages in ticket chat
     socket.on('send-ticket-message', (data) => {
       try {
-        const { ticketId, message, senderId, senderEmail, senderRole } = data;
+        const { ticketId, message, senderId, senderEmail, senderRole, media } = data;
         
         // Validate that user is in the ticket room
         const userData = chatConnections.get(socket.id);
@@ -366,14 +376,29 @@ export const setupSocketListeners = () => {
           senderEmail,
           senderRole,
           timestamp: new Date(),
-          socketId: socket.id
+          socketId: socket.id,
+          media: media || null // Include media data if present
         };
+
+        // Log message details
+        const mediaInfo = media ? ` with ${media.type} (${media.name})` : '';
+        logger.info(`Message sent in ticket ${ticketId} by ${senderEmail} (${senderRole}): ${message}${mediaInfo}`);
+        
+        // Additional logging for media messages
+        if (media) {
+          console.log(`📤 [SocketService] Text message with media:`, {
+            ticketId,
+            senderEmail,
+            senderRole,
+            message,
+            mediaType: media.type,
+            mediaName: media.name,
+            mediaSize: media.size
+          });
+        }
 
         // Broadcast message to all users in the ticket room
         io.to(`ticket-${ticketId}`).emit('new-ticket-message', messageObj);
-
-        // Log message
-        logger.info(`Message sent in ticket ${ticketId} by ${senderEmail} (${senderRole}): ${message}`);
 
         // Update last activity
         userData.lastActivity = new Date();
@@ -382,6 +407,157 @@ export const setupSocketListeners = () => {
       } catch (error) {
         logger.error('Error in send-ticket-message:', error);
         socket.emit('chat-error', { message: 'Failed to send message' });
+      }
+    });
+
+    // Handle media file upload for chat
+    socket.on('upload-media', (data) => {
+      try {
+        console.log('📤 [SocketService] upload-media event received with data:', {
+          ticketId: data.ticketId,
+          fileName: data.fileName,
+          fileType: data.fileType,
+          fileSize: data.fileSize,
+          hasFileData: !!data.fileData,
+          fileDataLength: data.fileData?.length || 0,
+          senderId: data.senderId,
+          senderEmail: data.senderEmail,
+          senderRole: data.senderRole
+        });
+
+        const { ticketId, fileName, fileType, fileSize, fileData, senderId, senderEmail, senderRole } = data;
+        
+        // Validate that user is in the ticket room
+        const userData = chatConnections.get(socket.id);
+        if (!userData || userData.ticketId !== ticketId) {
+          console.error('❌ [SocketService] User not authorized to upload media in ticket:', {
+            socketId: socket.id,
+            userTicketId: userData?.ticketId,
+            requestedTicketId: ticketId
+          });
+          socket.emit('chat-error', { message: 'Not authorized to upload media in this ticket' });
+          return;
+        }
+
+        // Validate file size (max 50MB)
+        if (fileSize > 50 * 1024 * 1024) {
+          console.error('❌ [SocketService] File too large:', {
+            fileName,
+            fileSize,
+            maxSize: 50 * 1024 * 1024
+          });
+          socket.emit('chat-error', { message: 'File size must be less than 50MB' });
+          return;
+        }
+
+        // Validate file type
+        const isImage = fileType.startsWith('image/');
+        const isVideo = fileType.startsWith('video/');
+        if (!isImage && !isVideo) {
+          console.error('❌ [SocketService] Invalid file type:', {
+            fileName,
+            fileType,
+            isImage,
+            isVideo
+          });
+          socket.emit('chat-error', { message: 'Only image and video files are allowed' });
+          return;
+        }
+
+        // Validate file data
+        if (!fileData) {
+          console.error('❌ [SocketService] No file data provided:', {
+            fileName,
+            fileType,
+            fileSize
+          });
+          socket.emit('chat-error', { message: 'No file data provided' });
+          return;
+        }
+
+        console.log(`📤 [SocketService] Media validation passed: ${fileName} (${(fileSize / 1024 / 1024).toFixed(2)}MB), type: ${fileType}, data size: ${fileData.length}`);
+
+        // For large files, send acknowledgment first to prevent timeout
+        if (fileSize > 25 * 1024 * 1024) { // Files larger than 25MB
+          console.log('📤 [SocketService] Large file detected, sending acknowledgment first');
+          socket.emit('media-upload-acknowledged', {
+            fileName,
+            fileSize,
+            status: 'processing'
+          });
+        }
+
+        // Create media message object with the actual file data
+        const mediaMessage = {
+          id: `media_${Date.now()}_${Math.random().toString(36).substr(2, 9)}_${socket.id.slice(-6)}`,
+          ticketId,
+          message: '', // Remove descriptive text - only show media
+          senderId,
+          senderEmail,
+          senderRole,
+          timestamp: new Date(),
+          socketId: socket.id,
+          media: {
+            type: isImage ? 'image' : 'video',
+            name: fileName,
+            size: fileSize,
+            mimeType: fileType,
+            data: fileData, // Include the actual file data for device-to-device sharing
+            uploadId: `upload_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+          }
+        };
+
+        // Log media upload details
+        logger.info(`Media shared in ticket ${ticketId} by ${senderEmail} (${senderRole}): ${fileName} (${fileType}, ${(fileSize / 1024 / 1024).toFixed(2)}MB) - Device to device sharing`);
+        
+        // Log additional details for debugging
+        console.log(`📤 [SocketService] Media message created:`, {
+          id: mediaMessage.id,
+          type: mediaMessage.media.type,
+          name: mediaMessage.media.name,
+          size: mediaMessage.media.size,
+          mimeType: mediaMessage.media.mimeType,
+          hasData: !!mediaMessage.media.data,
+          dataLength: mediaMessage.media.data?.length || 0
+        });
+
+        // Check if ticket room exists
+        if (!ticketRooms.has(ticketId)) {
+          console.error('❌ [SocketService] Ticket room not found:', ticketId);
+          socket.emit('chat-error', { message: 'Ticket room not found' });
+          return;
+        }
+
+        // Get users in ticket room
+        const usersInTicket = ticketRooms.get(ticketId);
+        console.log(`📤 [SocketService] Broadcasting to ${usersInTicket.size} users in ticket ${ticketId}`);
+
+        // Broadcast media message to all users in the ticket room
+        io.to(`ticket-${ticketId}`).emit('new-ticket-message', mediaMessage);
+
+        // Update last activity
+        userData.lastActivity = new Date();
+        chatConnections.set(socket.id, userData);
+
+        // Send upload success confirmation
+        const successResponse = {
+          messageId: mediaMessage.id,
+          uploadId: mediaMessage.media.uploadId,
+          fileName: fileName,
+          fileType: fileType,
+          fileSize: fileSize
+        };
+        
+        console.log('✅ [SocketService] Sending upload success response:', successResponse);
+        socket.emit('media-upload-success', successResponse);
+
+        console.log(`✅ [SocketService] Media message broadcasted successfully to ticket ${ticketId}`);
+
+      } catch (error) {
+        logger.error('Error in upload-media:', error);
+        console.error('❌ [SocketService] Error in upload-media:', error);
+        console.error('❌ [SocketService] Error stack:', error.stack);
+        socket.emit('chat-error', { message: 'Failed to upload media' });
       }
     });
 

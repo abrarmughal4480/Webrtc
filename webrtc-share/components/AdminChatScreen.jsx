@@ -1,6 +1,6 @@
 "use client"
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, X, User, Shield, Clock, MessageCircle, Wifi, WifiOff } from 'lucide-react';
+import { Send, X, User, Shield, Clock, MessageCircle, Wifi, WifiOff, Paperclip } from 'lucide-react';
 import { useUser } from '@/provider/UserProvider';
 import useChatSocket from '@/hooks/useChatSocket';
 
@@ -9,9 +9,16 @@ const AdminChatScreen = ({ isOpen, onClose, ticketInfo }) => {
   const [newMessage, setNewMessage] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearch, setShowSearch] = useState(false);
+  const [selectedMedia, setSelectedMedia] = useState(null);
+  const [expandedMedia, setExpandedMedia] = useState(null);
+  const [imageZoom, setImageZoom] = useState(1);
+  const [uploadProgress, setUploadProgress] = useState(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [progressPercent, setProgressPercent] = useState(0);
   
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+  const mediaInputRef = useRef(null);
 
   // Use WebSocket chat hook
   const {
@@ -21,11 +28,114 @@ const AdminChatScreen = ({ isOpen, onClose, ticketInfo }) => {
     setMessages,
     onlineUsers,
     sendMessage,
+    sendMediaMessage,
     markMessageAsRead,
     getTicketInfo,
     clearTicketMessages,
     exportMessages
   } = useChatSocket(ticketInfo?._id);
+
+  // Handle incoming media messages
+  const handleIncomingMediaMessage = useCallback((messageData) => {
+    if (messageData.media) {
+      // Convert incoming message format to local format
+      const mediaMessage = {
+        id: messageData.id,
+        text: messageData.message || messageData.text,
+        sender: messageData.senderRole === 'admin' ? 'admin' : 'user',
+        timestamp: new Date(messageData.timestamp),
+        media: {
+          type: messageData.media.type,
+          name: messageData.media.name,
+          size: messageData.media.size,
+          mimeType: messageData.media.mimeType,
+          url: messageData.media.url || null,
+          serverId: messageData.id
+        }
+      };
+      
+      setMessages(prev => {
+        // Check if message already exists
+        const exists = prev.find(msg => msg.id === mediaMessage.id);
+        if (!exists) {
+          console.log('✅ Adding incoming media message:', mediaMessage);
+          return [...prev, mediaMessage];
+        }
+        return prev;
+      });
+    }
+  }, [setMessages]);
+
+  // Listen for incoming media messages from the hook
+  useEffect(() => {
+    if (isConnected) {
+      // The useChatSocket hook already handles incoming messages
+      // We just need to ensure media messages are processed correctly
+      console.log('🔌 Chat connected, listening for media messages...');
+      
+      // Note: We don't need to listen for new-ticket-message events here
+      // because the useChatSocket hook already handles them internally
+      // This prevents duplicate message handling
+    }
+  }, [isConnected]);
+
+  // Listen for media upload acknowledgment and success
+  useEffect(() => {
+    if (isConnected) {
+      // Listen for media upload acknowledgment from the hook
+      const handleMediaAcknowledged = (data) => {
+        console.log('📤 [AdminChatScreen] Media upload acknowledged:', data);
+        setProgressPercent(100); // Go directly to 100% when acknowledged
+        setUploadProgress({
+          status: 'acknowledged',
+          fileName: data.fileName,
+          fileSize: data.fileSize,
+          message: 'File received by server, processing...'
+        });
+      };
+
+      // Listen for media upload success from the hook
+      const handleMediaSuccess = (data) => {
+        console.log('✅ [AdminChatScreen] Media upload confirmed by server:', data);
+        
+        // Update the local message with the server-generated ID
+        setMessages(prev => prev.map(msg => {
+          if (msg.id && msg.id.startsWith('temp_') && msg.media && msg.media.isLocal) {
+            // This is a local media message, update it with server info
+            return {
+              ...msg,
+              id: data.messageId,
+              serverConfirmed: true,
+              media: {
+                ...msg.media,
+                isLocal: false,
+                serverId: data.messageId,
+                url: data.mediaUrl || msg.media.localUrl // Use server URL if available
+              }
+            };
+          }
+          return msg;
+        }));
+        
+        // Progress is already at 100% from acknowledgment, just clear everything
+        setTimeout(() => {
+          setUploadProgress(null);
+          setIsUploading(false);
+          setProgressPercent(0);
+          removeSelectedMedia();
+        }, 1000); // Show 100% for 1 second before clearing
+      };
+
+      // We'll use custom events since the hook handles the socket events
+      window.addEventListener('media-upload-acknowledged', handleMediaAcknowledged);
+      window.addEventListener('media-upload-success', handleMediaSuccess);
+      
+      return () => {
+        window.removeEventListener('media-upload-acknowledged', handleMediaAcknowledged);
+        window.removeEventListener('media-upload-success', handleMediaSuccess);
+      };
+    }
+  }, [isConnected, setMessages]);
 
   // Auto-detect user role from UserProvider
   const isAdminRole = user?.role === 'admin' || user?.role === 'superadmin' || user?.role === 'company-admin';
@@ -57,7 +167,16 @@ const AdminChatScreen = ({ isOpen, onClose, ticketInfo }) => {
     console.log('📨 [AdminChatScreen] Messages updated:', {
       count: messages.length,
       lastMessage: messages[messages.length - 1],
-      allMessages: messages
+      allMessages: messages,
+      mediaMessages: messages.filter(msg => msg.media).map(msg => ({
+        id: msg.id,
+        type: msg.media?.type,
+        name: msg.media?.name,
+        hasLocalUrl: !!msg.media?.localUrl,
+        hasBase64: !!msg.media?.base64Data,
+        hasUrl: !!msg.media?.url,
+        isLocal: msg.media?.isLocal
+      }))
     });
   }, [messages]);
 
@@ -157,7 +276,285 @@ const AdminChatScreen = ({ isOpen, onClose, ticketInfo }) => {
     reader.readAsText(file);
   };
 
+  // Handle media file selection
+  const handleMediaSelect = (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
 
+    // Check file type
+    const isImage = file.type.startsWith('image/');
+    const isVideo = file.type.startsWith('video/');
+    
+    if (!isImage && !isVideo) {
+      alert('Please select an image or video file');
+      return;
+    }
+
+    // Check file size (max 50MB)
+    if (file.size > 50 * 1024 * 1024) {
+      alert('File size must be less than 50MB');
+      return;
+    }
+
+    // Convert file to base64 for persistent storage
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const base64Data = e.target.result;
+      
+      setSelectedMedia({
+        file,
+        type: isImage ? 'image' : 'video',
+        preview: base64Data,
+        base64Data: base64Data, // Store base64 data for persistence
+        mimeType: file.type
+      });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Remove selected media
+  const removeSelectedMedia = () => {
+    setSelectedMedia(null);
+    setUploadProgress(null);
+    setIsUploading(false);
+    setProgressPercent(0);
+    if (window.currentProgressInterval) {
+      clearInterval(window.currentProgressInterval);
+      window.currentProgressInterval = null;
+    }
+    if (mediaInputRef.current) {
+      mediaInputRef.current.value = '';
+    }
+  };
+
+  // Handle media expansion
+  const handleMediaExpand = (media) => {
+    setExpandedMedia(media);
+  };
+
+  // Close expanded media
+  const closeExpandedMedia = () => {
+    setExpandedMedia(null);
+    setImageZoom(1); // Reset zoom when closing
+  };
+
+  // Handle zoom in
+  const handleZoomIn = () => {
+    setImageZoom(prev => Math.min(prev + 0.5, 3)); // Max zoom 3x
+  };
+
+  // Handle zoom out
+  const handleZoomOut = () => {
+    setImageZoom(prev => Math.max(prev - 0.5, 0.5)); // Min zoom 0.5x
+  };
+
+  // Handle ESC key
+  useEffect(() => {
+    const handleEscKey = (event) => {
+      if (event.key === 'Escape' && expandedMedia) {
+        closeExpandedMedia();
+      }
+    };
+
+    if (expandedMedia) {
+      document.addEventListener('keydown', handleEscKey);
+    }
+
+    return () => {
+      document.removeEventListener('keydown', handleEscKey);
+    };
+  }, [expandedMedia]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      // No need to cleanup blob URLs since we're using base64
+    };
+  }, []);
+
+  // Handle send message with media
+  const handleSendMessage = (e) => {
+    e.preventDefault();
+    if (!newMessage.trim() && !selectedMedia) return;
+
+    console.log('🚀 [AdminChatScreen] Sending message with media:', {
+      hasText: !!newMessage.trim(),
+      hasMedia: !!selectedMedia,
+      mediaType: selectedMedia?.type,
+      fileName: selectedMedia?.file?.name,
+      isConnected,
+      userRole
+    });
+
+    // If not connected, queue the message locally
+    if (!isConnected) {
+      console.log('⚠️ [AdminChatScreen] Not connected, saving message locally');
+      const offlineMessage = {
+        id: `offline_${Date.now()}`,
+        text: newMessage.trim() || '',
+        sender: userRole === 'admin' ? 'admin' : 'user',
+        timestamp: new Date(),
+        isOffline: true,
+        pending: true,
+        media: selectedMedia ? {
+          type: selectedMedia.type,
+          name: selectedMedia.file.name,
+          size: selectedMedia.file.size
+        } : null
+      };
+      
+      setMessages(prev => [...prev, offlineMessage]);
+      setNewMessage('');
+      removeSelectedMedia();
+      
+      if (inputRef.current) {
+        inputRef.current.style.height = '24px';
+        setTimeout(() => {
+          inputRef.current.focus();
+        }, 100);
+      }
+      
+      // Show offline message indicator
+      alert('Message saved locally. It will be sent when you reconnect to the chat.');
+      return;
+    }
+
+    // Send message with media if available
+    if (selectedMedia) {
+      console.log('📤 [AdminChatScreen] Sending media message:', selectedMedia);
+      
+      // Check file size and show warning for large files
+      const fileSizeMB = selectedMedia.file.size / (1024 * 1024);
+      if (fileSizeMB > 25) {
+        const proceed = confirm(`Warning: This file is ${fileSizeMB.toFixed(1)}MB. Large files may take longer to send and could cause connection issues. Do you want to continue?`);
+        if (!proceed) {
+          return;
+        }
+      }
+      
+      // Set uploading state
+      setIsUploading(true);
+      setProgressPercent(0); // Start at 0%
+      setUploadProgress({
+        status: 'uploading',
+        fileName: selectedMedia.file.name,
+        fileSize: selectedMedia.file.size,
+        message: 'Converting file...'
+      });
+      
+      // Simulate progress from 0% to 90%
+      const progressInterval = setInterval(() => {
+        setProgressPercent(prev => {
+          if (prev >= 90) {
+            clearInterval(progressInterval);
+            return 90; // Stop at 90% until server confirms
+          }
+          return prev + Math.random() * 10 + 5; // Increment by 5-15%
+        });
+      }, 300);
+      
+      // Store interval ID for cleanup
+      window.currentProgressInterval = progressInterval;
+      
+      // Convert file to base64 for direct WebSocket transmission
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const base64Data = e.target.result;
+        console.log('📤 [AdminChatScreen] File converted to base64, size:', base64Data.length);
+        
+        // Update progress
+        setUploadProgress(prev => ({
+          ...prev,
+          message: 'Sending to server...'
+        }));
+        
+        // Send media message through WebSocket with actual file data
+        const mediaData = {
+          fileName: selectedMedia.file.name,
+          fileType: selectedMedia.file.type,
+          fileSize: selectedMedia.file.size,
+          fileData: base64Data // Send the actual file data
+        };
+
+        const success = sendMediaMessage(mediaData);
+        console.log('📤 [AdminChatScreen] Media send result:', success);
+        
+        if (success) {
+                  // Add media message to local messages immediately with a temporary ID
+        const tempId = `temp_${Date.now()}`;
+        const mediaMessage = {
+          id: tempId,
+          text: '', // Remove the descriptive text
+          sender: userRole === 'admin' ? 'admin' : 'user',
+          timestamp: new Date(),
+          media: {
+            type: selectedMedia.type,
+            name: selectedMedia.file.name,
+            size: selectedMedia.file.size,
+            mimeType: selectedMedia.file.type,
+            localUrl: selectedMedia.base64Data, // Use base64 for local preview
+            isLocal: true, // Mark as local message
+            base64Data: selectedMedia.base64Data // Store base64 data for display
+          }
+        };
+          
+          console.log('📝 [AdminChatScreen] Adding local media message:', mediaMessage);
+          setMessages(prev => [...prev, mediaMessage]);
+          
+          // Store the temp ID to update it later when server confirms
+          setSelectedMedia(prev => prev ? { ...prev, tempMessageId: tempId } : null);
+          
+          // Update progress
+          setUploadProgress(prev => ({
+            ...prev,
+            message: 'Waiting for server confirmation...'
+          }));
+          
+          // Hide the preview immediately after sending
+          setSelectedMedia(null);
+        } else {
+          console.error('❌ [AdminChatScreen] Failed to send media message');
+          alert('Failed to send media message. Please try again.');
+          setIsUploading(false);
+          setUploadProgress(null);
+        }
+      };
+      
+      reader.onerror = (error) => {
+        console.error('❌ [AdminChatScreen] Error reading file:', error);
+        alert('Error reading file. Please try again.');
+        setIsUploading(false);
+        setUploadProgress(null);
+        setProgressPercent(0);
+        if (window.currentProgressInterval) {
+          clearInterval(window.currentProgressInterval);
+          window.currentProgressInterval = null;
+        }
+      };
+      
+      // Read file as base64
+      reader.readAsDataURL(selectedMedia.file);
+      
+    } else if (newMessage.trim()) {
+      // Send text message
+      console.log('📤 [AdminChatScreen] Sending text message:', newMessage.trim());
+      const success = sendMessage(newMessage.trim());
+      if (success) {
+        setNewMessage('');
+      }
+    }
+
+    // Clear input but keep media for now (will be cleared when server confirms)
+    setNewMessage('');
+    
+    if (inputRef.current) {
+      inputRef.current.style.height = '24px';
+      // Auto focus after sending message
+      setTimeout(() => {
+        inputRef.current.focus();
+      }, 100);
+    }
+  };
 
   // Save messages to storage when component unmounts or chat closes
   useEffect(() => {
@@ -176,10 +573,6 @@ const AdminChatScreen = ({ isOpen, onClose, ticketInfo }) => {
       }
     };
   }, []);
-
-
-
-
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -220,52 +613,6 @@ const AdminChatScreen = ({ isOpen, onClose, ticketInfo }) => {
     }
   }, []);
 
-  const handleSendMessage = (e) => {
-    e.preventDefault();
-    if (!newMessage.trim()) return;
-
-    // If not connected, queue the message locally
-    if (!isConnected) {
-      const offlineMessage = {
-        id: `offline_${Date.now()}`,
-        text: newMessage.trim(),
-        sender: userRole === 'admin' ? 'admin' : 'user',
-        timestamp: new Date(),
-        isOffline: true,
-        pending: true
-      };
-      
-      setMessages(prev => [...prev, offlineMessage]);
-      setNewMessage('');
-      
-      if (inputRef.current) {
-        inputRef.current.style.height = '24px';
-        setTimeout(() => {
-          inputRef.current.focus();
-        }, 100);
-      }
-      
-      // Show offline message indicator
-      alert('Message saved locally. It will be sent when you reconnect to the chat.');
-      return;
-    }
-
-    const success = sendMessage(newMessage.trim());
-    if (success) {
-      setNewMessage('');
-      
-      if (inputRef.current) {
-        inputRef.current.style.height = '24px';
-        // Auto focus after sending message
-        setTimeout(() => {
-          inputRef.current.focus();
-        }, 100);
-      }
-
-      // No auto-response - let admins respond manually
-    }
-  };
-
   const handleInputChange = useCallback((e) => {
     setNewMessage(e.target.value);
     // Debounce the height adjustment to prevent excessive calls
@@ -274,8 +621,6 @@ const AdminChatScreen = ({ isOpen, onClose, ticketInfo }) => {
     }
     window.heightAdjustTimeout = setTimeout(adjustTextareaHeight, 100);
   }, [adjustTextareaHeight]);
-
-
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -456,80 +801,252 @@ const AdminChatScreen = ({ isOpen, onClose, ticketInfo }) => {
         <div className="flex-1 relative overflow-y-auto pb-24 md:pb-32">
           <div className="max-w-4xl mx-auto w-full px-4 md:px-4 lg:px-6 py-4 md:py-4 lg:py-8">
             <div className="space-y-4 md:space-y-4 lg:space-y-6">
-              {filteredMessages.map((message) => (
-                <div
-                  key={message.id}
-                  className={`group animate-in slide-in-from-bottom-2 duration-500 ${
-                    // For admin view: admin messages on right (like their own), client messages on left
-                    // For client view: client messages on right (like their own), admin messages on left
-                    (userRole === 'admin' && message.sender === 'admin') || 
-                    (userRole === 'client' && message.sender === 'user') 
-                      ? 'flex justify-end' : 'flex justify-start'
-                  }`}
-                >
-                  {(userRole === 'admin' && message.sender === 'admin') || 
-                   (userRole === 'client' && message.sender === 'user') ? (
-                    // Current user's messages on the right (admin's own messages or client's own messages)
-                    <div className="flex justify-end">
-                      <div className={`px-3 py-2.5 md:px-4 md:py-3 lg:px-5 lg:py-3 rounded-2xl md:rounded-3xl rounded-br-lg shadow-xl transition-all duration-300 relative group max-w-[80%] ${
-                        userRole === 'admin' 
-                          ? 'bg-purple-600 text-white shadow-purple-600/25 hover:shadow-2xl hover:shadow-purple-600/30' 
-                          : 'bg-purple-600 text-white shadow-purple-600/25 hover:shadow-2xl hover:shadow-purple-600/30'
-                      }`}>
-                        <p className="text-base md:text-base leading-relaxed font-medium text-left">
-                          {searchQuery && message.text.toLowerCase().includes(searchQuery.toLowerCase()) ? (
-                            message.text.split(new RegExp(`(${searchQuery})`, 'gi')).map((part, index) => 
-                              part.toLowerCase() === searchQuery.toLowerCase() ? (
-                                <mark key={index} className="bg-yellow-300 text-black px-1 rounded">{part}</mark>
-                              ) : part
-                            )
-                          ) : (
-                            message.text
+              {filteredMessages.map((message) => {
+                // Determine message sender for proper positioning
+                const isCurrentUserMessage = 
+                  (userRole === 'admin' && message.sender === 'admin') || 
+                  (userRole === 'client' && message.sender === 'user') ||
+                  // Handle media messages with proper sender detection
+                  (message.media && (
+                    (userRole === 'admin' && message.senderRole === 'admin') ||
+                    (userRole === 'client' && message.senderRole === 'user') ||
+                    (userRole === 'admin' && message.sender === 'admin') ||
+                    (userRole === 'client' && message.sender === 'user')
+                  ));
+
+                return (
+                  <div
+                    key={message.id}
+                    className={`group animate-in slide-in-from-bottom-2 duration-500 ${
+                      isCurrentUserMessage ? 'flex justify-end' : 'flex justify-start'
+                    }`}
+                  >
+                    {isCurrentUserMessage ? (
+                      // Current user's messages on the right (like WhatsApp)
+                      <div className="flex flex-col items-end">
+                        <div className={`rounded-2xl md:rounded-3xl rounded-br-lg shadow-xl transition-all duration-300 relative group max-w-[80%] ${
+                          message.text 
+                            ? 'px-3 py-2.5 md:px-4 md:py-3 lg:px-5 lg:py-3 bg-purple-500 text-white shadow-purple-300/25 hover:shadow-2xl hover:shadow-purple-300/30 flex justify-center items-center' 
+                            : 'shadow-gray-200/25 hover:shadow-2xl hover:shadow-gray-200/30'
+                        }`}>
+                          
+                          {/* Media Display */}
+                          {message.media && (
+                            <div className={`${message.text ? "mb-3" : ""} relative group/media`}>
+                              {message.media.type === 'image' ? (
+                                <img 
+                                  src={message.media.localUrl || message.media.url || message.media.preview || message.media.base64Data} 
+                                  alt={message.media.name}
+                                  className="w-80 h-48 rounded-lg object-cover transition-transform duration-300 group-hover/media:scale-[1.02] cursor-pointer hover:opacity-90"
+                                  onClick={() => handleMediaExpand(message.media)}
+                                  onError={(e) => {
+                                    console.log('Image failed to load:', e.target.src);
+                                    e.target.style.display = 'none';
+                                    const fallback = e.target.nextSibling;
+                                    if (fallback) fallback.style.display = 'block';
+                                  }}
+                                />
+                              ) : message.media.type === 'video' ? (
+                                <video 
+                                  src={message.media.localUrl || message.media.url || message.media.preview || message.media.base64Data}
+                                  className="w-80 h-48 rounded-lg object-cover transition-transform duration-300 group-hover/media:scale-[1.02] cursor-pointer hover:opacity-90"
+                                  onClick={() => handleMediaExpand(message.media)}
+                                  onError={(e) => {
+                                    console.log('Video failed to load:', e.target.src);
+                                    e.target.style.display = 'none';
+                                    const fallback = e.target.nextSibling;
+                                    if (fallback) fallback.style.display = 'block';
+                                  }}
+                                />
+                              ) : null}
+                              
+                              {/* Upload Progress for Local Media */}
+                              {message.media.isLocal && (
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                  <div className="relative w-20 h-20">
+                                    <svg className="w-20 h-20 transform -rotate-90" viewBox="0 0 36 36">
+                                      <path
+                                        d="M18 2.0845
+                                          a 15.9155 15.9155 0 0 1 0 31.831
+                                          a 15.9155 15.9155 0 0 1 0 -31.831"
+                                        fill="none"
+                                        stroke="#e5e7eb"
+                                        strokeWidth="3"
+                                      />
+                                      <path
+                                        d="M18 2.0845
+                                          a 15.9155 15.9155 0 0 1 0 31.831
+                                          a 15.9155 15.9155 0 0 1 0 -31.831"
+                                        fill="none"
+                                        stroke="#3b82f6"
+                                        strokeWidth="3"
+                                        strokeDasharray="100, 100"
+                                        strokeDashoffset={100 - progressPercent}
+                                        className="transition-all duration-300 ease-out"
+                                      />
+                                    </svg>
+                                    <div className="absolute inset-0 flex items-center justify-center">
+                                      <span className="text-sm font-medium text-white">{Math.round(progressPercent)}%</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                              
+                              {/* Fallback for failed media */}
+                              <div className="hidden bg-gray-200 p-4 rounded-lg text-center">
+                                <p className="text-sm text-gray-600">
+                                  {message.media.type === 'image' ? 'Image' : 'Video'} could not be loaded
+                                </p>
+                                <p className="text-xs text-gray-500 mt-1">{message.media.name}</p>
+                                <p className="text-xs text-gray-400 mt-1">
+                                  {(message.media.size / 1024 / 1024).toFixed(2)} MB
+                                </p>
+                              </div>
+                            </div>
                           )}
-                        </p>
-                        {message.isOffline && (
-                          <div className="text-xs text-purple-200 mt-1 flex items-center gap-1">
-                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            Offline
-                          </div>
-                        )}
-                        <div className="absolute inset-0 bg-purple-500/20 rounded-2xl md:rounded-3xl rounded-br-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                      </div>
-                      <div className="flex justify-end mt-2 md:mt-2 ml-2">
-                        <span className="text-sm text-gray-500">
-                          {formatTime(message.timestamp)}
-                        </span>
-                      </div>
-                    </div>
-                  ) : (
-                    // Other person's messages on the left
-                    <div className="flex justify-start">
-                      <div className="bg-gray-100 text-gray-800 px-3 py-2.5 md:px-4 md:py-3 lg:px-5 lg:py-3 rounded-2xl md:rounded-3xl rounded-bl-lg shadow-xl shadow-gray-200/25 border border-gray-200 hover:shadow-2xl hover:shadow-gray-200/30 transition-all duration-300 relative group max-w-[80%]">
-                        <p className="text-base md:text-base leading-relaxed text-left">
-                          {searchQuery && message.text.toLowerCase().includes(searchQuery.toLowerCase()) ? (
-                            message.text.split(new RegExp(`(${searchQuery})`, 'gi')).map((part, index) => 
-                              part.toLowerCase() === searchQuery.toLowerCase() ? (
-                                <mark key={index} className="bg-yellow-300 text-black px-1 rounded">{part}</mark>
-                              ) : part
-                            )
-                          ) : (
-                            message.text
+
+                          {/* Message Text */}
+                          {message.text && (
+                            <p className="text-base md:text-base leading-relaxed font-medium text-center">
+                              {searchQuery && message.text.toLowerCase().includes(searchQuery.toLowerCase()) ? (
+                                message.text.split(new RegExp(`(${searchQuery})`, 'gi')).map((part, index) => 
+                                  part.toLowerCase() === searchQuery.toLowerCase() ? (
+                                    <mark key={index} className="bg-yellow-300 text-black px-1 rounded">{part}</mark>
+                                  ) : part
+                                )
+                              ) : (
+                                message.text
+                              )}
+                            </p>
                           )}
-                        </p>
+
+
+                          {message.isOffline && (
+                            <div className="text-xs text-purple-200 mt-1 flex items-center gap-1">
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                              Offline
+                            </div>
+                          )}
+                        </div>
+                        <div className="mt-2">
+                          <span className="text-sm text-gray-500">
+                            {formatTime(message.timestamp)}
+                          </span>
+                        </div>
                       </div>
-                      
-                      {/* Time */}
-                      <div className="flex items-center mt-2 md:mt-2 ml-2">
-                        <span className="text-sm text-gray-500">
-                          {formatTime(message.timestamp)}
-                        </span>
+                    ) : (
+                      // Other person's messages on the left
+                      <div className="flex flex-col items-start">
+                        <div className={`rounded-2xl md:rounded-3xl rounded-bl-lg shadow-xl shadow-gray-200/25 border border-gray-200 hover:shadow-2xl hover:shadow-gray-200/30 transition-all duration-300 relative group max-w-[80%] ${
+                          message.text ? 'px-3 py-2.5 md:px-4 md:py-3 lg:px-5 lg:py-3 bg-gray-100 text-gray-800 text-center flex justify-center items-center' : ''
+                        }`}>
+                          
+                          {/* Media Display */}
+                          {message.media && (
+                            <div className={`${message.text ? "mb-3" : ""} relative group/media`}>
+                              {message.media.type === 'image' ? (
+                                <img 
+                                  src={message.media.url || message.media.localUrl || message.media.preview || message.media.base64Data} 
+                                  alt={message.media.name}
+                                  className="w-80 h-48 rounded-lg object-cover transition-transform duration-300 group-hover/media:scale-[1.02] cursor-pointer hover:opacity-90"
+                                  onClick={() => handleMediaExpand(message.media)}
+                                  onError={(e) => {
+                                    console.log('Image failed to load:', e.target.src);
+                                    e.target.style.display = 'none';
+                                    const fallback = e.target.nextSibling;
+                                    if (fallback) fallback.style.display = 'block';
+                                  }}
+                                />
+                              ) : message.media.type === 'video' ? (
+                                <video 
+                                  src={message.media.url || message.media.localUrl || message.media.preview || message.media.base64Data}
+                                  className="w-80 h-48 rounded-lg object-cover transition-transform duration-300 group-hover/media:scale-[1.02] cursor-pointer hover:opacity-90"
+                                  onClick={() => handleMediaExpand(message.media)}
+                                  onError={(e) => {
+                                    console.log('Video failed to load:', e.target.src);
+                                    e.target.style.display = 'none';
+                                    const fallback = e.target.nextSibling;
+                                    if (fallback) fallback.style.display = 'block';
+                                  }}
+                                />
+                              ) : null}
+                              
+                              {/* Upload Progress for Local Media */}
+                              {message.media.isLocal && (
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                  <div className="relative w-20 h-20">
+                                    <svg className="w-20 h-20 transform -rotate-90" viewBox="0 0 36 36">
+                                      <path
+                                        d="M18 2.0845
+                                          a 15.9155 15.9155 0 0 1 0 31.831
+                                          a 15.9155 15.9155 0 0 1 0 -31.831"
+                                        fill="none"
+                                        stroke="#e5e7eb"
+                                        strokeWidth="3"
+                                      />
+                                      <path
+                                        d="M18 2.0845
+                                          a 15.9155 15.9155 0 0 1 0 31.831
+                                          a 15.9155 15.9155 0 0 1 0 -31.831"
+                                        fill="none"
+                                        stroke="#3b82f6"
+                                        strokeWidth="3"
+                                        strokeDasharray="100, 100"
+                                        strokeDashoffset={100 - progressPercent}
+                                        className="transition-all duration-300 ease-out"
+                                      />
+                                    </svg>
+                                    <div className="absolute inset-0 flex items-center justify-center">
+                                      <span className="text-sm font-medium text-white">{Math.round(progressPercent)}%</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                              
+                              {/* Fallback for failed media */}
+                              <div className="hidden bg-gray-200 p-4 rounded-lg text-center">
+                                <p className="text-sm text-gray-600">
+                                  {message.media.type === 'image' ? 'Image' : 'Video'} could not be loaded
+                                </p>
+                                <p className="text-xs text-gray-500 mt-1">{message.media.name}</p>
+                                <p className="text-xs text-gray-500 mt-1">
+                                  {(message.media.size / 1024 / 1024).toFixed(2)} MB
+                                </p>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Message Text */}
+                          {message.text && (
+                            <p className="text-base md:text-base leading-relaxed text-center">
+                              {searchQuery && message.text.toLowerCase().includes(searchQuery.toLowerCase()) ? (
+                                message.text.split(new RegExp(`(${searchQuery})`, 'gi')).map((part, index) => 
+                                  part.toLowerCase() === searchQuery.toLowerCase() ? (
+                                    <mark key={index} className="bg-yellow-300 text-black px-1 rounded">{part}</mark>
+                                  ) : part
+                                )
+                              ) : (
+                                message.text
+                              )}
+                            </p>
+                          )}
+
+
+                        </div>
+                        
+                        {/* Time */}
+                        <div className="mt-2 ml-2">
+                          <span className="text-sm text-gray-500">
+                            {formatTime(message.timestamp)}
+                          </span>
+                        </div>
                       </div>
-                    </div>
-                  )}
-                </div>
-              ))}
+                    )}
+                  </div>
+                );
+              })}
 
 
 
@@ -543,7 +1060,64 @@ const AdminChatScreen = ({ isOpen, onClose, ticketInfo }) => {
           <div className="relative max-w-4xl mx-auto">
             <div className="absolute inset-0 bg-gradient-to-r from-white via-white to-white rounded-2xl md:rounded-3xl shadow-2xl shadow-slate-300/50 backdrop-blur-xl border border-white/50"></div>
             <div className="relative bg-white/90 rounded-2xl md:rounded-3xl shadow-2xl backdrop-blur-xl border border-slate-200/50 p-2 hover:shadow-3xl transition-all duration-300">
+              
+              {/* Selected Media Preview */}
+              {selectedMedia && (
+                <div className="px-4 pt-3 pb-2 border-b border-gray-200">
+                  <div className="flex items-center gap-3">
+                    <div className="relative">
+                      {selectedMedia.type === 'image' ? (
+                        <img 
+                          src={selectedMedia.preview} 
+                          alt="Preview" 
+                          className="w-16 h-16 object-cover rounded-lg"
+                        />
+                      ) : (
+                        <video 
+                          src={selectedMedia.preview} 
+                          className="w-16 h-16 object-cover rounded-lg"
+                          muted
+                        />
+                      )}
+                      <button
+                        onClick={removeSelectedMedia}
+                        disabled={isUploading}
+                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center hover:bg-red-600 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate">
+                        {selectedMedia.file.name}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {(selectedMedia.file.size / 1024 / 1024).toFixed(2)} MB
+                      </p>
+
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="flex items-end space-x-3 md:space-x-4 px-4 md:px-6 py-3 md:py-4">
+                {/* Media Attachment Button */}
+                <button
+                  onClick={() => mediaInputRef.current?.click()}
+                  disabled={!isConnected}
+                  className="p-2 md:p-3 text-gray-500 hover:text-purple-600 disabled:text-gray-300 transition-colors duration-200 hover:bg-purple-50 rounded-lg"
+                  title="Attach media (images/videos)"
+                >
+                  <Paperclip className="w-5 h-5 md:w-6 md:h-6" />
+                </button>
+                <input
+                  ref={mediaInputRef}
+                  type="file"
+                  accept="image/*,video/*"
+                  onChange={handleMediaSelect}
+                  className="hidden"
+                />
+
                 <div className="flex-1 min-w-0 relative">
                   <textarea
                     ref={inputRef}
@@ -562,7 +1136,7 @@ const AdminChatScreen = ({ isOpen, onClose, ticketInfo }) => {
                 </div>
                 <button 
                   onClick={handleSendMessage}
-                                      disabled={!newMessage.trim() || !isConnected}
+                  disabled={(!newMessage.trim() && !selectedMedia) || !isConnected}
                   className="group bg-gradient-to-r from-[#9452FF] to-[#8a42fc] hover:from-[#8a42fc] hover:to-[#7c3aed] disabled:from-slate-300 disabled:to-slate-300 text-white p-3 md:p-4 rounded-xl md:rounded-2xl transition-all duration-300 flex items-center justify-center shadow-lg shadow-[#9452FF]/25 hover:shadow-xl hover:shadow-[#9452FF]/30 hover:scale-105 active:scale-105 disabled:shadow-none disabled:scale-100"
                 >
                   <svg className="w-5 h-5 md:w-6 md:h-6 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -574,6 +1148,77 @@ const AdminChatScreen = ({ isOpen, onClose, ticketInfo }) => {
           </div>
         </div>
       </div>
+
+      {/* Expanded Media Modal */}
+      {expandedMedia && (
+        <div className="fixed inset-0 bg-black/80 z-[60] flex items-center justify-center p-4" onClick={closeExpandedMedia}>
+          <div className="relative max-w-4xl max-h-[90vh] w-full h-full flex items-center justify-center">
+            <div className="relative w-full h-full flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
+              {expandedMedia.type === 'image' ? (
+                <div className="relative">
+                  <img 
+                    src={expandedMedia.localUrl || expandedMedia.url || expandedMedia.preview || expandedMedia.base64Data} 
+                    alt={expandedMedia.name}
+                    className="max-w-full max-h-full object-contain rounded-lg shadow-2xl transition-transform duration-300"
+                    style={{ transform: `scale(${imageZoom})` }}
+                  />
+                  {/* Close button */}
+                  <button
+                    onClick={closeExpandedMedia}
+                    className="absolute top-2 right-2 z-10 bg-black/50 hover:bg-black/70 text-white p-2 rounded-full backdrop-blur-sm transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                  
+                  {/* Zoom controls */}
+                  <div className="absolute top-2 left-2 z-10 flex gap-2">
+                    <button
+                      onClick={handleZoomOut}
+                      disabled={imageZoom <= 0.5}
+                      className="bg-black/50 hover:bg-black/70 disabled:bg-black/20 disabled:cursor-not-allowed text-white p-2 rounded-full backdrop-blur-sm transition-colors"
+                      title="Zoom Out"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={handleZoomIn}
+                      disabled={imageZoom >= 3}
+                      className="bg-black/50 hover:bg-black/70 disabled:bg-black/20 disabled:cursor-not-allowed text-white p-2 rounded-full backdrop-blur-sm transition-colors"
+                      title="Zoom In"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
+                    </button>
+                  </div>
+                  
+                  {/* Zoom level indicator */}
+                  <div className="absolute bottom-2 left-2 z-10 bg-black/50 text-white px-2 py-1 rounded text-sm backdrop-blur-sm">
+                    {Math.round(imageZoom * 100)}%
+                  </div>
+                </div>
+              ) : expandedMedia.type === 'video' ? (
+                <div className="relative">
+                  <video 
+                    src={expandedMedia.localUrl || expandedMedia.url || expandedMedia.preview || expandedMedia.base64Data}
+                    controls
+                    autoPlay
+                    className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+                  />
+                  <button
+                    onClick={closeExpandedMedia}
+                    className="absolute top-2 right-2 z-10 bg-black/50 hover:bg-black/70 text-white p-2 rounded-full backdrop-blur-sm transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
