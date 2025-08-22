@@ -32,7 +32,6 @@ import { evaluatePasswordStrength } from '@/lib/utils';
 import CustomDialog from '../dialogs/CustomDialog';
 import { useDialog } from "@/provider/DilogsProvider";
 
-// Simple and fast scroll function
 const smoothScrollTo = (targetId) => {
   const element = document.getElementById(targetId);
   if (element) {
@@ -164,51 +163,9 @@ export const Header = () => {
     }
   }, []);
 
-  // Handle clicking outside dropdown to close it
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (mobileMenuOpen) {
-        const dropdown = document.querySelector('.desktop-dropdown');
-        const hamburgerButton = document.querySelector('.hamburger-button');
-        const profileAvatar = document.querySelector('.profile-avatar-button');
-        const mobileMenu = document.querySelector('.mobile-menu');
-        
-        // Check if click is outside all menu elements
-        const isOutsideDropdown = !dropdown || !dropdown.contains(event.target);
-        const isOutsideHamburger = !hamburgerButton || !hamburgerButton.contains(event.target);
-        const isOutsideProfileAvatar = !profileAvatar || !profileAvatar.contains(event.target);
-        const isOutsideMobileMenu = !mobileMenu || !mobileMenu.contains(event.target);
-        
-        if (isOutsideDropdown && isOutsideHamburger && isOutsideProfileAvatar && isOutsideMobileMenu) {
-          setMobileMenuOpen(false);
-        }
-      }
-    };
 
-    // Also handle clicks on the document body to close dropdown
-    const handleBodyClick = (event) => {
-      if (mobileMenuOpen) {
-        // If clicking on body or any element that's not part of the dropdown system
-        const target = event.target;
-        const isDropdownElement = target.closest('.desktop-dropdown') || 
-                                 target.closest('.hamburger-button') || 
-                                 target.closest('.profile-avatar-button') || 
-                                 target.closest('.mobile-menu');
-        
-        if (!isDropdownElement) {
-          setMobileMenuOpen(false);
-        }
-      }
-    };
 
-    document.addEventListener('mousedown', handleClickOutside);
-    document.addEventListener('click', handleBodyClick);
-    
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('click', handleBodyClick);
-    };
-  }, [mobileMenuOpen]);
+
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -605,7 +562,7 @@ const handleLogout = async () => {
           </nav>
 
           <button 
-            className="md:hidden text-gray-700 p-2"
+            className="md:hidden text-gray-700 p-2 mobile-hamburger-button"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -620,37 +577,37 @@ const handleLogout = async () => {
 
         {/* Mobile Navigation Menu */}
         {mobileMenuOpen && (
-          <div className="mobile-menu md:hidden bg-white border-t shadow-lg">
-            <div className="px-4 py-2 space-y-2">
-              <a href="#about" className="block py-2 text-gray-700 hover:text-amber-500 transition-colors" onClick={(e) => { 
+          <div className="mobile-menu md:hidden bg-white border-t shadow-lg max-h-[70vh] overflow-y-auto">
+            <div className="px-3 py-2 space-y-1">
+              <a href="#about" className="block py-1.5 text-sm text-gray-700 hover:text-amber-500 transition-colors" onClick={(e) => { 
                 e.preventDefault();
                 setMobileMenuOpen(false);
                 smoothScrollTo('about');
               }}>
                 About
               </a>
-              <a href="#benefit" className="block py-2 text-gray-700 hover:text-amber-500 transition-colors" onClick={(e) => { 
+              <a href="#benefit" className="block py-1.5 text-sm text-gray-700 hover:text-amber-500 transition-colors" onClick={(e) => { 
                 e.preventDefault();
                 setMobileMenuOpen(false);
                 smoothScrollTo('benefit');
               }}>
                 Benefits
               </a>
-              <a href="#how-it-works" className="block py-2 text-gray-700 hover:text-amber-500 transition-colors" onClick={(e) => { 
+              <a href="#how-it-works" className="block py-1.5 text-sm text-gray-700 hover:text-amber-500 transition-colors" onClick={(e) => { 
                 e.preventDefault();
                 setMobileMenuOpen(false);
                 smoothScrollTo('how-it-works');
               }}>
                 How it works
               </a>
-              <a href="#launch-link" className="block py-2 text-gray-700 hover:text-amber-500 transition-colors" onClick={(e) => { 
+              <a href="#launch-link" className="block py-1.5 text-sm text-gray-700 hover:text-amber-500 transition-colors" onClick={(e) => { 
                 e.preventDefault();
                 setMobileMenuOpen(false);
                 smoothScrollTo('launch-link');
               }}>
                 Launch new video link
               </a>
-              <a href="#pricing" className="block py-2 text-gray-700 hover:text-amber-500 transition-colors" onClick={(e) => { 
+              <a href="#pricing" className="block py-1.5 text-sm text-gray-700 hover:text-amber-500 transition-colors" onClick={(e) => { 
                 e.preventDefault();
                 setMobileMenuOpen(false);
                 smoothScrollTo('pricing');
@@ -659,9 +616,9 @@ const handleLogout = async () => {
               </a>
               
               {/* AI Tools */}
-              <div className="space-y-2 pt-2 border-t">
+              <div className="space-y-1 pt-2 border-t">
                 <button 
-                  className="w-full text-left py-2 text-gray-700 hover:text-amber-500 transition-colors" 
+                  className="w-full text-left py-1.5 text-sm text-gray-700 hover:text-amber-500 transition-colors" 
                   onClick={() => { 
                     setMobileMenuOpen(false);
                     router.push('/chat-karla');
@@ -670,7 +627,7 @@ const handleLogout = async () => {
                   AI Damp and Mould Assistant
                 </button>
                 <button 
-                  className="w-full text-left py-2 text-gray-700 hover:text-amber-500 transition-colors" 
+                  className="w-full text-left py-1.5 text-sm text-gray-700 hover:text-amber-500 transition-colors" 
                   onClick={() => { 
                     setMobileMenuOpen(false);
                     router.push('/damp-mould-analyzer');
@@ -681,15 +638,15 @@ const handleLogout = async () => {
               </div>
               
               {/* Action Buttons */}
-              <div className="space-y-2 pt-2 border-t">
+              <div className="space-y-1 pt-2 border-t">
                 <button 
-                  className="w-full bg-purple-500 hover:bg-purple-600 text-white font-medium py-2 px-4 rounded-full transition-colors" 
+                  className="w-full bg-purple-500 hover:bg-purple-600 text-white text-sm font-medium py-1.5 px-3 rounded-full transition-colors" 
                   onClick={() => { setIsCallbackOpen(true); setMobileMenuOpen(false); }}
                 >
                   Request a Callback
                 </button>
                 <button 
-                  className="w-full bg-purple-500 hover:bg-purple-600 text-white font-medium py-2 px-4 rounded-full transition-colors" 
+                  className="w-full bg-purple-500 hover:bg-purple-600 text-white text-sm font-medium py-1.5 px-3 rounded-full transition-colors" 
                   onClick={() => { setISMeetingOpen(true); setMobileMenuOpen(false); }}
                 >
                   Book a Demo Meeting
@@ -697,35 +654,27 @@ const handleLogout = async () => {
               </div>
               
               {!isAuth && (
-                <div className="space-y-2 pt-2 border-t">
+                <div className="space-y-1 pt-2 border-t">
                   <button 
-                    className="w-full bg-green-500 hover:bg-green-600 text-white font-medium py-2 px-4 rounded-full transition-colors" 
+                    className="w-full bg-green-500 hover:bg-green-600 text-white text-sm font-medium py-1.5 px-3 rounded-full transition-colors" 
                     onClick={() => { setSignInOpen(true); setMobileMenuOpen(false); }}
                   >
                     Log In
                   </button>
-                  {/*
-                  <button
-                    className="w-full bg-amber-500 hover:bg-amber-600 text-white font-medium py-2 px-4 rounded-full transition-colors"
-                    onClick={() => { setSignUpOpen(true); setMobileMenuOpen(false); }}
-                  >
-                    Sign up in 3 easy steps!
-                  </button>
-                  */}
                 </div>
               )}
 
               {isAuth && (
-                <div className="space-y-2 pt-2 border-t">
-                  <div className="py-2">
-                    <h2 className="text-sm font-bold text-black">{user?.email?.split("@")[0]}</h2>
+                <div className="space-y-1 pt-2 border-t">
+                  <div className="py-1">
+                    <h2 className="text-xs font-bold text-black">{user?.email?.split("@")[0]}</h2>
                     <h2 className="text-xs text-gray-600">{user?.email}</h2>
                   </div>
-                  <Link href={user?.role === 'superadmin' ? "/dashboard/superadmin" : "/dashboard"} className="block py-2 text-gray-700 hover:text-amber-500 transition-colors" onClick={() => setMobileMenuOpen(false)}>
+                  <Link href={user?.role === 'superadmin' ? "/dashboard/superadmin" : "/dashboard"} className="block py-1.5 text-sm text-gray-700 hover:text-amber-500 transition-colors" onClick={() => setMobileMenuOpen(false)}>
                     Dashboard
                   </Link>
                   <button 
-                    className="block w-full text-left py-2 text-gray-700 hover:text-red-500 transition-colors" 
+                    className="block w-full text-left py-1.5 text-sm text-gray-700 hover:text-red-500 transition-colors" 
                     onClick={() => { handleLogout(); setMobileMenuOpen(false); }}
                   >
                     Logout
