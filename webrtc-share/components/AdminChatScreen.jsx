@@ -83,6 +83,25 @@ const AdminChatScreen = ({ isOpen, onClose, ticketInfo }) => {
     }
   }, [isOpen, userRole, messages.length]);
 
+  // Disable background scrolling when popup is open
+  useEffect(() => {
+    if (isOpen) {
+      // Disable background scrolling
+      document.body.style.overflow = 'hidden';
+      document.documentElement.style.overflow = 'hidden';
+    } else {
+      // Re-enable background scrolling
+      document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
+    }
+
+    // Cleanup function to restore scrolling when component unmounts
+    return () => {
+      document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
+    };
+  }, [isOpen]);
+
   // Get ticket info when admin joins
   useEffect(() => {
     if (isOpen && isAdminRole && isConnected) {
