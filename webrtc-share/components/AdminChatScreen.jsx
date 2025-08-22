@@ -117,11 +117,50 @@ const AdminChatScreen = ({ isOpen, onClose, ticketInfo }) => {
         }
       };
 
-      // Listen for the event dispatched by useChatSocket
+      // Listen for media upload success directly from socket (for progress updates)
+      const handleMediaUploadSuccess = (data) => {
+        console.log('✅ [AdminChatScreen] Media upload success received:', data);
+        
+        // Update progress to 100% immediately when we get success response
+        setProgressPercent(100);
+        setUploadProgress(prev => ({
+          ...prev,
+          status: 'success',
+          message: 'Media uploaded successfully!'
+        }));
+        
+        // Clear everything after showing 100% for a moment
+        setTimeout(() => {
+          setUploadProgress(null);
+          setIsUploading(false);
+          setProgressPercent(0);
+          removeSelectedMedia();
+        }, 1500); // Show 100% for 1.5 seconds before clearing
+      };
+
+      // Listen for the events
       window.addEventListener('new-ticket-message', handleNewTicketMessage);
+      
+      // Also listen for direct socket events if available
+      if (window.chatSocket) {
+        window.chatSocket.on('media-upload-success', handleMediaUploadSuccess);
+        console.log('🔌 [AdminChatScreen] Listening for media-upload-success events directly from socket');
+      } else {
+        console.log('⚠️ [AdminChatScreen] Global chat socket not available, will use event system only');
+      }
+      
+      // Fallback: Also listen for the event that useChatSocket might dispatch
+      window.addEventListener('media-upload-success', (event) => {
+        console.log('✅ [AdminChatScreen] Media upload success event received via fallback:', event.detail);
+        handleMediaUploadSuccess(event.detail);
+      });
       
       return () => {
         window.removeEventListener('new-ticket-message', handleNewTicketMessage);
+        window.removeEventListener('media-upload-success', handleMediaUploadSuccess);
+        if (window.chatSocket) {
+          window.chatSocket.off('media-upload-success', handleMediaUploadSuccess);
+        }
       };
     }
   }, [isConnected, setMessages, user?._id]);
@@ -668,6 +707,11 @@ const AdminChatScreen = ({ isOpen, onClose, ticketInfo }) => {
                   {onlineUsers.length > 0 && (
                     <span className="text-purple-200 text-xs">
                       • {onlineUsers.length} online
+                    </span>
+                  )}
+                  {window.chatSocket && (
+                    <span className="text-blue-200 text-xs">
+                      • Socket: {window.chatSocket.id?.slice(-6) || 'Active'}
                     </span>
                   )}
                 </div>

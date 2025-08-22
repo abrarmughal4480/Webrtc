@@ -129,6 +129,9 @@ const useChatSocket = (ticketId) => {
         setIsConnected(true);
         setConnectionError(null);
 
+        // Make socket available globally for components to listen to events
+        window.chatSocket = socket;
+
         // Join ticket chat room
         socket.emit('join-ticket-chat', {
           ticketId,
@@ -145,6 +148,11 @@ const useChatSocket = (ticketId) => {
       socket.on('disconnect', (reason) => {
         console.log('🔴 Chat socket disconnected:', reason);
         setIsConnected(false);
+        
+        // Clear global socket reference
+        if (window.chatSocket === socket) {
+          window.chatSocket = null;
+        }
         
         // Auto-reconnect for certain disconnect reasons
         if (reason === 'io server disconnect' || reason === 'transport close') {
@@ -315,6 +323,11 @@ const useChatSocket = (ticketId) => {
 
         // Remove all event listeners
         socketRef.current.removeAllListeners();
+
+        // Clear global socket reference
+        if (window.chatSocket === socketRef.current) {
+          window.chatSocket = null;
+        }
 
         // Disconnect socket
         socketRef.current.disconnect();
