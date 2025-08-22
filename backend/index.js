@@ -47,8 +47,11 @@ const PORT = process.env.PORT || 4000;
 
 // Allow all origins for CORS (wildcard)
 app.use(cors({
-  origin: true,
-  credentials: true
+  origin: '*',
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+  exposedHeaders: ['Content-Length', 'X-Requested-With']
 }));
 
 app.use(cookieParser());
