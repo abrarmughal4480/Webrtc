@@ -370,8 +370,8 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
 
     document.body.style.overflow = 'hidden';
     
-    // Disable n8n chat library for now and use direct API calls
-    console.log('Using direct API calls to webhook');
+    // Using LangChain API for chatbot functionality
+    console.log('Using LangChain API for chatbot functionality');
     
     setTimeout(() => {
       if (textareaRef.current) {
@@ -1417,6 +1417,232 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
     }
 
     try {
+      // NEW: LangChain API call
+      console.log('🤖 Making API call to LangChain chatbot...');
+      
+      const apiUrl = "/api/karla";
+      console.log('API URL:', apiUrl);
+      
+      // Use the same payload format for compatibility
+      const payload = {
+        action: "sendMessage",
+        sessionId: sessionId,
+        chatInput: currentMessage
+      };
+
+      try {
+        console.log('📤 Sending payload:', payload);
+        console.log('🌐 Making request to:', apiUrl);
+        
+        const response = await fetch(apiUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          body: JSON.stringify(payload)
+        });
+
+        console.log(`📥 Response status: ${response.status}`);
+        console.log(`🔗 Response URL: ${response.url}`);
+
+        if (response.ok) {
+          let data;
+          const contentType = response.headers.get('content-type');
+          
+          if (contentType && contentType.includes('application/json')) {
+            data = await response.json();
+          } else {
+            const textResponse = await response.text();
+            data = { response: textResponse };
+          }
+          
+          console.log('📥 Response data:', data);
+          
+          const botMessage = {
+            id: Date.now() + 1,
+            type: 'bot',
+            text: data.output || data.response || data.message || data.text || "Thank you for your message. I'm here to help you with any questions you may have.",
+            timestamp: new Date()
+          };
+          
+          setMessages(prev => {
+            const updatedMessages = [...prev, botMessage];
+            
+            // Save chat session only after successful AI response AND if user is authenticated
+            if (isAuth && !saveInProgressRef.current && !isAuthInProgress) {
+              saveInProgressRef.current = true;
+              
+              // Find the first non-greeting message to use as title
+              let title = 'New Chat'; // Default title
+              if (prev.length === 1) {
+                // This is the first user message, check if it's a greeting
+                if (!isGreetingMessage(currentMessage)) {
+                  title = generateAITitle(currentMessage);
+                }
+              } else {
+                // Check if we haven't set a title yet and this message is not a greeting
+                const allUserMessages = updatedMessages.filter(msg => msg.type === 'user');
+                const nonGreetingMessages = allUserMessages.filter(msg => !isGreetingMessage(msg.text));
+                
+                if (nonGreetingMessages.length > 0) {
+                  // Use the first non-greeting message for title
+                  title = generateAITitle(nonGreetingMessages[0].text);
+                }
+              }
+              
+              const preview = currentMessage;
+              
+              console.log('💾 [sendMessage] Saving chat with title:', title);
+              
+              // Save chat immediately after successful response with updated messages
+              setTimeout(() => {
+                // Use the updated messages for saving
+                const messagesToSave = updatedMessages.map(msg => ({
+                  id: msg.id,
+                  type: msg.type,
+                  text: msg.text,
+                  timestamp: msg.timestamp instanceof Date ? msg.timestamp.toISOString() : msg.timestamp
+                }));
+                
+                saveChatSession({
+                  sessionId,
+                  title,
+                  preview,
+                  messages: messagesToSave
+                }).then(response => {
+                  console.log('✅ Chat saved successfully after AI response:', response);
+                  saveInProgressRef.current = false;
+                  // Reload chat history after saving
+                  setTimeout(() => {
+                    loadChatHistory();
+                  }, 500);
+                }).catch(err => {
+                  console.log('ℹ️ Chat save failed but conversation continues:', err.message);
+                  saveInProgressRef.current = false;
+                });
+              }, 100);
+            } else if (!isAuth) {
+              // User is not authenticated, save to localStorage instead
+              try {
+                const firstUserMessage = updatedMessages.find(msg => msg.type === 'user');
+                const title = firstUserMessage ? generateAITitle(firstUserMessage.text) : 'New Chat';
+                const preview = firstUserMessage ? firstUserMessage.text : '';
+                
+                const chatData = {
+                  id: Date.now(),
+                  sessionId,
+                  title,
+                  preview,
+                  messages: updatedMessages.map(msg => ({
+                    id: msg.id,
+                    type: msg.type,
+                    text: msg.text,
+                    timestamp: msg.timestamp instanceof Date ? msg.timestamp.toISOString() : msg.timestamp
+                  })),
+                  timestamp: new Date().toISOString(),
+                  isLocalStorage: true
+                };
+                
+                // Get existing localStorage chats
+                const existingChats = JSON.parse(localStorage.getItem('localChatHistory') || '[]');
+                
+                // Remove any existing chat with the same sessionId
+                const filteredChats = existingChats.filter(chat => chat.sessionId !== sessionId);
+                
+                // Add updated chat to localStorage
+                const updatedChats = [chatData, ...filteredChats];
+                localStorage.setItem('localChatHistory', JSON.stringify(updatedChats));
+                
+                console.log('💾 Chat saved to localStorage successfully');
+              } catch (error) {
+                console.error('Error saving chat to localStorage:', error);
+              }
+            }
+            
+            return updatedMessages;
+          });
+          
+          setIsLoading(false);
+          setIsTyping(false);
+          
+          // Auto focus after receiving response
+          setTimeout(() => {
+            if (textareaRef.current) {
+              textareaRef.current.focus();
+            }
+          }, 200);
+        } else {
+          const errorText = await response.text();
+          console.error(`❌ Request failed with status ${response.status}:`, errorText);
+          throw new Error(`HTTP ${response.status}: ${errorText}`);
+        }
+      } catch (error) {
+        console.error('❌ Request failed:', error);
+        throw error;
+      }
+    } catch (error) {
+      console.error('❌ Error sending message:', error);
+      
+      // More specific error handling
+      let errorMessage = "I'm sorry, I'm having trouble connecting right now. Please try again later.";
+      
+      if (error.message.includes('HTTP 500')) {
+        errorMessage = "The AI service is temporarily unavailable. Please try again in a moment.";
+      } else if (error.message.includes('HTTP 404')) {
+        errorMessage = "The chat service endpoint was not found. Please contact support.";
+      } else if (error.message.includes('NetworkError') || error.message.includes('fetch')) {
+        errorMessage = "Network connection issue. Please check your internet connection and try again.";
+      }
+      
+      const botMessage = {
+        id: Date.now() + 1,
+        type: 'bot',
+        text: errorMessage,
+        timestamp: new Date()
+      };
+      
+      setMessages(prev => [...prev, botMessage]);
+      setIsLoading(false);
+      setIsTyping(false);
+      
+      // Auto focus after error response
+      setTimeout(() => {
+        if (textareaRef.current) {
+          textareaRef.current.focus();
+        }
+      }, 200);
+    }
+  };
+
+  // OLD N8N WEBHOOK CODE - COMMENTED FOR FUTURE USE
+  /*
+  const sendMessageN8N = async () => {
+    if (!inputMessage.trim() || isLoading) return;
+
+    const currentMessage = inputMessage;
+    setInputMessage('');
+    setIsLoading(true);
+    setIsTyping(true);
+
+    const userMessage = {
+      id: Date.now(),
+      type: 'user',
+      text: currentMessage,
+      timestamp: new Date()
+    };
+
+    setMessages(prev => [...prev, userMessage]);
+
+    if (textareaRef.current) {
+      textareaRef.current.style.height = '24px';
+      // Auto focus after sending message
+      setTimeout(() => {
+        textareaRef.current.focus();
+      }, 100);
+    }
+
+    try {
       // Direct API call to webhook
       console.log('Making direct API call to webhook...');
       
@@ -1466,102 +1692,103 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
             timestamp: new Date()
           };
           
-                     setMessages(prev => {
-             const updatedMessages = [...prev, botMessage];
-             
-             // Save chat session only after successful AI response AND if user is authenticated
-             if (isAuth && !saveInProgressRef.current && !isAuthInProgress) {
-               saveInProgressRef.current = true;
-               
-               // Find the first non-greeting message to use as title
-               let title = 'New Chat'; // Default title
-               if (prev.length === 1) {
-                 // This is the first user message, check if it's a greeting
-                 if (!isGreetingMessage(currentMessage)) {
-                   title = generateAITitle(currentMessage);
-                 }
-               } else {
-                 // Check if we haven't set a title yet and this message is not a greeting
-                 const allUserMessages = updatedMessages.filter(msg => msg.type === 'user');
-                 const nonGreetingMessages = allUserMessages.filter(msg => !isGreetingMessage(msg.text));
-                 
-                 if (nonGreetingMessages.length > 0) {
-                   // Use the first non-greeting message for title
-                   title = generateAITitle(nonGreetingMessages[0].text);
-                 }
-               }
-               
-               const preview = currentMessage;
-               
-               console.log('💾 [sendMessage] Saving chat with title:', title);
-               
-               // Save chat immediately after successful response with updated messages
-               setTimeout(() => {
-                 // Use the updated messages for saving
-                 const messagesToSave = updatedMessages.map(msg => ({
-                   id: msg.id,
-                   type: msg.type,
-                   text: msg.text,
-                   timestamp: msg.timestamp instanceof Date ? msg.timestamp.toISOString() : msg.timestamp
-                 }));
-                 
-                 saveChatSession({
-                   sessionId,
-                   title,
-                   preview,
-                   messages: messagesToSave
-                 }).then(response => {
-                   console.log('✅ Chat saved successfully after AI response:', response);
-                   saveInProgressRef.current = false;
-                   // Reload chat history after saving
-                   setTimeout(() => {
-                     loadChatHistory();
-                   }, 500);
-                 }).catch(err => {
-                   console.log('ℹ️ Chat save failed but conversation continues:', err.message);
-                   saveInProgressRef.current = false;
-                 });
-               }, 100);
-             } else if (!isAuth) {
-               // User is not authenticated, save to localStorage instead
-               try {
-                 const firstUserMessage = updatedMessages.find(msg => msg.type === 'user');
-                 const title = firstUserMessage ? generateAITitle(firstUserMessage.text) : 'New Chat';
-                 const preview = firstUserMessage ? firstUserMessage.text : '';
-                 
-                 const chatData = {
-                   id: Date.now(),
-                   sessionId,
-                   title,
-                   preview,
-                   messages: updatedMessages.map(msg => ({
-                     id: msg.id,
-                     type: msg.type,
-                     text: msg.text,
-                     timestamp: msg.timestamp instanceof Date ? msg.timestamp.toISOString() : msg.timestamp
-                   })),
-                   timestamp: new Date().toISOString(),
-                   isLocalStorage: true
-                 };
-                 
-                 // Get existing localStorage chats
-                 const existingChats = JSON.parse(localStorage.getItem('localChatHistory') || '[]');
-                 
-                 // Remove any existing chat with the same sessionId
-                 const filteredChats = existingChats.filter(chat => chat.sessionId !== sessionId);
-                 
-                 // Add updated chat to localStorage
-                 const updatedChats = [chatData, ...filteredChats];
-                 localStorage.setItem('localChatHistory', JSON.stringify(updatedChats));
-                 
-                 console.log('💾 Chat saved to localStorage successfully');
-               } catch (error) {
-                 console.error('Error saving chat to localStorage:', error);
-               }
-             }
-             
-             return updatedMessages;
-           });
+          setMessages(prev => {
+            const updatedMessages = [...prev, botMessage];
+            
+            // Save chat session only after successful AI response AND if user is authenticated
+            if (isAuth && !saveInProgressRef.current && !isAuthInProgress) {
+              saveInProgressRef.current = true;
+              
+              // Find the first non-greeting message to use as title
+              let title = 'New Chat'; // Default title
+              if (prev.length === 1) {
+                // This is the first user message, check if it's a greeting
+                if (!isGreetingMessage(currentMessage)) {
+                  title = generateAITitle(currentMessage);
+                }
+              } else {
+                // Check if we haven't set a title yet and this message is not a greeting
+                const allUserMessages = updatedMessages.filter(msg => msg.type === 'user');
+                const nonGreetingMessages = allUserMessages.filter(msg => !isGreetingMessage(msg.text));
+                
+                if (nonGreetingMessages.length > 0) {
+                  // Use the first non-greeting message for title
+                  title = generateAITitle(nonGreetingMessages[0].text);
+                }
+              }
+              
+              const preview = currentMessage;
+              
+              console.log('💾 [sendMessage] Saving chat with title:', title);
+              
+              // Save chat immediately after successful response with updated messages
+              setTimeout(() => {
+                // Use the updated messages for saving
+                const messagesToSave = updatedMessages.map(msg => ({
+                  id: msg.id,
+                  type: msg.type,
+                  text: msg.text,
+                  timestamp: msg.timestamp instanceof Date ? msg.timestamp.toISOString() : msg.timestamp
+                }));
+                
+                saveChatSession({
+                  sessionId,
+                  title,
+                  preview,
+                  messages: messagesToSave
+                }).then(response => {
+                  console.log('✅ Chat saved successfully after AI response:', response);
+                  saveInProgressRef.current = false;
+                  // Reload chat history after saving
+                  setTimeout(() => {
+                    loadChatHistory();
+                  }, 500);
+                }).catch(err => {
+                  console.log('ℹ️ Chat save failed but conversation continues:', err.message);
+                  saveInProgressRef.current = false;
+                });
+              }, 100);
+            } else if (!isAuth) {
+              // User is not authenticated, save to localStorage instead
+              try {
+                const firstUserMessage = updatedMessages.find(msg => msg.type === 'user');
+                const title = firstUserMessage ? generateAITitle(firstUserMessage.text) : 'New Chat';
+                const preview = firstUserMessage ? firstUserMessage.text : '';
+                
+                const chatData = {
+                  id: Date.now(),
+                  sessionId,
+                  title,
+                  preview,
+                  messages: updatedMessages.map(msg => ({
+                    id: msg.id,
+                    type: msg.type,
+                    text: msg.text,
+                    timestamp: msg.timestamp instanceof Date ? msg.timestamp.toISOString() : msg.timestamp
+                  })),
+                  timestamp: new Date().toISOString(),
+                  isLocalStorage: true
+                };
+                
+                // Get existing localStorage chats
+                const existingChats = JSON.parse(localStorage.getItem('localChatHistory') || '[]');
+                
+                // Remove any existing chat with the same sessionId
+                const filteredChats = existingChats.filter(chat => chat.sessionId !== sessionId);
+                
+                // Add updated chat to localStorage
+                const updatedChats = [chatData, ...filteredChats];
+                localStorage.setItem('localChatHistory', JSON.stringify(updatedChats));
+                
+                console.log('💾 Chat saved to localStorage successfully');
+              } catch (error) {
+                console.error('Error saving chat to localStorage:', error);
+              }
+            }
+            
+            return updatedMessages;
+          });
+          
           setIsLoading(false);
           setIsTyping(false);
           
@@ -1590,8 +1817,6 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
         errorMessage = "The AI service is temporarily unavailable. Please try again in a moment.";
       } else if (error.message.includes('HTTP 404')) {
         errorMessage = "The chat service endpoint was not found. Please contact support.";
-      } else if (error.message.includes('NetworkError') || error.message.includes('fetch')) {
-        errorMessage = "Network connection issue. Please check your internet connection and try again.";
       }
       
       const botMessage = {
@@ -1613,6 +1838,7 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
       }, 200);
     }
   };
+  */
 
   if (!isOpen) return null;
 
@@ -1704,8 +1930,8 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
        
        {/* Enhanced Chat Container */}
        <div className="flex-1 relative overflow-y-auto pb-24 md:pb-32">
-         <div className="w-full px-4 md:px-6 py-4 md:py-8">
-           <div className="space-y-4 md:space-y-6">
+         <div className="max-w-4xl mx-auto w-full px-4 md:px-4 lg:px-6 py-4 md:py-4 lg:py-8">
+           <div className="space-y-4 md:space-y-4 lg:space-y-6">
              {messages.map((message, index) => (
                <div key={message.id} className={`group animate-in slide-in-from-bottom-2 duration-500 ${message.type === 'user' ? 'flex justify-end' : 'flex justify-start'}`} style={{ animationDelay: `${index * 100}ms` }}>
                  {message.type === 'user' ? (
@@ -1812,7 +2038,7 @@ export default function ChatBot({ isOpen, onClose, selectedChat }) {
 
       {/* Enhanced Floating Input with Glass Effect */}
       <div className="fixed bottom-4 md:bottom-6 left-1/2 transform -translate-x-1/2 z-50 w-full px-4 md:px-6">
-        <div className="relative">
+        <div className="relative max-w-4xl mx-auto">
           <div className="absolute inset-0 bg-gradient-to-r from-white via-white to-white rounded-2xl md:rounded-3xl shadow-2xl shadow-slate-300/50 backdrop-blur-xl border border-white/50"></div>
           <div className="relative bg-white/90 rounded-2xl md:rounded-3xl shadow-2xl backdrop-blur-xl border border-slate-200/50 p-2 hover:shadow-3xl transition-all duration-300">
             <div className="flex items-end space-x-3 md:space-x-4 px-4 md:px-6 py-3 md:py-4">

@@ -32,7 +32,8 @@ const AdminChatScreen = ({ isOpen, onClose, ticketInfo }) => {
     markMessageAsRead,
     getTicketInfo,
     clearTicketMessages,
-    exportMessages
+    exportMessages,
+    loadMessagesFromDatabase
   } = useChatSocket(ticketInfo?._id);
 
 
@@ -208,7 +209,58 @@ const AdminChatScreen = ({ isOpen, onClose, ticketInfo }) => {
     });
   }, [messages]);
 
-  // Initialize messages based on auto-detected user role - ONLY ONCE
+  // Load messages from database when component opens
+  useEffect(() => {
+    if (isOpen && ticketInfo?._id && isConnected) {
+      const loadMessages = async () => {
+        try {
+          console.log('📚 [AdminChatScreen] Loading messages from database for ticket:', ticketInfo._id);
+          const dbMessages = await loadMessagesFromDatabase();
+          
+          if (dbMessages.length > 0) {
+            console.log('✅ [AdminChatScreen] Loaded', dbMessages.length, 'messages from database');
+            setMessages(dbMessages);
+          } else {
+            console.log('ℹ️ [AdminChatScreen] No messages found in database, will show welcome message if needed');
+            // Show welcome message for client if no messages exist
+            if (userRole === 'client') {
+              const hasShownWelcome = sessionStorage.getItem('chatWelcomeShown');
+              if (!hasShownWelcome) {
+                const welcomeMessage = {
+                  id: 'welcome',
+                  text: "Hello! What is your query? Please let us know how we can help you.",
+                  sender: 'admin',
+                  timestamp: new Date(Date.now() - 60000)
+                };
+                setMessages([welcomeMessage]);
+                sessionStorage.setItem('chatWelcomeShown', 'true');
+              }
+            }
+          }
+        } catch (error) {
+          console.error('❌ [AdminChatScreen] Error loading messages from database:', error);
+          // Fallback to welcome message for client
+          if (userRole === 'client' && messages.length === 0) {
+            const hasShownWelcome = sessionStorage.getItem('chatWelcomeShown');
+            if (!hasShownWelcome) {
+              const welcomeMessage = {
+                id: 'welcome',
+                text: "Hello! What is your query? Please let us know how we can help you.",
+                sender: 'admin',
+                timestamp: new Date(Date.now() - 60000)
+              };
+              setMessages([welcomeMessage]);
+              sessionStorage.setItem('chatWelcomeShown', 'true');
+            }
+          }
+        }
+      };
+      
+      loadMessages();
+    }
+  }, [isOpen, ticketInfo?._id, isConnected, loadMessagesFromDatabase, setMessages, userRole, messages.length]);
+
+  // Initialize messages based on auto-detected user role - ONLY ONCE (fallback)
   useEffect(() => {
     if (isOpen && userRole === 'client' && messages.length === 0) {
       // Check if we already showed the welcome message for this session

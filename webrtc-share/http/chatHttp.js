@@ -1,6 +1,19 @@
 import { api } from './index.js';
 
-// Chat History API calls
+// Get chat history for a ticket from database
+export const getChatHistory = async (ticketId, userId) => {
+  console.log('🌐 [getChatHistory] Making GET request to /chat/history/' + ticketId);
+  try {
+    const response = await api.get(`/chat/history/${ticketId}?userId=${userId}`);
+    console.log('📥 [getChatHistory] Response received:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('❌ [getChatHistory] Error:', error);
+    throw error;
+  }
+};
+
+// Chat History API calls for AI Chat (ChatBot.jsx)
 export const getChatSessions = async () => {
   console.log('🌐 [getChatSessions] Making GET request to /chat/sessions');
   try {

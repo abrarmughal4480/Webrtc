@@ -1,4 +1,4 @@
-import React, { use, useEffect, useState } from 'react';
+import React, { use, useEffect, useState, useRef } from 'react';
 import { Loader2, VideoIcon, Eye, EyeOff } from 'lucide-react';
 import { DialogComponent } from '../dialogs/DialogCompnent';
 import {
@@ -123,7 +123,47 @@ export const Header = () => {
   const [signUpPasswordTimer, setSignUpPasswordTimer] = useState(null);
   const [signInPasswordTimer, setSignInPasswordTimer] = useState(null);
   const { isCallbackOpen, setIsCallbackOpen, isMeetingOpen, setISMeetingOpen } = useDialog();
-  const [activeSection, setActiveSection] = useState('about');
+  const [activeSection, setActiveSection] = useState('');
+  
+  // Add refs for dropdown elements
+  const mobileMenuRef = useRef(null);
+  const desktopDropdownRef = useRef(null);
+  const hamburgerButtonRef = useRef(null);
+
+  // Click outside to close dropdown functionality
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      // Check if dropdown is open
+      if (!mobileMenuOpen) return;
+      
+      // Check if click is on hamburger button (should toggle dropdown)
+      if (hamburgerButtonRef.current && hamburgerButtonRef.current.contains(event.target)) {
+        return;
+      }
+      
+      // Check if click is inside mobile menu
+      if (mobileMenuRef.current && mobileMenuRef.current.contains(event.target)) {
+        return;
+      }
+      
+      // Check if click is inside desktop dropdown
+      if (desktopDropdownRef.current && desktopDropdownRef.current.contains(event.target)) {
+        return;
+      }
+      
+      // If click is outside all dropdown elements, close the dropdown
+      setMobileMenuOpen(false);
+    };
+
+    // Add event listener
+    document.addEventListener('mousedown', handleClickOutside);
+    
+    // Cleanup
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [mobileMenuOpen]);
+
 
   // Basic scroll spy for main navigation sections
   useEffect(() => {
@@ -131,13 +171,25 @@ export const Header = () => {
     const headerHeight = document.querySelector('header')?.offsetHeight || 0;
     
     const handleScroll = () => {
-      const scrollPosition = window.scrollY + headerHeight + 100;
+      const scrollPosition = window.scrollY;
       
+      // If we're at the very top (hero section), don't set any section as active
+      if (scrollPosition < 150) {
+        setActiveSection('');
+        return;
+      }
+      
+      // Find which section we're currently viewing
       for (let i = sections.length - 1; i >= 0; i--) {
         const element = document.getElementById(sections[i]);
-        if (element && element.offsetTop <= scrollPosition) {
-          setActiveSection(sections[i]);
-          break;
+        if (element) {
+          const elementTop = element.offsetTop - headerHeight - 100; // Add buffer
+          const elementBottom = elementTop + element.offsetHeight;
+          
+          if (scrollPosition >= elementTop && scrollPosition < elementBottom) {
+            setActiveSection(sections[i]);
+            break;
+          }
         }
       }
     };
@@ -523,6 +575,7 @@ const handleLogout = async () => {
             {/* Desktop Hamburger Menu - Only show when not logged in */}
             {!isAuth && (
               <button 
+                ref={hamburgerButtonRef}
                 className="hamburger-button md:block text-gray-700 p-2 ml-2"
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               >
@@ -562,6 +615,7 @@ const handleLogout = async () => {
           </nav>
 
           <button 
+            ref={hamburgerButtonRef}
             className="md:hidden text-gray-700 p-2 mobile-hamburger-button"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           >
@@ -577,7 +631,7 @@ const handleLogout = async () => {
 
         {/* Mobile Navigation Menu */}
         {mobileMenuOpen && (
-          <div className="mobile-menu md:hidden bg-white border-t shadow-lg max-h-[70vh] overflow-y-auto">
+          <div className="mobile-menu md:hidden bg-white border-t shadow-lg max-h-[70vh] overflow-y-auto" ref={mobileMenuRef}>
             <div className="px-3 py-2 space-y-1">
               <a href="#about" className="block py-1.5 text-sm text-gray-700 hover:text-amber-500 transition-colors" onClick={(e) => { 
                 e.preventDefault();
@@ -687,7 +741,7 @@ const handleLogout = async () => {
 
         {/* Desktop Dropdown Menu */}
         {mobileMenuOpen && (
-          <div className="desktop-dropdown hidden md:block absolute top-full right-2 -mt-10 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
+          <div className="desktop-dropdown hidden md:block absolute top-full right-2 -mt-10 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-50" ref={desktopDropdownRef}>
             <div className="px-4 py-2 space-y-1">
               {!isAuth && (
                 <button 

@@ -1,0 +1,9 @@
+{
+  "timestamp": "2025-08-23T11:12:54.373Z",
+  "database": "webrtc",
+  "collections": "all",
+  "compression": true,
+  "backupPath": "/media/professor/sda5/Webrtc/backend/backups/backup_webrtc_2025-08-23T11-12-44-193Z",
+  "fileCount": 1,
+  "size": 159494
+}

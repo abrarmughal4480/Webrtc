@@ -356,7 +356,7 @@ export const setupSocketListeners = () => {
     });
 
     // Handle sending messages in ticket chat
-    socket.on('send-ticket-message', (data) => {
+    socket.on('send-ticket-message', async (data) => {
       try {
         const { ticketId, message, senderId, senderEmail, senderRole, media } = data;
         
@@ -397,6 +397,37 @@ export const setupSocketListeners = () => {
           });
         }
 
+        // Save message to database
+        try {
+          const SupportTicket = (await import('../models/supportTicket.js')).default;
+          const ticket = await SupportTicket.findById(ticketId);
+          
+          if (ticket) {
+            if (!ticket.chatMessages) {
+              ticket.chatMessages = [];
+            }
+            
+            // Add message to ticket's chat messages
+            ticket.chatMessages.push({
+              messageId: messageObj.id,
+              message: messageObj.message,
+              senderId: messageObj.senderId,
+              senderEmail: messageObj.senderEmail,
+              senderRole: messageObj.senderRole,
+              timestamp: messageObj.timestamp,
+              media: messageObj.media
+            });
+            
+            await ticket.save();
+            console.log('✅ [SocketService] Message saved to database:', messageObj.id);
+          } else {
+            console.warn('⚠️ [SocketService] Ticket not found for database save:', ticketId);
+          }
+        } catch (dbError) {
+          console.error('❌ [SocketService] Database save error:', dbError);
+          // Continue with broadcasting even if DB save fails
+        }
+
         // Broadcast message to all users in the ticket room
         io.to(`ticket-${ticketId}`).emit('new-ticket-message', messageObj);
 
@@ -411,7 +442,7 @@ export const setupSocketListeners = () => {
     });
 
     // Handle media file upload for chat
-    socket.on('upload-media', (data) => {
+    socket.on('upload-media', async (data) => {
       try {
         console.log('📤 [SocketService] upload-media event received with data:', {
           ticketId: data.ticketId,
@@ -531,6 +562,43 @@ export const setupSocketListeners = () => {
         // Get users in ticket room
         const usersInTicket = ticketRooms.get(ticketId);
         console.log(`📤 [SocketService] Broadcasting to ${usersInTicket.size} users in ticket ${ticketId}`);
+
+        // Save media message to database
+        try {
+          const SupportTicket = (await import('../models/supportTicket.js')).default;
+          const ticket = await SupportTicket.findById(ticketId);
+          
+          if (ticket) {
+            if (!ticket.chatMessages) {
+              ticket.chatMessages = [];
+            }
+            
+            // Add media message to ticket's chat messages
+            ticket.chatMessages.push({
+              messageId: mediaMessage.id,
+              message: mediaMessage.message,
+              senderId: mediaMessage.senderId,
+              senderEmail: mediaMessage.senderEmail,
+              senderRole: mediaMessage.senderRole,
+              timestamp: mediaMessage.timestamp,
+              media: {
+                type: mediaMessage.media.type,
+                name: mediaMessage.media.name,
+                size: mediaMessage.media.size,
+                mimeType: mediaMessage.media.mimeType,
+                localStorageKey: `media_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+              }
+            });
+            
+            await ticket.save();
+            console.log('✅ [SocketService] Media message saved to database:', mediaMessage.id);
+          } else {
+            console.warn('⚠️ [SocketService] Ticket not found for database save:', ticketId);
+          }
+        } catch (dbError) {
+          console.error('❌ [SocketService] Database save error for media:', dbError);
+          // Continue with broadcasting even if DB save fails
+        }
 
         // Broadcast media message to all users in the ticket room
         io.to(`ticket-${ticketId}`).emit('new-ticket-message', mediaMessage);

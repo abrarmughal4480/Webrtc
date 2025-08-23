@@ -70,6 +70,25 @@ const supportTicketSchema = new mongoose.Schema({
         mimeType: { type: String, required: true },
         uploadedAt: { type: Date, default: Date.now }
     }],
+    
+    // Chat conversation messages
+    chatMessages: [{
+        messageId: { type: String, required: true, unique: true },
+        senderId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+        senderEmail: { type: String, required: true },
+        senderRole: { type: String, required: true },
+        message: { type: String, default: '' },
+        media: {
+            type: { type: String, enum: ['image', 'video'] },
+            name: { type: String },
+            size: { type: Number },
+            mimeType: { type: String },
+            localStorageKey: { type: String } // Key for local storage
+        },
+        timestamp: { type: Date, default: Date.now },
+        isRead: { type: Boolean, default: false },
+        readAt: { type: Date, default: null }
+    }],
     assignedTo: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
@@ -219,6 +238,45 @@ supportTicketSchema.statics.getTicketStats = async function(filters = {}) {
         }
     ]);
     return stats;
+};
+
+// Method to add chat message
+supportTicketSchema.methods.addChatMessage = function(messageData) {
+    const newMessage = {
+        messageId: messageData.messageId,
+        senderId: messageData.senderId,
+        senderEmail: messageData.senderEmail,
+        senderRole: messageData.senderRole,
+        message: messageData.message || '',
+        media: messageData.media ? {
+            type: messageData.media.type,
+            name: messageData.media.name,
+            size: messageData.media.size,
+            mimeType: messageData.media.mimeType,
+            localStorageKey: messageData.media.localStorageKey
+        } : null,
+        timestamp: new Date(),
+        isRead: false
+    };
+    
+    this.chatMessages.push(newMessage);
+    return this.save();
+};
+
+// Method to get chat messages
+supportTicketSchema.methods.getChatMessages = function() {
+    return this.chatMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+};
+
+// Method to mark message as read
+supportTicketSchema.methods.markMessageAsRead = function(messageId, userId) {
+    const message = this.chatMessages.find(msg => msg.messageId === messageId);
+    if (message && message.senderId.toString() !== userId.toString()) {
+        message.isRead = true;
+        message.readAt = new Date();
+        return this.save();
+    }
+    return Promise.resolve(this);
 };
 
 const SupportTicket = mongoose.model('SupportTicket', supportTicketSchema);

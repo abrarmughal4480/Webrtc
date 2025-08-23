@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { io } from 'socket.io-client';
 import { useUser } from '@/provider/UserProvider';
+import { getChatHistory } from '@/http/chatHttp';
+
 
 const useChatSocket = (ticketId) => {
   const { user } = useUser();
@@ -10,91 +12,106 @@ const useChatSocket = (ticketId) => {
   const [onlineUsers, setOnlineUsers] = useState([]);
   const [connectionError, setConnectionError] = useState(null);
 
-  // Local storage key for this ticket
-  const storageKey = ticketId ? `chat_messages_${ticketId}` : null;
 
-  // Save messages to local storage
-  const saveMessagesToStorage = useCallback((messagesToSave) => {
-    if (!storageKey) return;
-
-    try {
-      localStorage.setItem(storageKey, JSON.stringify(messagesToSave));
-    } catch (error) {
-      console.error('❌ Error saving messages to storage:', error);
-    }
-  }, [storageKey]);
-
-  // Custom setMessages that automatically saves to local storage
   const setMessagesWithStorage = useCallback((newMessages) => {
     setMessages(newMessages);
-    saveMessagesToStorage(newMessages);
-  }, [saveMessagesToStorage]);
+    console.log('💾 Messages updated locally, database saving handled by backend');
+  }, []);
 
-  // Load messages from local storage
-  const loadMessagesFromStorage = useCallback(() => {
-    if (!storageKey) return [];
+  // Load messages from database
+  const loadMessagesFromDatabase = useCallback(async () => {
+    if (!ticketId || !user?._id) return [];
 
     try {
-      const stored = localStorage.getItem(storageKey);
-      if (stored && stored !== 'null' && stored !== 'undefined') {
-        const parsed = JSON.parse(stored);
-        // Ensure parsed data is an array before mapping
-        if (Array.isArray(parsed)) {
-          // Convert timestamp strings back to Date objects
-          return parsed.map(msg => ({
-            ...msg,
-            timestamp: new Date(msg.timestamp)
+      console.log('📚 Loading chat history from database for ticket:', ticketId);
+      const response = await getChatHistory(ticketId, user._id);
+      
+      if (response.success && response.data.messages) {
+        console.log('✅ Loaded', response.data.messages.length, 'messages from database');
+        
+        // Convert database messages to local format (filter out welcome messages)
+        const formattedMessages = response.data.messages
+          .filter(msg => !msg.messageId.startsWith('welcome')) // Don't load welcome messages from DB
+          .map(msg => ({
+            id: msg.messageId,
+            text: msg.message || '',
+            sender: msg.senderRole === 'admin' || msg.senderRole === 'superadmin' ? 'admin' : 'user',
+            timestamp: new Date(msg.timestamp),
+            senderId: msg.senderId,
+            senderEmail: msg.senderEmail,
+            senderRole: msg.senderRole,
+            media: msg.media ? {
+              type: msg.media.type,
+              name: msg.media.name,
+              size: msg.media.size,
+              mimeType: msg.media.mimeType,
+              localStorageKey: msg.media.localStorageKey,
+              // Load media from local storage if available
+              localUrl: msg.media.localStorageKey ? localStorage.getItem(msg.media.localStorageKey) : null
+            } : null,
+            isRead: msg.isRead,
+            readAt: msg.readAt
           }));
-        }
+        
+        return formattedMessages;
       }
     } catch (error) {
-      console.error('❌ Error loading messages from storage:', error);
+      console.error('❌ Error loading messages from database:', error);
     }
     return [];
-  }, [storageKey]);
+  }, [ticketId, user?._id]);
 
-  // Clear messages for a specific ticket
+
+
+  // Clear messages for a specific ticket (local state only)
   const clearTicketMessages = useCallback(() => {
-    if (!storageKey) return;
+    setMessages([]);
+    console.log('🗑️ Cleared local messages for ticket:', ticketId);
+  }, [ticketId]);
 
-    try {
-      localStorage.removeItem(storageKey);
-      setMessages([]);
-      console.log('🗑️ Cleared messages for ticket:', ticketId);
-    } catch (error) {
-      console.error('❌ Error clearing messages:', error);
-    }
-  }, [storageKey, ticketId]);
-
-  // Export messages for backup
+  // Export messages to JSON file
   const exportMessages = useCallback(() => {
-    if (!storageKey || messages.length === 0) return null;
+    if (messages.length === 0) {
+      alert('No messages to export');
+      return;
+    }
 
     try {
       const exportData = {
         ticketId,
         exportDate: new Date().toISOString(),
-        messageCount: messages.length,
-        messages: messages
+        totalMessages: messages.length,
+        messages: messages.map(msg => ({
+          id: msg.id,
+          text: msg.text,
+          sender: msg.sender,
+          timestamp: msg.timestamp.toISOString(),
+          media: msg.media ? {
+            type: msg.media.type,
+            name: msg.media.name,
+            size: msg.media.size
+          } : null
+        }))
       };
 
       const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `chat_backup_${ticketId}_${new Date().toISOString().split('T')[0]}.json`;
+      a.download = `chat-export-${ticketId}-${new Date().toISOString().split('T')[0]}.json`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
 
-      console.log('📤 Exported', messages.length, 'messages for ticket:', ticketId);
-      return true;
+      console.log('📤 Exported', messages.length, 'messages to JSON file');
     } catch (error) {
       console.error('❌ Error exporting messages:', error);
-      return false;
+      alert('Failed to export messages');
     }
-  }, [storageKey, messages, ticketId]);
+  }, [messages, ticketId]);
+
+
 
   // Initialize socket connection
   const connectSocket = useCallback(() => {
@@ -446,13 +463,22 @@ const useChatSocket = (ticketId) => {
     if (user && ticketId) {
       console.log('🔄 Setting up chat socket for ticket:', ticketId);
 
-      // Load existing messages from local storage
-      const storedMessages = loadMessagesFromStorage();
-      if (storedMessages.length > 0) {
-        console.log('📚 Loaded', storedMessages.length, 'messages from local storage');
-        setMessages(storedMessages);
-      }
+      // Load existing messages from database only
+      const loadMessages = async () => {
+        try {
+          const dbMessages = await loadMessagesFromDatabase();
+          if (dbMessages.length > 0) {
+            console.log('📚 Loaded', dbMessages.length, 'messages from database');
+            setMessages(dbMessages);
+          } else {
+            console.log('📚 No messages found in database for ticket:', ticketId);
+          }
+        } catch (error) {
+          console.error('❌ Error loading messages from database:', error);
+        }
+      };
 
+      loadMessages();
       connectSocket();
     }
 
@@ -461,7 +487,7 @@ const useChatSocket = (ticketId) => {
     //   console.log('🧹 Cleaning up chat socket on unmount');
     //   disconnectSocket();
     // };
-  }, [user?._id, ticketId, loadMessagesFromStorage]); // Only depend on user ID and ticket ID, not the functions
+  }, [user?._id, ticketId, loadMessagesFromDatabase]); // Only depend on user ID and ticket ID, not the functions
 
   // Activity heartbeat
   useEffect(() => {
@@ -561,7 +587,8 @@ const useChatSocket = (ticketId) => {
     clearTicketMessages,
     exportMessages,
     connectSocket,
-    disconnectSocket
+    disconnectSocket,
+    loadMessagesFromDatabase
   };
 };
 

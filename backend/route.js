@@ -16,6 +16,9 @@ import { createCompany, getAllCompanies, getCompanyById, updateCompany, deleteCo
 // Support Ticket controller import
 import { createSupportTicket, getUserTickets, getTicketById, updateTicket, deleteTicket, getAllTickets, adminUpdateTicket, adminUpdateTicketComprehensive, getSuperAdminAllTickets, getDashboardStats, getTicketStats, bulkUpdateTickets, searchTickets, exportTickets, deleteAttachment } from './controllers/supportTicketController.js';
 
+// Chat controller import
+import { getChatHistory, saveChatMessage, saveMediaMessage, getChatStats } from './controllers/chatController.js';
+
 // Callback Request controller import
 import { createCallbackRequest, getAllCallbackRequests, getCallbackRequestById, updateCallbackRequestStatus, addContactAttempt, deleteCallbackRequest, getCallbackRequestStats } from './controllers/callbackRequestController.js';
 
@@ -496,5 +499,64 @@ router.post('/feedback/save', isAuthenticate, saveFeedback);
 router.post('/feedback/remove', isAuthenticate, removeFeedback);
 router.get('/feedback/user/:userEmail', isAuthenticate, getUserFeedback);
 router.get('/feedback/stats', isAuthenticate, getFeedbackStats);
+
+// Chat routes
+router.get('/chat/history/:ticketId', isAuthenticate, getChatHistory);
+router.post('/chat/message', isAuthenticate, saveChatMessage);
+router.post('/chat/media', isAuthenticate, saveMediaMessage);
+router.get('/chat/stats/:ticketId', isAuthenticate, getChatStats);
+
+// Backup routes (only for superadmin)
+import { createBackup, listBackups, downloadBackup, deleteBackup, getBackupStats } from './controllers/backupController.js';
+
+router.post('/backup/create', isAuthenticate, (req, res, next) => {
+    if (req.user.role !== 'superadmin') {
+        return res.status(403).json({
+            success: false,
+            message: 'Only superadmin can perform backup operations'
+        });
+    }
+    next();
+}, createBackup);
+
+router.get('/backup/list', isAuthenticate, (req, res, next) => {
+    if (req.user.role !== 'superadmin') {
+        return res.status(403).json({
+            success: false,
+            message: 'Only superadmin can access backup information'
+        });
+    }
+    next();
+}, listBackups);
+
+router.get('/backup/download/:filename', isAuthenticate, (req, res, next) => {
+    if (req.user.role !== 'superadmin') {
+        return res.status(403).json({
+            success: false,
+            message: 'Only superadmin can download backups'
+        });
+    }
+    next();
+}, downloadBackup);
+
+router.delete('/backup/:filename', isAuthenticate, (req, res, next) => {
+    if (req.user.role !== 'superadmin') {
+        return res.status(403).json({
+            success: false,
+            message: 'Only superadmin can delete backups'
+        });
+    }
+    next();
+}, deleteBackup);
+
+router.get('/backup/stats', isAuthenticate, (req, res, next) => {
+    if (req.user.role !== 'superadmin') {
+        return res.status(403).json({
+            success: false,
+            message: 'Only superadmin can access backup statistics'
+        });
+    }
+    next();
+}, getBackupStats);
 
 export default router;
