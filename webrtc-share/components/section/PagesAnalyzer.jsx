@@ -1,7 +1,7 @@
 "use client"
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from '@/components/ui/button';
-import { saveFeedbackRequest, removeFeedbackRequest } from '@/http';
+import { saveFeedbackRequest, removeFeedbackRequest, createAnalyzerSession, uploadAnalyzerImages, saveAnalysisResults, updateAnalysisFeedback } from '@/http';
 import { useUser } from '@/provider/UserProvider';
 
 const AFFECTED_COLOURS = {
@@ -23,6 +23,11 @@ export default function PagesAnalyzer({ isOpen, onClose }) {
   const [analyzingImage, setAnalyzingImage] = useState(null); // Track which image is being analyzed
   const [expandedImage, setExpandedImage] = useState(null); // Track which image is expanded
   const [isAudioPlaying, setIsAudioPlaying] = useState(false); // Track audio playing status
+  const [analyzerSessionId, setAnalyzerSessionId] = useState(null); // Store analyzer session ID
+  const [isSessionCreated, setIsSessionCreated] = useState(false); // Track if session is created
+  const [isSavingToBackend, setIsSavingToBackend] = useState(false); // Track backend save status
+  const [saveSuccess, setSaveSuccess] = useState(false); // Track if save was successful
+  const [demoCode, setDemoCode] = useState(''); // Store the demo code that was entered
 
   const analysedAt = useMemo(() => {
     return new Date().toLocaleString(undefined, {
@@ -36,7 +41,7 @@ export default function PagesAnalyzer({ isOpen, onClose }) {
   }, [Object.keys(results).length]);
 
   const thumbs = useMemo(() => files.map((f) => URL.createObjectURL(f)), [files]);
-  
+
   // Store thumb URLs in results to prevent them from being lost
   const getThumbUrl = (index) => {
     // First check if we have a stored thumb in results
@@ -77,14 +82,14 @@ export default function PagesAnalyzer({ isOpen, onClose }) {
   useEffect(() => {
     const loadVoices = () => {
       if (typeof window === 'undefined' || !window.speechSynthesis) return;
-      
+
       const voices = window.speechSynthesis.getVoices();
       // Find the best British female voice
-      const britishVoice = voices.find(v => 
-        /en-GB/i.test(v.lang) && 
+      const britishVoice = voices.find(v =>
+        /en-GB/i.test(v.lang) &&
         (v.name.includes('Female') || v.name.includes('female') || v.name.includes('Samantha') || v.name.includes('Victoria'))
       ) || voices.find(v => /en-GB/i.test(v.lang)) || voices.find(v => /^en/i.test(v.lang));
-      
+
       if (britishVoice) {
       } else {
       }
@@ -92,28 +97,38 @@ export default function PagesAnalyzer({ isOpen, onClose }) {
 
     // Load voices immediately if available
     loadVoices();
-    
+
     // Also listen for voices loaded event
     if (typeof window !== 'undefined' && window.speechSynthesis) {
       window.speechSynthesis.addEventListener('voiceschanged', loadVoices);
-      
+
       return () => {
         window.speechSynthesis.removeEventListener('voiceschanged', loadVoices);
       };
     }
   }, []);
 
-  const onFileChange = (e) => {
+  // Load demo code from localStorage when component mounts
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const storedDemoCode = localStorage.getItem('analyzerDemoCode');
+      if (storedDemoCode) {
+        setDemoCode(storedDemoCode);
+      }
+    }
+  }, []);
+
+  const onFileChange = async (e) => {
     const list = Array.from(e.target.files || []);
     // If there are existing files, append new ones; otherwise replace
     setFiles(prevFiles => [...prevFiles, ...list]);
   };
 
-  const handleDrop = (e) => {
+  const handleDrop = async (e) => {
     e.preventDefault();
     const list = Array.from(e.dataTransfer.files || []);
-    const imageFiles = list.filter(file => 
-      file.type.startsWith('image/') && 
+    const imageFiles = list.filter(file =>
+      file.type.startsWith('image/') &&
       (file.type.includes('jpeg') || file.type.includes('png'))
     );
     if (imageFiles.length > 0) {
@@ -126,6 +141,11 @@ export default function PagesAnalyzer({ isOpen, onClose }) {
     e.preventDefault();
   };
 
+  // Create analyzer session - but don't create it immediately
+  const createAnalyzerSessionHandler = async () => {
+    // Don't create session yet - wait for analyze button click
+  };
+
   const handleAnalyze = async () => {
     setError(null);
 
@@ -134,83 +154,150 @@ export default function PagesAnalyzer({ isOpen, onClose }) {
       return;
     }
 
-    // Analyze each image individually
+    // Get demo code from localStorage or prompt user
+    let currentDemoCode = demoCode;
+    if (!currentDemoCode) {
+      // Try to get from localStorage
+      const storedDemoCode = localStorage.getItem('analyzerDemoCode');
+      if (storedDemoCode) {
+        currentDemoCode = storedDemoCode;
+        setDemoCode(storedDemoCode);
+      } else {
+        setError("Please enter a demo code first.");
+        return;
+      }
+    }
+
+    // Store all analysis results in a temporary array
+    const analysisResults = [];
+
+    // Analyze each image individually FIRST
     for (let i = 0; i < files.length; i++) {
       if (results[i]) continue; // Skip if already analyzed
-      
+
       setAnalyzingImage(i);
       try {
         const imageDataUrl = await fileToDataUrl(files[i]);
         const res = await fetch("/api/analyze", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ 
-            images: [imageDataUrl], 
-            notes: notes || `Analysis for Photo ${i + 1}` 
+          body: JSON.stringify({
+            images: [imageDataUrl],
+            notes: notes || `Analysis for Photo ${i + 1}`
           }),
         });
-        
+
         if (!res.ok) {
           const errorData = await res.json().catch(() => ({}));
           throw new Error(errorData?.error || `HTTP ${res.status}: ${res.statusText}`);
         }
-        
+
         const data = await res.json();
+
+        // Store result in temporary array
+        const resultData = {
+          summary: data.summary,
+          severity: data.severity,
+          confidence: data.confidence,
+          affected: data.affected || [],
+          analysedAt: new Date().toLocaleString(undefined, {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+          }),
+          thumb: imageDataUrl,
+          fileIndex: i,
+        };
+
+        analysisResults.push(resultData);
+
+        // Also update the state
         setResults(prev => ({
           ...prev,
-          [i]: {
-            summary: data.summary,
-            severity: data.severity,
-            confidence: data.confidence,
-            affected: data.affected || [],
-            analysedAt: new Date().toLocaleString(undefined, {
-              day: "2-digit",
-              month: "short",
-              year: "numeric",
-              hour: "2-digit",
-              minute: "2-digit",
-              second: "2-digit",
-            }),
-            thumb: imageDataUrl,
-            fileIndex: i,
-          }
+          [i]: resultData
         }));
+
       } catch (e) {
-        console.error(`Analysis error for image ${i}:`, e);
+        const errorResult = {
+          error: e.message || "Failed to analyze this photo",
+          analysedAt: new Date().toLocaleString(),
+          thumb: thumbs[i] || '',
+          fileIndex: i,
+        };
+
+        analysisResults.push(errorResult);
+
         setResults(prev => ({
           ...prev,
-          [i]: {
-            error: e.message || "Failed to analyze this photo",
-            analysedAt: new Date().toLocaleString(),
-            thumb: thumbs[i] || '',
-            fileIndex: i,
-          }
+          [i]: errorResult
         }));
       }
     }
     setAnalyzingImage(null);
+
+    // NOW create session and save everything to backend
+    if (analysisResults.length > 0) {
+      try {
+        setIsSavingToBackend(true);
+
+        // Create session with demo code (no email required)
+        const sessionResponse = await createAnalyzerSession({
+          userEmail: `demo_${currentDemoCode}@analyzer.com`, // Use demo code as identifier
+          notes: notes || `Analysis session with demo code: ${currentDemoCode}`,
+          demoCode: currentDemoCode
+        });
+
+        if (sessionResponse.success) {
+          const sessionId = sessionResponse.data.sessionId;
+          setAnalyzerSessionId(sessionId);
+          setIsSessionCreated(true);
+
+          // Upload images to the new session
+          const fileObjects = files.filter(file => file instanceof File);
+          if (fileObjects.length > 0) {
+            await uploadAnalyzerImages(sessionId, fileObjects);
+          }
+
+          // Save analysis results
+          await saveAnalysisResults(sessionId, analysisResults);
+
+          // Show success message to user
+          setError(null);
+          setSaveSuccess(true);
+          // Hide success message after 5 seconds
+          setTimeout(() => setSaveSuccess(false), 5000);
+        }
+      } catch (error) {
+        setError("Analysis completed but failed to save data to server. Please try again.");
+      } finally {
+        setIsSavingToBackend(false);
+      }
+    }
   };
 
   const handleAnalyzeSingle = async (imageIndex) => {
     setError(null);
     setAnalyzingImage(imageIndex);
-    
+
     try {
       const imageDataUrl = await fileToDataUrl(files[imageIndex]);
       const res = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          images: [imageDataUrl], 
-          notes: notes || `Analysis for Photo ${imageIndex + 1}` 
+        body: JSON.stringify({
+          images: [imageDataUrl],
+          notes: notes || `Analysis for Photo ${imageIndex + 1}`
         }),
       });
-      
+
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
         throw new Error(errorData?.error || `HTTP ${res.status}: ${res.statusText}`);
       }
-      
+
       const data = await res.json();
       setResults(prev => ({
         ...prev,
@@ -248,17 +335,17 @@ export default function PagesAnalyzer({ isOpen, onClose }) {
   };
 
   const speakRef = useRef(null);
-  
+
   // Function to speak only the summary
   const handleSpeakSummary = (summary) => {
     if (!summary) return;
-    
+
     // Check if speech synthesis is supported
     if (typeof window === 'undefined' || !window.speechSynthesis) {
       setIsAudioPlaying(false);
       return;
     }
-    
+
     const synth = window.speechSynthesis;
     if (!synth) {
       setIsAudioPlaying(false);
@@ -270,7 +357,7 @@ export default function PagesAnalyzer({ isOpen, onClose }) {
 
     try {
       let voices = synth.getVoices();
-      
+
       // If no voices are loaded yet, wait for them
       if (voices.length === 0) {
         synth.addEventListener('voiceschanged', () => {
@@ -279,24 +366,24 @@ export default function PagesAnalyzer({ isOpen, onClose }) {
         }, { once: true });
         return;
       }
-      
+
       proceedWithSummarySpeech(voices, summary, synth);
-      
+
     } catch (error) {
       speakRef.current = null;
       setIsAudioPlaying(false);
     }
   };
-  
+
   const handleSpeak = (result) => {
     if (!result) return;
-    
+
     // Check if speech synthesis is supported
     if (typeof window === 'undefined' || !window.speechSynthesis) {
       setIsAudioPlaying(false);
       return;
     }
-    
+
     const synth = window.speechSynthesis;
     if (!synth) {
       setIsAudioPlaying(false);
@@ -308,7 +395,7 @@ export default function PagesAnalyzer({ isOpen, onClose }) {
 
     try {
       let voices = synth.getVoices();
-      
+
       // If no voices are loaded yet, wait for them
       if (voices.length === 0) {
         synth.addEventListener('voiceschanged', () => {
@@ -317,9 +404,9 @@ export default function PagesAnalyzer({ isOpen, onClose }) {
         }, { once: true });
         return;
       }
-      
+
       proceedWithSpeech(voices, result, synth);
-      
+
     } catch (error) {
       speakRef.current = null;
       setIsAudioPlaying(false);
@@ -329,8 +416,8 @@ export default function PagesAnalyzer({ isOpen, onClose }) {
   const proceedWithSummarySpeech = (voices, summary, synth) => {
     try {
       // Prioritize British female voices
-      let voice = voices.find(v => 
-        /en-GB/i.test(v.lang) && 
+      let voice = voices.find(v =>
+        /en-GB/i.test(v.lang) &&
         (v.name.includes('Female') || v.name.includes('female') || v.name.includes('Samantha') || v.name.includes('Victoria'))
       ) || voices.find(v => /en-GB/i.test(v.lang)) || voices.find(v => /^en/i.test(v.lang)) || null;
 
@@ -342,34 +429,34 @@ export default function PagesAnalyzer({ isOpen, onClose }) {
       const text = `Summary: ${summary}`;
 
       const utter = new SpeechSynthesisUtterance(text);
-      
+
       if (voice) {
         utter.voice = voice;
       }
-      
+
       // Optimize for British accent
       utter.rate = 0.85; // Slightly slower for clarity
       utter.pitch = 1.05; // Slightly higher pitch for female voice
       utter.lang = voice?.lang || "en-GB";
-      
+
       // Stop any current speech
       synth.cancel();
-      
+
       // Add event listeners for better control
       utter.onend = () => {
         speakRef.current = null;
         setIsAudioPlaying(false); // Reset state when audio ends
       };
-      
+
       utter.onerror = (event) => {
         speakRef.current = null;
         setIsAudioPlaying(false); // Reset state on error
       };
-      
+
       // Start new speech
       synth.speak(utter);
       speakRef.current = utter;
-      
+
     } catch (error) {
       speakRef.current = null;
       setIsAudioPlaying(false);
@@ -379,8 +466,8 @@ export default function PagesAnalyzer({ isOpen, onClose }) {
   const proceedWithSpeech = (voices, result, synth) => {
     try {
       // Prioritize British female voices
-      let voice = voices.find(v => 
-        /en-GB/i.test(v.lang) && 
+      let voice = voices.find(v =>
+        /en-GB/i.test(v.lang) &&
         (v.name.includes('Female') || v.name.includes('female') || v.name.includes('Samantha') || v.name.includes('Victoria'))
       ) || voices.find(v => /en-GB/i.test(v.lang)) || voices.find(v => /^en/i.test(v.lang)) || null;
 
@@ -393,34 +480,34 @@ export default function PagesAnalyzer({ isOpen, onClose }) {
       const text = `Analysis Results. Severity: ${result.severity || "unknown"}. Confidence: ${result.confidence ?? 0} percent. Affected areas: ${affectedLine}. Summary: ${result.summary}`;
 
       const utter = new SpeechSynthesisUtterance(text);
-      
+
       if (voice) {
         utter.voice = voice;
       }
-      
+
       // Optimize for British accent
       utter.rate = 0.85; // Slightly slower for clarity
       utter.pitch = 1.05; // Slightly higher pitch for female voice
       utter.lang = voice?.lang || "en-GB";
-      
+
       // Stop any current speech
       synth.cancel();
-      
+
       // Add event listeners for better control
       utter.onend = () => {
         speakRef.current = null;
         setIsAudioPlaying(false); // Reset state when audio ends
       };
-      
+
       utter.onerror = (event) => {
         speakRef.current = null;
         setIsAudioPlaying(false); // Reset state on error
       };
-      
+
       // Start new speech
       synth.speak(utter);
       speakRef.current = utter;
-      
+
     } catch (error) {
       speakRef.current = null;
       setIsAudioPlaying(false);
@@ -446,7 +533,7 @@ export default function PagesAnalyzer({ isOpen, onClose }) {
     // Get current result data
     const currentResult = results[imageIndex];
     if (!currentResult) return;
-    
+
     // IMMEDIATE UI UPDATE - No waiting for API
     if (type === currentResult.feedback) {
       // User is unchecking the same feedback - remove it immediately
@@ -467,19 +554,29 @@ export default function PagesAnalyzer({ isOpen, onClose }) {
         }
       }));
     }
-    
+
     // Now make API call in background (async)
     try {
+      // Save feedback to analyzer backend if session exists
+      if (analyzerSessionId) {
+        try {
+          await updateAnalysisFeedback(analyzerSessionId, imageIndex, type);
+        } catch (error) {
+          // Silent fail
+        }
+      }
+
+      // Also save to existing feedback system for backward compatibility
       // Determine user email - either from logged in user or guest
       let userEmail = 'guest@anonymous.com';
-      
+
       if (isAuth && user) {
         userEmail = user.email;
       } else {
         // Fallback: check localStorage as well
         const localStorageUser = window.localStorage.getItem('user');
         const localStorageToken = window.localStorage.getItem('token');
-        
+
         if (localStorageUser && localStorageToken) {
           try {
             const user = JSON.parse(localStorageUser);
@@ -489,7 +586,7 @@ export default function PagesAnalyzer({ isOpen, onClose }) {
           }
         }
       }
-      
+
       // Always save feedback regardless of login status
       // Use existing analysisId or generate new one
       let analysisId = currentResult.analysisId;
@@ -503,11 +600,11 @@ export default function PagesAnalyzer({ isOpen, onClose }) {
           }
         }));
       }
-      
+
       // Get image data - convert blob URL to base64
       const imageUrl = getThumbUrl(imageIndex);
       let imageData = imageUrl;
-      
+
       if (imageUrl.startsWith('blob:')) {
         try {
           const response = await fetch(imageUrl);
@@ -521,7 +618,7 @@ export default function PagesAnalyzer({ isOpen, onClose }) {
           // Silent fail
         }
       }
-      
+
       // Prepare analysis response data
       const analysisResponse = {
         summary: currentResult.summary,
@@ -530,7 +627,7 @@ export default function PagesAnalyzer({ isOpen, onClose }) {
         affected: currentResult.affected || [],
         analysedAt: currentResult.analysedAt
       };
-      
+
       if (type === currentResult.feedback) {
         // User is unchecking the same feedback - remove it
         try {
@@ -577,161 +674,190 @@ export default function PagesAnalyzer({ isOpen, onClose }) {
     setResults({});
     setError(null);
     setAnalyzingImage(null);
+    setAnalyzerSessionId(null);
+    setIsSessionCreated(false);
+    setSaveSuccess(false);
+    setIsSavingToBackend(false);
+    // Don't clear demo code - keep it for next analysis
+  };
+
+  const clearEverything = () => {
+    setFiles([]);
+    setNotes("");
+    setResults({});
+    setError(null);
+    setAnalyzingImage(null);
+    setAnalyzerSessionId(null);
+    setIsSessionCreated(false);
+    setSaveSuccess(false);
+    setIsSavingToBackend(false);
+    setDemoCode('');
+    localStorage.removeItem('analyzerDemoCode');
   };
 
   if (!isOpen) return null;
 
   return (
-         <div className="fixed inset-0 z-[200] bg-white flex flex-col">
-       {/* Header */}
-       <div className="bg-gradient-to-r from-green-600 to-blue-600 text-white p-1 sm:p-2 md:p-4 border-b border-green-500 flex-shrink-0">
-         <div className="flex items-center justify-between">
-           <div className="flex-1 text-center">
-             <h2 className="text-xl sm:text-2xl md:text-3xl font-bold">Damp & Mould Image Analyser</h2>
-             <p className="text-green-100 mt-1 sm:mt-2 text-sm sm:text-base">Upload photos and get AI-powered analysis with printable reports</p>
-           </div>
-           <button
-             onClick={onClose}
-             className="bg-white/20 hover:bg-white/30 text-white p-2 sm:p-3 rounded-full transition-colors absolute right-4"
-           >
-             <svg className="w-5 h-5 sm:w-6 sm:w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-             </svg>
-           </button>
-         </div>
-       </div>
+    <div className="fixed inset-0 z-[200] bg-white flex flex-col">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-green-600 to-blue-600 text-white p-1 sm:p-2 md:p-4 border-b border-green-500 flex-shrink-0">
+        <div className="flex items-center justify-between">
+          <div className="flex-1 text-center">
+            <h2 className="text-xl sm:text-2xl md:text-3xl font-bold">Damp & Mould Image Analyser</h2>
+            <p className="text-green-100 mt-1 sm:mt-2 text-sm sm:text-base">Upload photos and get AI-powered analysis with printable reports</p>
+            {isSavingToBackend && (
+              <div className="flex items-center justify-center gap-2 mt-2">
+                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                <span className="text-green-200 text-xs">
+                  Saving data to server...
+                </span>
+              </div>
+            )}
+          </div>
+          <button
+            onClick={onClose}
+            className="bg-white/20 hover:bg-white/30 text-white p-2 sm:p-3 rounded-full transition-colors absolute right-4"
+          >
+            <svg className="w-5 h-5 sm:w-6 sm:w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      </div>
 
-                                                                                                               {/* Content */}
-          <div className="flex-1 overflow-y-auto">
-                         <div className="p-4 sm:p-6 w-full max-w-4xl mx-auto">
-                                                   {/* Upload photos */}
-                <div className="mb-6">
-                  {files.length === 0 && (
-                    <div 
-                      className="border-2 border-dashed border-gray-300 rounded-lg p-12 text-center hover:border-green-400 transition-colors max-w-xl mx-auto"
-                      onDrop={handleDrop}
-                      onDragOver={handleDragOver}
-                    >
-                      <input
-                        type="file"
-                        accept="image/jpeg,image/png"
-                        multiple
-                        onChange={onFileChange}
-                        className="hidden"
-                        id="file-upload"
-                      />
-                      <label htmlFor="file-upload" className="cursor-pointer flex flex-col items-center justify-center">
-                        <svg className="w-16 h-16 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                        </svg>
-                        <p className="text-gray-600 text-sm">Click to select photos or drag and drop</p>
-                        <p className="text-xs text-gray-500 mt-1">Only JPG and PNG images supported • Multiple images allowed</p>
-                      </label>
-                    </div>
-                  )}
-                  
-                  {files.length > 0 && (
-                    <div>
-                      <div className="flex items-center justify-between mb-3">
-                        <p className="text-sm font-medium text-gray-700">Selected Photos ({files.length})</p>
-                        <button
-                          onClick={resetForm}
-                          className="text-red-600 hover:text-red-700 text-sm font-medium hover:bg-red-50 px-3 py-1 rounded-md transition-colors"
-                        >
-                          Clear All
-                        </button>
-                      </div>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                        {thumbs.map((src, i) => (
-                          <div key={i} className="relative rounded-lg border border-gray-200 overflow-hidden group">
-                            <img src={src} alt={`Photo ${i + 1}`} className="w-full h-32 object-cover" />
-                            
-                            {/* Maximize Icon */}
-                            <div className="absolute top-2 left-2 bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs cursor-pointer opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity hover:bg-blue-600"
-                                 onClick={() => setExpandedImage({ src, index: i, filename: `Photo ${i + 1}` })}>
-                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-                              </svg>
-                            </div>
-                            
-                            {/* Remove Icon */}
-                            <div className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs cursor-pointer opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity hover:bg-red-600"
-                                 onClick={() => setFiles(files.filter((_, index) => index !== i))}>
-                              ×
-                            </div>
-                            <div className="text-xs text-gray-600 px-2 py-1 bg-white/80">Photo {i + 1}</div>
-                            
-                            {/* Individual Analyze Button */}
-                            <div className="absolute bottom-0 left-0 right-0 bg-black/70 text-white p-2">
-                              {results[i] ? (
-                                <div className="text-center">
-                                  <span className="text-xs flex items-center justify-center gap-1">
-                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                    </svg>
-                                    Analyzed
-                                  </span>
-                                </div>
-                              ) : (
-                                <button
-                                  onClick={() => handleAnalyzeSingle(i)}
-                                  disabled={analyzingImage === i}
-                                  className="w-full bg-green-600 hover:bg-green-700 text-white text-xs py-1 px-2 rounded transition-colors disabled:opacity-50"
-                                >
-                                  {analyzingImage === i ? 'Analyzing...' : 'Analyze'}
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                      <div className="mt-3 text-center">
-                        <input
-                          type="file"
-                          accept="image/jpeg,image/png"
-                          multiple
-                          onChange={onFileChange}
-                          className="hidden"
-                          id="add-more-files"
-                        />
-                        <label htmlFor="add-more-files" className="cursor-pointer inline-flex items-center gap-2 text-green-600 hover:text-green-700 font-medium text-sm hover:bg-green-50 px-4 py-2 rounded-md transition-colors">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                          </svg>
-                          Add More Photos
-                        </label>
-                      </div>
-                    </div>
-                  )}
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="p-4 sm:p-6 w-full max-w-4xl mx-auto">
+          {/* Upload photos */}
+          <div className="mb-6">
+            {files.length === 0 && (
+              <div
+                className="border-2 border-dashed border-gray-300 rounded-lg p-12 text-center hover:border-green-400 transition-colors max-w-xl mx-auto"
+                onDrop={handleDrop}
+                onDragOver={handleDragOver}
+              >
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png"
+                  multiple
+                  onChange={onFileChange}
+                  className="hidden"
+                  id="file-upload"
+                />
+                <label htmlFor="file-upload" className="cursor-pointer flex flex-col items-center justify-center">
+                  <svg className="w-16 h-16 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  <p className="text-gray-600 text-sm">Click to select photos or drag and drop</p>
+                  <p className="text-xs text-gray-500 mt-1">Only JPG and PNG images supported • Multiple images allowed</p>
+                </label>
+              </div>
+            )}
+
+            {files.length > 0 && (
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-sm font-medium text-gray-700">Selected Photos ({files.length})</p>
+                  <button
+                    onClick={resetForm}
+                    className="text-blue-600 hover:text-blue-700 text-sm font-medium hover:bg-blue-50 px-3 py-1 rounded-md transition-colors"
+                  >
+                    Clear Analysis
+                  </button>
                 </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                  {thumbs.map((src, i) => (
+                    <div key={i} className="relative rounded-lg border border-gray-200 overflow-hidden group">
+                      <img src={src} alt={`Photo ${i + 1}`} className="w-full h-32 object-cover" />
 
-                     {/* Actions */}
-           <div className="flex flex-wrap items-center justify-center gap-3 mb-6">
-             <Button
-               onClick={handleAnalyze}
-               disabled={Object.keys(results).length === files.length}
-               className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-medium disabled:opacity-50"
-             >
-               {Object.keys(results).length === files.length ? (
-                 <span className="flex items-center gap-2">
-                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                   </svg>
-                   All Photos Analyzed
-                 </span>
-               ) : (
-                 "Analyze All Photos"
-               )}
-             </Button>
-             
-             <Button
-               onClick={resetForm}
-               variant="outline"
-               className="px-6 py-3 rounded-lg font-medium border-gray-300 hover:bg-gray-50"
-             >
-               Clear
-             </Button>
-            
+                      {/* Maximize Icon */}
+                      <div className="absolute top-2 left-2 bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs cursor-pointer opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity hover:bg-blue-600"
+                        onClick={() => setExpandedImage({ src, index: i, filename: `Photo ${i + 1}` })}>
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                        </svg>
+                      </div>
+
+                      {/* Remove Icon */}
+                      <div className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs cursor-pointer opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity hover:bg-red-600"
+                        onClick={() => setFiles(files.filter((_, index) => index !== i))}>
+                        ×
+                      </div>
+                      <div className="text-xs text-gray-600 px-2 py-1 bg-white/80">Photo {i + 1}</div>
+
+                      {/* Individual Analyze Button */}
+                      <div className="absolute bottom-0 left-0 right-0 bg-black/70 text-white p-2">
+                        {results[i] ? (
+                          <div className="text-center">
+                            <span className="text-xs flex items-center justify-center gap-1">
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                              </svg>
+                              Analyzed
+                            </span>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => handleAnalyzeSingle(i)}
+                            disabled={analyzingImage === i}
+                            className="w-full bg-green-600 hover:bg-green-700 text-white text-xs py-1 px-2 rounded transition-colors disabled:opacity-50"
+                          >
+                            {analyzingImage === i ? 'Analyzing...' : 'Analyze'}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-3 text-center">
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png"
+                    multiple
+                    onChange={onFileChange}
+                    className="hidden"
+                    id="add-more-files"
+                  />
+                  <label htmlFor="add-more-files" className="cursor-pointer inline-flex items-center gap-2 text-green-600 hover:text-green-700 font-medium text-sm hover:bg-green-50 px-4 py-2 rounded-md transition-colors">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    Add More Photos
+                  </label>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Actions */}
+          <div className="flex flex-wrap items-center justify-center gap-3 mb-6">
+            <Button
+              onClick={handleAnalyze}
+              disabled={Object.keys(results).length === files.length}
+              className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-medium disabled:opacity-50"
+            >
+              {Object.keys(results).length === files.length ? (
+                <span className="flex items-center gap-2">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  All Photos Analyzed
+                </span>
+              ) : (
+                "Analyze All Photos"
+              )}
+            </Button>
+
+            <Button
+              onClick={resetForm}
+              variant="outline"
+              className="px-6 py-3 rounded-lg font-medium border-gray-300 hover:bg-gray-50"
+            >
+              Clear Analysis
+            </Button>
+
+            {/* Removed Test Backend Button */}
+
           </div>
 
           {error && (
@@ -754,7 +880,7 @@ export default function PagesAnalyzer({ isOpen, onClose }) {
                 </svg>
                 Individual Image Analysis Results
               </h3>
-              
+
               {Object.entries(results).map(([imageIndex, result]) => (
                 <div key={imageIndex} className="bg-gradient-to-br from-gray-50 to-white rounded-xl shadow-lg border border-gray-200 p-6">
                   <div className="max-w-[794px] mx-auto">
@@ -777,12 +903,12 @@ export default function PagesAnalyzer({ isOpen, onClose }) {
                           {/* Maximize Icon for Result Image */}
                           <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
                             <div className="bg-blue-500 text-white rounded-full w-8 h-8 flex items-center justify-center cursor-pointer opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity hover:bg-blue-600"
-                                 onClick={() => {
-                                   const thumbUrl = getThumbUrl(parseInt(imageIndex));
-                                   if (thumbUrl) {
-                                     setExpandedImage({ src: thumbUrl, index: parseInt(imageIndex), filename: `Photo ${parseInt(imageIndex) + 1}` });
-                                   }
-                                 }}>
+                              onClick={() => {
+                                const thumbUrl = getThumbUrl(parseInt(imageIndex));
+                                if (thumbUrl) {
+                                  setExpandedImage({ src: thumbUrl, index: parseInt(imageIndex), filename: `Photo ${parseInt(imageIndex) + 1}` });
+                                }
+                              }}>
                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
                               </svg>
@@ -836,7 +962,7 @@ export default function PagesAnalyzer({ isOpen, onClose }) {
                             </div>
                           ) : (
                             <div className="text-center">
-                              <span className="text-xl font-bold text-center px-2" style={{ 
+                              <span className="text-xl font-bold text-center px-2" style={{
                                 color: severityColours(result.severity).fg
                               }}>{result.severity || "—"}</span>
                             </div>
@@ -915,7 +1041,7 @@ export default function PagesAnalyzer({ isOpen, onClose }) {
                             </svg>
                             Analysis Summary
                           </div>
-                          
+
                           {/* Audio Button - Right Side */}
                           {!isAudioPlaying ? (
                             <button
@@ -950,11 +1076,10 @@ export default function PagesAnalyzer({ isOpen, onClose }) {
                             <span className="text-xs text-gray-500 mr-2">Rate this analysis</span>
                             <button
                               onClick={() => handleFeedback(parseInt(imageIndex), 'thumbsUp')}
-                              className={`p-2 rounded-lg transition-colors duration-200 ${
-                                result.feedback === 'thumbsUp' 
-                                  ? 'text-green-600 bg-green-50' 
+                              className={`p-2 rounded-lg transition-colors duration-200 ${result.feedback === 'thumbsUp'
+                                  ? 'text-green-600 bg-green-50'
                                   : 'text-slate-500 hover:text-green-600 hover:bg-green-50'
-                              }`}
+                                }`}
                               title="Helpful Analysis"
                             >
                               <svg className="w-5 h-5" fill={result.feedback === 'thumbsUp' ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
@@ -963,11 +1088,10 @@ export default function PagesAnalyzer({ isOpen, onClose }) {
                             </button>
                             <button
                               onClick={() => handleFeedback(parseInt(imageIndex), 'thumbsDown')}
-                              className={`p-2 rounded-lg transition-colors duration-200 ${
-                                result.feedback === 'thumbsDown' 
-                                  ? 'text-red-600 bg-red-50' 
+                              className={`p-2 rounded-lg transition-colors duration-200 ${result.feedback === 'thumbsDown'
+                                  ? 'text-red-600 bg-red-50'
                                   : 'text-slate-500 hover:text-red-600 hover:bg-red-50'
-                              }`}
+                                }`}
                               title="Not Helpful Analysis"
                             >
                               <svg className="w-5 h-5" fill={result.feedback === 'thumbsDown' ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24" style={{ transform: 'rotate(180deg)' }}>
@@ -985,7 +1109,7 @@ export default function PagesAnalyzer({ isOpen, onClose }) {
                       <svg className="w-5 h-5 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
                       </svg>
-                      This is a visual assessment based on the uploaded photo and any notes provided. 
+                      This is a visual assessment based on the uploaded photo and any notes provided.
                       For a full survey, consider a site visit and moisture readings.
                     </p>
                   </div>
@@ -1024,7 +1148,7 @@ export default function PagesAnalyzer({ isOpen, onClose }) {
             </div>
           </div>
           {/* Click outside to close */}
-          <div 
+          <div
             className="absolute inset-0 -z-10"
             onClick={() => setExpandedImage(null)}
           ></div>

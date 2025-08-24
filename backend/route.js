@@ -16,6 +16,9 @@ import { createCompany, getAllCompanies, getCompanyById, updateCompany, deleteCo
 // Support Ticket controller import
 import { createSupportTicket, getUserTickets, getTicketById, updateTicket, deleteTicket, getAllTickets, adminUpdateTicket, adminUpdateTicketComprehensive, getSuperAdminAllTickets, getDashboardStats, getTicketStats, bulkUpdateTickets, searchTickets, exportTickets, deleteAttachment } from './controllers/supportTicketController.js';
 
+// Analyzer controller import
+import { createSession, uploadImages, saveResults, updateFeedback, getSession, getUserSessions, deleteSession, getStats } from './controllers/analyzerController.js';
+
 // Chat controller import
 import { getChatHistory, saveChatMessage, saveMediaMessage, getChatStats } from './controllers/chatController.js';
 
@@ -558,5 +561,16 @@ router.get('/backup/stats', isAuthenticate, (req, res, next) => {
     }
     next();
 }, getBackupStats);
+
+// Analyzer routes
+router.post('/analyzer/session', createSession); // Public route
+router.post('/analyzer/upload-images', uploadImages); // Public route
+router.post('/analyzer/save-results', saveResults); // Public route
+router.post('/analyzer/feedback', updateFeedback); // Public route
+router.get('/analyzer/session/:sessionId', getSession); // Public route
+router.get('/analyzer/sessions/:userEmail', getUserSessions); // Public route
+router.delete('/analyzer/session/:sessionId', deleteSession); // Public route
+router.get('/analyzer/stats', isAuthenticate, getStats); // Protected route for admin stats
+
 
 export default router;

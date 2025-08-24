@@ -40,7 +40,7 @@ export default function DemoCode({
   // Valid demo codes for different use cases
   const validDemoCodes = {
     karla: ['7002'],
-    analyzer: ['6868']
+    analyzer: ['6868', '6869', '6870', '6871', '6872', '6873', '6874', '6875', '6876', '6877', '6878', '6879', '6880']
   };
 
   const handleSubmit = (e) => {
@@ -52,6 +52,11 @@ export default function DemoCode({
     
     if (code.length === 4) {
       if (currentValidCodes.some(validCode => validCode.includes(code))) {
+        // Store demo code in localStorage for analyzer use case
+        if (useCase === 'analyzer') {
+          localStorage.setItem('analyzerDemoCode', code);
+          console.log('Demo code stored:', code);
+        }
         onSubmit(code);
       } else {
         // Show error message for invalid code

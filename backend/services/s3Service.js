@@ -3,33 +3,80 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { v4 as uuidv4 } from 'uuid';
 
 const s3Client = new S3Client({
-  region: process.env.AWS_REGION || 'us-east-1',
+  region: process.env.AWS_REGION || 'ap-south-1',
   credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    accessKeyId: process.env.S3_ACCESS_KEY,
+    secretAccessKey: process.env.S3_SECRET_ACCESS_KEY,
+  },
+  useAccelerateEndpoint: process.env.S3_USE_ACCELERATE === 'true',
+  maxAttempts: parseInt(process.env.S3_MAX_RETRIES) || 3,
+  requestHandler: {
+    connectionTimeout: parseInt(process.env.S3_CONNECTION_TIMEOUT) || 3000,
+    socketTimeout: parseInt(process.env.S3_SOCKET_TIMEOUT) || 120000,
   },
 });
 
-const bucketName = process.env.AWS_S3_BUCKET_NAME;
+const bucketName = process.env.S3_BUCKET_NAME;
 
-export const uploadToS3 = async (imageData, key) => {
+export const uploadToS3 = async (file, folder = 'uploads') => {
   try {
-    // Remove data URL prefix if present
-    const base64Data = imageData.replace(/^data:image\/[a-z]+;base64,/, '');
-    const buffer = Buffer.from(base64Data, 'base64');
+    let buffer, contentType, key;
+    
+    if (file.buffer) {
+      // Handle file buffer (from multer/express-fileupload)
+      buffer = file.buffer;
+      contentType = file.mimetype || 'image/jpeg';
+      key = `${folder}/${uuidv4()}_${file.originalname}`;
+    } else if (file.data) {
+      // Handle base64 data from file upload
+      if (Buffer.isBuffer(file.data)) {
+        // If data is already a Buffer, use it directly
+        buffer = file.data;
+      } else if (typeof file.data === 'string') {
+        // If data is a string (base64), convert to Buffer
+        const base64Data = file.data.replace(/^data:image\/[a-z]+;base64,/, '');
+        buffer = Buffer.from(base64Data, 'base64');
+      } else {
+        // If data is neither Buffer nor string, try to convert
+        buffer = Buffer.from(file.data);
+      }
+      contentType = file.mimetype || 'image/jpeg';
+      key = `${folder}/${uuidv4()}_${file.originalname || 'image'}`;
+    } else if (typeof file === 'string') {
+      // Handle base64 data URL
+      const base64Data = file.replace(/^data:image\/[a-z]+;base64,/, '');
+      buffer = Buffer.from(base64Data, 'base64');
+      contentType = 'image/jpeg';
+      key = `${folder}/${uuidv4()}.jpg`;
+    } else if (file && typeof file === 'object') {
+      // Handle file object with data property (from express-fileupload)
+      if (file.data) {
+        const base64Data = file.data.toString('base64');
+        buffer = file.data;
+        contentType = file.mimetype || 'image/jpeg';
+        key = `${folder}/${uuidv4()}_${file.originalname || 'image'}`;
+      } else {
+        throw new Error('File object does not contain valid data');
+      }
+    } else {
+      throw new Error('Invalid file format');
+    }
     
     const uploadParams = {
       Bucket: bucketName,
       Key: key,
       Body: buffer,
-      ContentType: 'image/jpeg',
-      ACL: 'public-read',
+      ContentType: contentType,
     };
 
     const command = new PutObjectCommand(uploadParams);
     await s3Client.send(command);
     
-    return `https://${bucketName}.s3.amazonaws.com/${key}`;
+    return {
+      Key: key,
+      Location: `https://${bucketName}.s3.amazonaws.com/${key}`,
+      Bucket: bucketName
+    };
   } catch (error) {
     throw new Error(`S3 upload failed: ${error.message}`);
   }

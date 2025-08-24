@@ -58,6 +58,7 @@ export * from './companyHttp.js';
 export * from './userHttp.js';
 export * from './supportTicketHttp.js';
 export * from './feedbackHttp.js';
+export * from './analyzerHttp.js';
 
 export { 
     recordVisitorAccessRequest as recordMeetingVisitorAccess,
