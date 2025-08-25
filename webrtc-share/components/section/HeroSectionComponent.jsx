@@ -77,15 +77,10 @@ export const HeroSection = () => {
             <div 
               className="absolute left-2 xs:left-3 sm:left-4 right-2 xs:right-3 sm:right-4 w-full z-20"
               style={{
-                top: Math.max(8, viewportHeight * 0.05),
+                top: Math.max(32, viewportHeight * 0.12),
                 maxWidth: 'calc(100vw - 32px)'
               }}
             >
-              <div className="max-w-2xl">
-                <h2 className="text-base xs:text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold text-black leading-tight drop-shadow-sm">
-                  Built for Social Landlords
-                </h2>
-              </div>
             </div>
           )}
           
@@ -93,15 +88,15 @@ export const HeroSection = () => {
           {isMobile && (
             <div 
               className="absolute left-2 xs:left-3 sm:left-4 right-2 xs:right-3 sm:right-4 w-full z-20"
-                              style={{
-                  bottom: Math.max(24, viewportHeight * 0.08),
-                  maxWidth: 'calc(100vw - 32px)'
-                }}
+                                            style={{
+                bottom: Math.max(40, viewportHeight * 0.12),
+                maxWidth: 'calc(100vw - 32px)'
+              }}
             >
               <div className="max-w-2xl">
-                <h4 className="text-base xs:text-lg sm:text-xl md:text-2xl lg:text-3xl font-normal text-black leading-tight drop-shadow-sm">
+                <h4 className="text-base xs:text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold text-black leading-tight drop-shadow-lg">
                   Reduce service calls and improve <br />
-                  <span className="font-bold">first-time resolution</span> for <br />
+                  <span className="font-extrabold">first-time resolution</span> for <br />
                   repairs reporting.
                 </h4>
               </div>
@@ -132,7 +127,7 @@ export const HeroSection = () => {
             backgroundImage: slide.backgroundImage,
             backgroundSize: "cover",
             backgroundRepeat: "no-repeat",
-            backgroundPosition: slide.id === 2 ? "center 100%" : "center"
+            backgroundPosition: slide.id === 2 ? "center 100%" : slide.id === 3 ? "center 90%" : "center"
           }}
         >
           {slide.content}
