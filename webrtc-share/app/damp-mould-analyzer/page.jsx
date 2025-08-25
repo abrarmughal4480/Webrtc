@@ -21,6 +21,7 @@ export default function DampAndMouldAnalyzerPage() {
     "Real-time photo analysis",
     "AI-powered damp detection algorithms",
     "Mould growth prediction and effect models",
+    "Analyse post inspection photos",
     "Prevention recommendations",
     "24/7 Automated reporting"
   ];

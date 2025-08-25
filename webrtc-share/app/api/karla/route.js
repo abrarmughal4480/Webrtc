@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { ChatOpenAI } from 'langchain/chat_models/openai';
-import { HumanMessage, SystemMessage } from 'langchain/schema';
+import { ChatOpenAI } from '@langchain/openai';
+import { HumanMessage, SystemMessage } from '@langchain/core/messages';
 
 // Environment variables
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;

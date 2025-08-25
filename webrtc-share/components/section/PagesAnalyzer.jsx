@@ -428,15 +428,48 @@ export default function PagesAnalyzer({ isOpen, onClose }) {
 
   const proceedWithSummarySpeech = (voices, summary, synth) => {
     try {
-      // Prioritize British female voices
-      let voice = voices.find(v =>
-        /en-GB/i.test(v.lang) &&
-        (v.name.includes('Female') || v.name.includes('female') || v.name.includes('Samantha') || v.name.includes('Victoria'))
-      ) || voices.find(v => /en-GB/i.test(v.lang)) || voices.find(v => /^en/i.test(v.lang)) || null;
+      // Log all available voices for debugging
+      console.log('🎤 Available voices for summary speech:', voices.map(v => ({
+        name: v.name,
+        lang: v.lang,
+        default: v.default,
+        localService: v.localService,
+        voiceURI: v.voiceURI
+      })));
 
+      // Always prioritize Microsoft Sonia Online (Natural) - English (United Kingdom)
+      let voice = voices.find(v => 
+        v.name === "Microsoft Sonia Online (Natural) - English (United Kingdom)" ||
+        v.voiceURI === "Microsoft Sonia Online (Natural) - English (United Kingdom)"
+      );
+
+      // Fallback to any Microsoft voice if Sonia not found
       if (!voice) {
-        // If no British voice found, try to find any English voice
-        voice = voices.find(v => /^en/i.test(v.lang));
+        voice = voices.find(v => 
+          v.voiceURI?.includes('Microsoft') && /en-GB/i.test(v.lang)
+        );
+      }
+
+      // Final fallback to any British voice
+      if (!voice) {
+        voice = voices.find(v => /en-GB/i.test(v.lang)) || voices.find(v => /^en/i.test(v.lang));
+      }
+
+      // Log the selected voice details
+      if (voice) {
+        console.log('🔊 Selected voice for summary speech:', {
+          name: voice.name,
+          lang: voice.lang,
+          default: voice.default,
+          localService: voice.localService,
+          voiceURI: voice.voiceURI,
+          company: voice.voiceURI?.includes('Microsoft') ? 'Microsoft' : 
+                   voice.voiceURI?.includes('Apple') ? 'Apple' : 
+                   voice.voiceURI?.includes('Google') ? 'Google' : 
+                   voice.voiceURI?.includes('Amazon') ? 'Amazon' : 'Unknown'
+        });
+      } else {
+        console.log('⚠️ No suitable voice found for summary speech');
       }
 
       const text = `Summary: ${summary}`;
@@ -478,15 +511,48 @@ export default function PagesAnalyzer({ isOpen, onClose }) {
 
   const proceedWithSpeech = (voices, result, synth) => {
     try {
-      // Prioritize British female voices
-      let voice = voices.find(v =>
-        /en-GB/i.test(v.lang) &&
-        (v.name.includes('Female') || v.name.includes('female') || v.name.includes('Samantha') || v.name.includes('Victoria'))
-      ) || voices.find(v => /en-GB/i.test(v.lang)) || voices.find(v => /^en/i.test(v.lang)) || null;
+      // Log all available voices for debugging
+      console.log('🎤 Available voices for full speech:', voices.map(v => ({
+        name: v.name,
+        lang: v.lang,
+        default: v.default,
+        localService: v.localService,
+        voiceURI: v.voiceURI
+      })));
 
+      // Always prioritize Microsoft Sonia Online (Natural) - English (United Kingdom)
+      let voice = voices.find(v => 
+        v.name === "Microsoft Sonia Online (Natural) - English (United Kingdom)" ||
+        v.voiceURI === "Microsoft Sonia Online (Natural) - English (United Kingdom)"
+      );
+
+      // Fallback to any Microsoft voice if Sonia not found
       if (!voice) {
-        // If no British voice found, try to find any English voice
-        voice = voices.find(v => /^en/i.test(v.lang));
+        voice = voices.find(v => 
+          v.voiceURI?.includes('Microsoft') && /en-GB/i.test(v.lang)
+        );
+      }
+
+      // Final fallback to any British voice
+      if (!voice) {
+        voice = voices.find(v => /en-GB/i.test(v.lang)) || voices.find(v => /^en/i.test(v.lang));
+      }
+
+      // Log the selected voice details
+      if (voice) {
+        console.log('🔊 Selected voice for full speech:', {
+          name: voice.name,
+          lang: voice.lang,
+          default: voice.default,
+          localService: voice.localService,
+          voiceURI: voice.voiceURI,
+          company: voice.voiceURI?.includes('Microsoft') ? 'Microsoft' : 
+                   voice.voiceURI?.includes('Apple') ? 'Apple' : 
+                   voice.voiceURI?.includes('Google') ? 'Google' : 
+                   voice.voiceURI?.includes('Amazon') ? 'Amazon' : 'Unknown'
+        });
+      } else {
+        console.log('⚠️ No suitable voice found for full speech');
       }
 
       const affectedLine = result.affected?.length ? result.affected.join(", ") : "none";
