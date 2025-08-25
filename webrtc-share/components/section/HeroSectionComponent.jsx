@@ -127,7 +127,7 @@ export const HeroSection = () => {
             backgroundImage: slide.backgroundImage,
             backgroundSize: "cover",
             backgroundRepeat: "no-repeat",
-            backgroundPosition: slide.id === 2 ? "center 100%" : slide.id === 3 ? "center 90%" : "center"
+            backgroundPosition: slide.id === 2 ? "center 100%" : slide.id === 3 ? (isMobile ? "center 90%" : "center") : "center"
           }}
         >
           {slide.content}
