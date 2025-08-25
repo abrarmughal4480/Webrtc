@@ -7,6 +7,7 @@ import CompanyManagementSection from "@/components/superadmin-sections/CompanyMa
 import SystemSettingsSection from "@/components/superadmin-sections/SystemSettingsSection"
 import MonitoringSection from "@/components/superadmin-sections/MonitoringSection"
 import SupportTicketManagementSection from "@/components/superadmin-sections/SupportTicketManagementSection"
+import AnalyzerHistorySection from "@/components/superadmin-sections/AnalyzerHistorySection"
 import Image from "next/image"
 import {
   DropdownMenu,
@@ -360,8 +361,9 @@ export default function SuperAdminPage() {
                 { id: 'companies', label: 'Company Management', icon: Building2 },
                 { id: 'users', label: 'User Management', icon: Users },
                 { id: 'tickets', label: 'Support Center', icon: FileText },
-                { id: 'system', label: 'System Settings', icon: Settings },
-                { id: 'monitoring', label: 'Monitoring', icon: Activity }
+                { id: 'analyzer', label: 'Analyser History', icon: Activity },
+                // { id: 'system', label: 'System Settings', icon: Settings },
+                // { id: 'monitoring', label: 'Monitoring', icon: Activity }
               ].map((tab) => (
                 <Button
                   key={tab.id}
@@ -409,19 +411,24 @@ export default function SuperAdminPage() {
             )}
 
             {/* System Settings Tab */}
-            {activeTab === 'system' && (
+            {/* {activeTab === 'system' && (
               <SystemSettingsSection />
-            )}
+            )} */}
 
             {/* Support Tickets Tab */}
             {activeTab === 'tickets' && (
               <SupportTicketManagementSection />
             )}
 
-            {/* Monitoring Tab */}
-            {activeTab === 'monitoring' && (
-              <MonitoringSection systemStats={systemStats} />
+            {/* Analyzer History Tab */}
+            {activeTab === 'analyzer' && (
+              <AnalyzerHistorySection />
             )}
+
+            {/* Monitoring Tab */}
+            {/* {activeTab === 'monitoring' && (
+              <MonitoringSection systemStats={systemStats} />
+            )} */}
           </div>
         </div>
       </div>

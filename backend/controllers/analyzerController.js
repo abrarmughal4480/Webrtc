@@ -5,30 +5,34 @@ import catchAsyncError from '../middlewares/catchAsyncError.js';
 
 // Create a new analyzer session
 export const createSession = catchAsyncError(async (req, res) => {
-  const { userEmail, notes, demoCode } = req.body;
-  
-  // Either userEmail or demoCode is required
-  if (!userEmail && !demoCode) {
-    return sendResponse(res, 400, false, "Either user email or demo code is required");
+  try {
+    const { userEmail, notes, demoCode } = req.body;
+    
+    // Either userEmail or demoCode is required
+    if (!userEmail && !demoCode) {
+      return sendResponse(res, 400, false, "Either user email or demo code is required");
+    }
+
+    // Generate unique session ID
+    const sessionId = `analyzer_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    const analyzer = new Analyzer({
+      userEmail: userEmail || `demo_${demoCode}@analyzer.com`,
+      notes,
+      sessionId,
+      status: 'pending',
+      demoCode: demoCode || null // Store demo code if provided
+    });
+
+    await analyzer.save();
+
+    sendResponse(res, 201, true, "Analyzer session created successfully", {
+      sessionId: analyzer.sessionId,
+      analyzer
+    });
+  } catch (error) {
+    throw error; // Re-throw for catchAsyncError to handle
   }
-
-  // Generate unique session ID
-  const sessionId = `analyzer_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  
-  const analyzer = new Analyzer({
-    userEmail: userEmail || `demo_${demoCode}@analyzer.com`,
-    notes,
-    sessionId,
-    status: 'pending',
-    demoCode: demoCode || null // Store demo code if provided
-  });
-
-  await analyzer.save();
-
-  sendResponse(res, 201, true, "Analyzer session created successfully", {
-    sessionId: analyzer.sessionId,
-    analyzer
-  });
 });
 
 // Upload images for analysis
@@ -207,28 +211,80 @@ export const deleteSession = catchAsyncError(async (req, res) => {
   sendResponse(res, 200, true, "Session deleted successfully");
 });
 
+// Get all analyzer sessions (for superadmin)
+export const getAllSessions = catchAsyncError(async (req, res) => {
+
+  
+  try {
+    const sessions = await Analyzer.find({})
+      .sort({ createdAt: -1 })
+      .select('-__v')
+      .lean();
+    
+
+    
+    sendResponse(res, 200, true, "All sessions retrieved successfully", sessions);
+  } catch (error) {
+    throw error;
+  }
+});
+
 // Get analyzer statistics
 export const getStats = catchAsyncError(async (req, res) => {
-  const stats = await Analyzer.aggregate([
-    {
-      $group: {
-        _id: null,
-        totalSessions: { $sum: 1 },
-        totalImages: { $sum: '$totalImages' },
-        completedAnalyses: { $sum: { $cond: ['$analysisCompleted', 1, 0] } },
-        averageConfidence: { $avg: '$analysisResults.confidence' }
+  try {
+    // First get basic stats
+    const basicStats = await Analyzer.aggregate([
+      {
+        $group: {
+          _id: null,
+          totalSessions: { $sum: 1 },
+          totalImages: { $sum: '$totalImages' },
+          completedAnalyses: { $sum: { $cond: ['$analysisCompleted', 1, 0] } }
+        }
       }
-    }
-  ]);
+    ]);
 
-  sendResponse(res, 200, true, "Statistics retrieved successfully", {
-    stats: stats[0] || {
+    // Then get confidence stats separately
+    const confidenceStats = await Analyzer.aggregate([
+      {
+        $match: {
+          'analysisResults.confidence': { $exists: true, $ne: null }
+        }
+      },
+      {
+        $unwind: '$analysisResults'
+      },
+      {
+        $match: {
+          'analysisResults.confidence': { $exists: true, $ne: null }
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          averageConfidence: { $avg: '$analysisResults.confidence' }
+        }
+      }
+    ]);
+
+    const finalStats = {
+      totalSessions: basicStats[0]?.totalSessions || 0,
+      totalImages: basicStats[0]?.totalImages || 0,
+      completedAnalyses: basicStats[0]?.completedAnalyses || 0,
+      averageConfidence: confidenceStats[0]?.averageConfidence || 0
+    };
+
+    sendResponse(res, 200, true, "Statistics retrieved successfully", finalStats);
+  } catch (error) {
+    console.error('Error getting stats:', error);
+    const finalStats = {
       totalSessions: 0,
       totalImages: 0,
       completedAnalyses: 0,
       averageConfidence: 0
-    }
-  });
+    };
+    sendResponse(res, 200, true, "Statistics retrieved successfully", finalStats);
+  }
 });
 
 

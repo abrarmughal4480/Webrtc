@@ -4,13 +4,23 @@ import React, { useState, useEffect } from 'react';
 export const HeroSection = () => {
   const [activeSlide, setActiveSlide] = useState(0);
   const [isMobile, setIsMobile] = useState(false);
+  const [viewportHeight, setViewportHeight] = useState(0);
 
-  // Detect screen size for mobile
+  // Detect screen size for mobile and viewport height
   useEffect(() => {
-    const checkMobile = () => setIsMobile(window.innerWidth <= 768);
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth <= 768);
+      setViewportHeight(window.innerHeight);
+    };
+    
     checkMobile(); // initial check
     window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
+    window.addEventListener('orientationchange', checkMobile);
+    
+    return () => {
+      window.removeEventListener('resize', checkMobile);
+      window.removeEventListener('orientationchange', checkMobile);
+    };
   }, []);
 
   const slides = [
@@ -64,9 +74,15 @@ export const HeroSection = () => {
         <div className="mx-auto relative z-10 h-[85vh] flex flex-row">
           {/* Built for Social Landlords - Top (Mobile only) */}
           {isMobile && (
-            <div className="absolute top-10 left-4 right-4 w-full">
+            <div 
+              className="absolute left-2 xs:left-3 sm:left-4 right-2 xs:right-3 sm:right-4 w-full z-20"
+              style={{
+                top: Math.max(8, viewportHeight * 0.05),
+                maxWidth: 'calc(100vw - 32px)'
+              }}
+            >
               <div className="max-w-2xl">
-                <h2 className="text-xl md:text-2xl lg:text-3xl font-bold text-black">
+                <h2 className="text-base xs:text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold text-black leading-tight drop-shadow-sm">
                   Built for Social Landlords
                 </h2>
               </div>
@@ -75,9 +91,15 @@ export const HeroSection = () => {
           
           {/* Reduce service calls - Bottom (Mobile only) */}
           {isMobile && (
-            <div className="absolute bottom-20 left-4 right-4 w-full">
+            <div 
+              className="absolute left-2 xs:left-3 sm:left-4 right-2 xs:right-3 sm:right-4 w-full z-20"
+                              style={{
+                  bottom: Math.max(24, viewportHeight * 0.08),
+                  maxWidth: 'calc(100vw - 32px)'
+                }}
+            >
               <div className="max-w-2xl">
-                <h4 className="text-xl md:text-2xl lg:text-3xl font-normal text-black">
+                <h4 className="text-base xs:text-lg sm:text-xl md:text-2xl lg:text-3xl font-normal text-black leading-tight drop-shadow-sm">
                   Reduce service calls and improve <br />
                   <span className="font-bold">first-time resolution</span> for <br />
                   repairs reporting.

@@ -1,18 +1,119 @@
-import { api, publicApi } from './index.js';
+// Analyser HTTP functions for superadmin dashboard
 
-// Create a new analyzer session
-export const createAnalyzerSession = async (data) => {
+const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4000';
+
+// Get all analyser sessions (superadmin only)
+export const getAllAnalyserSessions = async () => {
   try {
-    const response = await api.post('/analyzer/session', data);
-    return response.data;
+    const response = await fetch(`${API_BASE}/analyzer/sessions/all`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      credentials: 'include' // Use cookies for authentication
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    return await response.json();
   } catch (error) {
-    console.error('Error creating analyzer session:', error);
+    console.error('Error fetching analyser sessions:', error);
+    throw error;
+  }
+};
+
+// Get analyser statistics (superadmin only)
+export const getAnalyserStats = async () => {
+  try {
+    const response = await fetch(`${API_BASE}/analyzer/stats`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      credentials: 'include' // Use cookies for authentication
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching analyser stats:', error);
+    throw error;
+  }
+};
+
+// Delete analyser session (superadmin only)
+export const deleteAnalyserSession = async (sessionId) => {
+  try {
+    const response = await fetch(`${API_BASE}/analyzer/session/${sessionId}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      credentials: 'include' // Use cookies for authentication
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error deleting analyser session:', error);
+    throw error;
+  }
+};
+
+// Get specific analyser session details
+export const getAnalyserSession = async (sessionId) => {
+  try {
+    const response = await fetch(`${API_BASE}/analyzer/session/${sessionId}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching analyser session:', error);
+    throw error;
+  }
+};
+
+// Create analyser session (for demo users)
+export const createAnalyserSession = async (data) => {
+  try {
+    const response = await fetch(`${API_BASE}/analyzer/session`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(data)
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`HTTP ${response.status}: ${response.statusText} - ${errorText}`);
+    }
+
+    const responseData = await response.json();
+    return responseData;
+  } catch (error) {
     throw error;
   }
 };
 
 // Upload images for analysis
-export const uploadAnalyzerImages = async (sessionId, images) => {
+export const uploadAnalyserImages = async (sessionId, images) => {
   try {
     const formData = new FormData();
     formData.append('sessionId', sessionId);
@@ -27,14 +128,18 @@ export const uploadAnalyzerImages = async (sessionId, images) => {
       }
     });
     
-    const response = await api.post('/analyzer/upload-images', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
+    const response = await fetch(`${API_BASE}/analyzer/upload-images`, {
+      method: 'POST',
+      body: formData
     });
-    return response.data;
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    return await response.json();
   } catch (error) {
-    console.error('Error uploading analyzer images:', error);
+    console.error('Error uploading analyser images:', error);
     throw error;
   }
 };
@@ -42,11 +147,22 @@ export const uploadAnalyzerImages = async (sessionId, images) => {
 // Save analysis results
 export const saveAnalysisResults = async (sessionId, results) => {
   try {
-    const response = await api.post('/analyzer/save-results', {
-      sessionId,
-      results
+    const response = await fetch(`${API_BASE}/analyzer/save-results`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        sessionId,
+        results
+      })
     });
-    return response.data;
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    return await response.json();
   } catch (error) {
     console.error('Error saving analysis results:', error);
     throw error;
@@ -56,58 +172,25 @@ export const saveAnalysisResults = async (sessionId, results) => {
 // Update feedback for a specific analysis
 export const updateAnalysisFeedback = async (sessionId, imageIndex, feedback) => {
   try {
-    const response = await api.post('/analyzer/feedback', {
-      sessionId,
-      imageIndex,
-      feedback
+    const response = await fetch(`${API_BASE}/analyzer/feedback`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        sessionId,
+        imageIndex,
+        feedback
+      })
     });
-    return response.data;
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    return await response.json();
   } catch (error) {
     console.error('Error updating analysis feedback:', error);
-    throw error;
-  }
-};
-
-// Get analyzer session by ID
-export const getAnalyzerSession = async (sessionId) => {
-  try {
-    const response = await api.get(`/analyzer/session/${sessionId}`);
-    return response.data;
-  } catch (error) {
-    console.error('Error getting analyzer session:', error);
-    throw error;
-  }
-};
-
-// Get user's analyzer sessions
-export const getUserAnalyzerSessions = async (userEmail) => {
-  try {
-    const response = await api.get(`/analyzer/sessions/${userEmail}`);
-    return response.data;
-  } catch (error) {
-    console.error('Error getting user analyzer sessions:', error);
-    throw error;
-  }
-};
-
-// Delete analyzer session
-export const deleteAnalyzerSession = async (sessionId) => {
-  try {
-    const response = await api.delete(`/analyzer/session/${sessionId}`);
-    return response.data;
-  } catch (error) {
-    console.error('Error deleting analyzer session:', error);
-    throw error;
-  }
-};
-
-// Test backend connection
-export const testBackendConnection = async () => {
-  try {
-    const response = await api.get('/analyzer/test');
-    return response.data;
-  } catch (error) {
-    console.error('Error testing backend connection:', error);
     throw error;
   }
 };

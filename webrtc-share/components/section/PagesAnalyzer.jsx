@@ -1,7 +1,8 @@
 "use client"
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from '@/components/ui/button';
-import { saveFeedbackRequest, removeFeedbackRequest, createAnalyzerSession, uploadAnalyzerImages, saveAnalysisResults, updateAnalysisFeedback } from '@/http';
+import { saveFeedbackRequest, removeFeedbackRequest } from '@/http';
+import { createAnalyserSession, uploadAnalyserImages, saveAnalysisResults, updateAnalysisFeedback } from '@/http/analyzerHttp';
 import { useUser } from '@/provider/UserProvider';
 
 const AFFECTED_COLOURS = {
@@ -244,11 +245,13 @@ export default function PagesAnalyzer({ isOpen, onClose }) {
         setIsSavingToBackend(true);
 
         // Create session with demo code (no email required)
-        const sessionResponse = await createAnalyzerSession({
+        const sessionData = {
           userEmail: `demo_${currentDemoCode}@analyzer.com`, // Use demo code as identifier
           notes: notes || `Analysis session with demo code: ${currentDemoCode}`,
           demoCode: currentDemoCode
-        });
+        };
+
+        const sessionResponse = await createAnalyserSession(sessionData);
 
         if (sessionResponse.success) {
           const sessionId = sessionResponse.data.sessionId;
@@ -258,20 +261,30 @@ export default function PagesAnalyzer({ isOpen, onClose }) {
           // Upload images to the new session
           const fileObjects = files.filter(file => file instanceof File);
           if (fileObjects.length > 0) {
-            await uploadAnalyzerImages(sessionId, fileObjects);
+            try {
+              await uploadAnalyserImages(sessionId, fileObjects);
+            } catch (uploadError) {
+              throw new Error(`Image upload failed: ${uploadError.message}`);
+            }
           }
 
           // Save analysis results
-          await saveAnalysisResults(sessionId, analysisResults);
+          try {
+            await saveAnalysisResults(sessionId, analysisResults);
+          } catch (saveError) {
+            throw new Error(`Analysis results save failed: ${saveError.message}`);
+          }
 
           // Show success message to user
           setError(null);
           setSaveSuccess(true);
           // Hide success message after 5 seconds
           setTimeout(() => setSaveSuccess(false), 5000);
+        } else {
+          throw new Error(`Session creation failed: ${sessionResponse.message || 'Unknown error'}`);
         }
       } catch (error) {
-        setError("Analysis completed but failed to save data to server. Please try again.");
+        setError(`Analysis completed but failed to save data to server: ${error.message}. Please try again.`);
       } finally {
         setIsSavingToBackend(false);
       }

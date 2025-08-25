@@ -17,7 +17,7 @@ import { createCompany, getAllCompanies, getCompanyById, updateCompany, deleteCo
 import { createSupportTicket, getUserTickets, getTicketById, updateTicket, deleteTicket, getAllTickets, adminUpdateTicket, adminUpdateTicketComprehensive, getSuperAdminAllTickets, getDashboardStats, getTicketStats, bulkUpdateTickets, searchTickets, exportTickets, deleteAttachment } from './controllers/supportTicketController.js';
 
 // Analyzer controller import
-import { createSession, uploadImages, saveResults, updateFeedback, getSession, getUserSessions, deleteSession, getStats } from './controllers/analyzerController.js';
+import { createSession, uploadImages, saveResults, updateFeedback, getSession, getUserSessions, deleteSession, getStats, getAllSessions } from './controllers/analyzerController.js';
 
 // Chat controller import
 import { getChatHistory, saveChatMessage, saveMediaMessage, getChatStats } from './controllers/chatController.js';
@@ -568,9 +568,32 @@ router.post('/analyzer/upload-images', uploadImages); // Public route
 router.post('/analyzer/save-results', saveResults); // Public route
 router.post('/analyzer/feedback', updateFeedback); // Public route
 router.get('/analyzer/session/:sessionId', getSession); // Public route
-router.get('/analyzer/sessions/:userEmail', getUserSessions); // Public route
 router.delete('/analyzer/session/:sessionId', deleteSession); // Public route
-router.get('/analyzer/stats', isAuthenticate, getStats); // Protected route for admin stats
+
+// Superadmin analyzer routes (MUST come before the more general route)
+router.get('/analyzer/sessions/all', isAuthenticate, (req, res, next) => {
+  if (req.user.role === 'superadmin') {
+    next();
+  } else {
+    res.status(403).json({
+      success: false,
+      message: 'Only superadmin can access all analyzer sessions'
+    });
+  }
+}, getAllSessions);
+
+router.get('/analyzer/sessions/:userEmail', getUserSessions); // Public route - MUST come after /all
+
+router.get('/analyzer/stats', isAuthenticate, (req, res, next) => {
+  if (req.user.role === 'superadmin') {
+    next();
+  } else {
+    res.status(403).json({
+      success: false,
+      message: 'Only superadmin can access analyzer statistics'
+    });
+  }
+}, getStats); // Protected route for superadmin stats
 
 
 export default router;
