@@ -6,7 +6,7 @@ import fileUpload from 'express-fileupload';
 import { SocketService } from "./services/socketService.js";
 import { v4 as uuidv4 } from 'uuid';
 import sendMessage from "./services/twilloService.js";
-import { sendMail, sendFriendLinkEmail } from "./services/mailService.js";
+import { sendMail } from "./services/mailService.js";
 import { connectDB } from "./utils/database.js";
 import ErrorMiddleware from "./middlewares/error.js";
 import router from "./route.js";
@@ -509,26 +509,6 @@ app.get('/resend-token', async (req, res) => {
     } catch (error) {
         logger.error('Error in resend-token:', error);
         res.status(500).json({ error: 'Internal server error', message: error.message });
-    }
-});
-
-// Send friend link endpoint
-app.post('/api/v1/send-friend-link', async (req, res) => {
-    try {
-        const { fromName, fromEmail, toEmail, message, websiteLink } = req.body;
-        
-        // Use the email service
-        const result = await sendFriendLinkEmail(fromName, fromEmail, toEmail, message, websiteLink);
-        
-        res.json(result);
-        
-    } catch (error) {
-        logger.error('Error in send-friend-link:', error);
-        res.status(500).json({ 
-            success: false,
-            message: 'Failed to send friend link',
-            error: error.message 
-        });
     }
 });
 

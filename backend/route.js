@@ -651,5 +651,30 @@ router.get('/analyzer/stats', isAuthenticate, (req, res, next) => {
   }
 }, getStats); // Protected route for superadmin stats
 
+// Misc routes
+router.post('/send-friend-link', async (req, res) => {
+    try {
+        const { fromName, fromEmail, toEmail, message, websiteLink } = req.body;
+        
+        // Import the email service dynamically
+        const { sendFriendLinkEmail } = await import('./services/mailService.js');
+        const result = await sendFriendLinkEmail(fromName, fromEmail, toEmail, message, websiteLink);
+        
+        res.json(result);
+        
+    } catch (error) {
+        console.error('Error in send-friend-link:', error);
+        res.status(500).json({ 
+            success: false,
+            message: 'Failed to send friend link',
+            error: error.message 
+        });
+    }
+});
+
+router.post('/request-callback', createCallbackRequest);
+router.post('/book-demo-meeting', createDemoMeetingRequest);
+router.post('/send-feedback', saveFeedback);
+router.post('/raise-support-ticket', createSupportTicket);
 
 export default router;
