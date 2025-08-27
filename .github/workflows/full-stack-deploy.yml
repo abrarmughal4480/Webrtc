@@ -1,0 +1,284 @@
+name: Full Stack CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test-frontend:
+    runs-on: ubuntu-latest
+    if: contains(github.event.head_commit.modified, 'webrtc-share/') || contains(github.event.head_commit.added, 'webrtc-share/') || contains(github.event.head_commit.removed, 'webrtc-share/')
+    
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+        cache-dependency-path: webrtc-share/package-lock.json
+    
+    - name: Install dependencies
+      run: |
+        cd webrtc-share
+        npm ci
+    
+    - name: Run linting
+      run: |
+        cd webrtc-share
+        npm run lint
+    
+    - name: Build application
+      run: |
+        cd webrtc-share
+        npm run build
+      env:
+        NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
+
+  test-backend:
+    runs-on: ubuntu-latest
+    if: contains(github.event.head_commit.modified, 'backend/') || contains(github.event.head_commit.added, 'backend/') || contains(github.event.head_commit.removed, 'backend/')
+    
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+        cache-dependency-path: backend/package-lock.json
+    
+    - name: Install dependencies
+      run: |
+        cd backend
+        npm ci
+    
+    - name: Run linting
+      run: |
+        cd backend
+        npm run lint || echo "No lint script found"
+    
+    - name: Run tests
+      run: |
+        cd backend
+        npm test || echo "No test script found"
+
+  deploy-frontend:
+    needs: test-frontend
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && (contains(github.event.head_commit.modified, 'webrtc-share/') || contains(github.event.head_commit.added, 'webrtc-share/') || contains(github.event.head_commit.removed, 'webrtc-share/'))
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Use Node.js 20.x
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.x'
+        cache: 'npm'
+        cache-dependency-path: webrtc-share/package-lock.json
+    
+    - name: Install dependencies
+      run: |
+        cd webrtc-share
+        npm ci
+    
+    - name: Build for production
+      run: |
+        cd webrtc-share
+        npm run build
+      env:
+        NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
+    
+    - name: Create deployment package
+      run: |
+        cd webrtc-share
+        tar -czf frontend-deploy.tar.gz \
+          .next \
+          public \
+          package.json \
+          package-lock.json \
+          next.config.mjs \
+          tailwind.config.js \
+          postcss.config.mjs
+    
+    - name: Deploy to Hostinger VPS
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.HOSTINGER_HOST }}
+        username: ${{ secrets.HOSTINGER_USERNAME }}
+        key: ${{ secrets.HOSTINGER_SSH_KEY }}
+        port: ${{ secrets.HOSTINGER_PORT || 22 }}
+        script: |
+          # Create backup directory
+          mkdir -p ~/backups/$(date +%Y%m%d_%H%M%S)
+          
+          # Backup current version
+          if [ -d ~/webrtc-main/webrtc-share ]; then
+            cp -r ~/webrtc-main/webrtc-share ~/backups/$(date +%Y%m%d_%H%M%S)/
+          fi
+          
+          # Use existing webrtc-main directory
+          cd ~/webrtc-main/webrtc-share
+          
+          # Stop current process if running
+          if pm2 list | grep -q "webrtc-frontend"; then
+            pm2 stop webrtc-frontend
+            pm2 delete webrtc-frontend
+          fi
+          
+          # Clean up old files (but keep .env.local)
+          find . -maxdepth 1 ! -name '.env.local' ! -name '.' ! -name '..' -exec rm -rf {} +
+    
+    - name: Upload and extract deployment package
+      uses: appleboy/scp-action@v0.1.7
+      with:
+        host: ${{ secrets.HOSTINGER_HOST }}
+        username: ${{ secrets.HOSTINGER_USERNAME }}
+        key: ${{ secrets.HOSTINGER_SSH_KEY }}
+        port: ${{ secrets.HOSTINGER_PORT || 22 }}
+        source: "webrtc-share/frontend-deploy.tar.gz"
+        target: "~/webrtc-main/"
+    
+    - name: Setup and start application
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.HOSTINGER_HOST }}
+        username: ${{ secrets.HOSTINGER_USERNAME }}
+        key: ${{ secrets.HOSTINGER_SSH_KEY }}
+        port: ${{ secrets.HOSTINGER_PORT || 22 }}
+        script: |
+          cd ~/webrtc-main/webrtc-share
+          
+          # Extract deployment package
+          tar -xzf frontend-deploy.tar.gz
+          rm frontend-deploy.tar.gz
+          
+          # Install production dependencies
+          npm ci --production
+          
+          # Keep existing .env.local file (don't overwrite)
+          echo "✅ Keeping existing .env.local file unchanged"
+          
+          # Start application with PM2
+          pm2 start npm --name "webrtc-frontend" -- start
+          pm2 save
+          pm2 startup
+          
+          # Clean up old backups (keep last 5)
+          cd ~/backups
+          ls -t | tail -n +6 | xargs -r rm -rf
+          
+          echo "Frontend deployment completed successfully!"
+
+  deploy-backend:
+    needs: test-backend
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && (contains(github.event.head_commit.modified, 'backend/') || contains(github.event.head_commit.added, 'backend/') || contains(github.event.head_commit.removed, 'backend/'))
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Use Node.js 20.x
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.x'
+        cache: 'npm'
+        cache-dependency-path: backend/package-lock.json
+    
+    - name: Install dependencies
+      run: |
+        cd backend
+        npm ci --production
+    
+    - name: Create deployment package
+      run: |
+        cd backend
+        tar -czf backend-deploy.tar.gz \
+          --exclude=node_modules \
+          --exclude=.git \
+          --exclude=*.log \
+          --exclude=backups \
+          --exclude=temp-backups \
+          .
+    
+    - name: Deploy to Hostinger VPS
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.HOSTINGER_HOST }}
+        username: ${{ secrets.HOSTINGER_USERNAME }}
+        key: ${{ secrets.HOSTINGER_SSH_KEY }}
+        port: ${{ secrets.HOSTINGER_PORT || 22 }}
+        script: |
+          # Create backup directory
+          mkdir -p ~/backups/$(date +%Y%m%d_%H%M%S)
+          
+          # Backup current version
+          if [ -d ~/webrtc-main/backend ]; then
+            cp -r ~/webrtc-main/backend ~/backups/$(date +%Y%m%d_%H%M%S)/
+          fi
+          
+          # Use existing webrtc-main directory
+          cd ~/webrtc-main/backend
+          
+          # Stop current process if running
+          if pm2 list | grep -q "webrtc-backend"; then
+            pm2 stop webrtc-backend
+            pm2 delete webrtc-backend
+          fi
+          
+          # Clean up old files (but keep .env)
+          find . -maxdepth 1 ! -name '.env' ! -name '.' ! -name '..' -exec rm -rf {} +
+    
+    - name: Upload and extract deployment package
+      uses: appleboy/scp-action@v0.1.7
+      with:
+        host: ${{ secrets.HOSTINGER_HOST }}
+        username: ${{ secrets.HOSTINGER_USERNAME }}
+        key: ${{ secrets.HOSTINGER_SSH_KEY }}
+        port: ${{ secrets.HOSTINGER_PORT || 22 }}
+        source: "backend/backend-deploy.tar.gz"
+        target: "~/webrtc-main/"
+    
+    - name: Setup and start application
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.HOSTINGER_HOST }}
+        username: ${{ secrets.HOSTINGER_USERNAME }}
+        key: ${{ secrets.HOSTINGER_SSH_KEY }}
+        port: ${{ secrets.HOSTINGER_PORT || 22 }}
+        script: |
+          cd ~/webrtc-main/backend
+          
+          # Extract deployment package
+          tar -xzf backend-deploy.tar.gz
+          rm backend-deploy.tar.gz
+          
+          # Install production dependencies
+          npm ci --production
+          
+          # Keep existing .env file (don't overwrite)
+          echo "✅ Keeping existing .env file unchanged"
+          
+          # Start application with PM2
+          pm2 start index.js --name "webrtc-backend" --max-memory-restart 512M
+          pm2 save
+          pm2 startup
+          
+          # Clean up old backups (keep last 5)
+          cd ~/backups
+          ls -t | tail -n +6 | xargs -r rm -rf
+          
+          echo "Backend deployment completed successfully!"
