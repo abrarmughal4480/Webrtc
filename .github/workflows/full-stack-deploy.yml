@@ -147,7 +147,7 @@ jobs:
         username: ${{ secrets.HOSTINGER_USERNAME }}
         key: ${{ secrets.HOSTINGER_SSH_KEY }}
         port: ${{ secrets.HOSTINGER_PORT || 22 }}
-        source: "webrtc-share/frontend-deploy.tar.gz"
+        source: "frontend-deploy.tar.gz"
         target: "~/webrtc-main/"
     
     - name: Setup and start application
@@ -250,7 +250,7 @@ jobs:
         username: ${{ secrets.HOSTINGER_USERNAME }}
         key: ${{ secrets.HOSTINGER_SSH_KEY }}
         port: ${{ secrets.HOSTINGER_PORT || 22 }}
-        source: "backend/backend-deploy.tar.gz"
+        source: "backend-deploy.tar.gz"
         target: "~/webrtc-main/"
     
     - name: Setup and start application

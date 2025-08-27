@@ -78,7 +78,7 @@ jobs:
       with:
         host: ${{ secrets.HOSTINGER_HOST }}
         username: ${{ secrets.HOSTINGER_USERNAME }}
-        key: ${{ secrets.HOSTINGER_SSH_KEY }}
+        password: ${{ secrets.HOSTINGER_PASSWORD }}
         port: ${{ secrets.HOSTINGER_PORT || 22 }}
         script: |
           # Create backup directory
@@ -106,9 +106,9 @@ jobs:
       with:
         host: ${{ secrets.HOSTINGER_HOST }}
         username: ${{ secrets.HOSTINGER_USERNAME }}
-        key: ${{ secrets.HOSTINGER_SSH_KEY }}
+        password: ${{ secrets.HOSTINGER_PASSWORD }}
         port: ${{ secrets.HOSTINGER_PORT || 22 }}
-        source: "backend/backend-deploy.tar.gz"
+        source: "backend-deploy.tar.gz"
         target: "~/webrtc-main/"
     
     - name: Setup and start application
@@ -116,7 +116,7 @@ jobs:
       with:
         host: ${{ secrets.HOSTINGER_HOST }}
         username: ${{ secrets.HOSTINGER_USERNAME }}
-        key: ${{ secrets.HOSTINGER_SSH_KEY }}
+        password: ${{ secrets.HOSTINGER_PASSWORD }}
         port: ${{ secrets.HOSTINGER_PORT || 22 }}
         script: |
           cd ~/webrtc-main/backend
