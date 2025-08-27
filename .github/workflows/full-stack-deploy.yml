@@ -75,5 +75,5 @@ jobs:
             cd backend
             npm install
             
-            pm2 restart webrtc-backend || pm2 start npm --name "webrtc-backend" -- start
+            pm2 restart videodesk-backend || pm2 start npm --name "videodesk-backend" -- start
             pm2 save
