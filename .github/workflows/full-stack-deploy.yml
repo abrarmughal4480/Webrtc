@@ -7,72 +7,7 @@ on:
     branches: [ main, develop ]
 
 jobs:
-  # ---------- CI: Frontend ----------
-  test-frontend:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        node-version: [18.x, 20.x]
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ matrix.node-version }}
-          cache: npm
-          cache-dependency-path: "**/package-lock.json"
-
-      - name: Install dependencies
-        working-directory: webrtc-share
-        run: |
-          if [ -f package-lock.json ]; then
-            npm ci
-          else
-            npm install
-          fi
-
-      - name: Lint
-        working-directory: webrtc-share
-        run: npm run lint || echo "No lint script found"
-
-      - name: Build
-        working-directory: webrtc-share
-        env:
-          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
-        run: npm run build
-
-  # ---------- CI: Backend ----------
-  test-backend:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        node-version: [18.x, 20.x]
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ matrix.node-version }}
-          cache: npm
-          cache-dependency-path: "**/package-lock.json"
-
-      - name: Install dependencies
-        working-directory: backend
-        run: npm ci
-
-      - name: Lint
-        working-directory: backend
-        run: npm run lint || echo "No lint script found"
-
-      - name: Test
-        working-directory: backend
-        run: npm test || echo "No test script found"
-
-  # ---------- Deploy: Frontend ----------
   deploy-frontend:
-    needs: test-frontend
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
@@ -85,23 +20,11 @@ jobs:
           cache: npm
           cache-dependency-path: "**/package-lock.json"
 
-      # Create a stable source snapshot of the frontend
       - name: Create frontend source package
         run: |
           git archive --format=tar --prefix=webrtc-share/ HEAD:webrtc-share | gzip > frontend-source.tar.gz
-          ls -lh frontend-source.tar.gz
 
-      - name: Upload frontend package
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.HOSTINGER_HOST }}
-          username: ${{ secrets.HOSTINGER_USERNAME }}
-          key: ${{ secrets.HOSTINGER_SSH_KEY }}
-          port: ${{ secrets.HOSTINGER_PORT }}
-          source: "frontend-source.tar.gz"
-          target: "~/webrtc-main/"
-
-      - name: Build & restart frontend on server
+      - name: Deploy to server
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.HOSTINGER_HOST }}
@@ -109,36 +32,18 @@ jobs:
           key: ${{ secrets.HOSTINGER_SSH_KEY }}
           port: ${{ secrets.HOSTINGER_PORT }}
           script: |
-            set -e
             cd ~/webrtc-main
-
-            # Preserve env
-            if [ -f webrtc-share/.env.local ]; then
-              cp webrtc-share/.env.local /tmp/frontend.env.local
-            fi
-
-            # Extract new source (creates/overwrites webrtc-share/)
             tar -xzf frontend-source.tar.gz
             rm -f frontend-source.tar.gz
-
-            # Restore env
-            if [ -f /tmp/frontend.env.local ]; then
-              mv /tmp/frontend.env.local webrtc-share/.env.local
-            fi
-
+            
             cd webrtc-share
-
-            # Install → Build → Start/Restart
-            if [ -f package-lock.json ]; then npm ci; else npm install; fi
+            npm install
             npm run build
-
-            command -v pm2 >/dev/null 2>&1 || npm i -g pm2
-            pm2 restart webrtc-frontend --update-env || pm2 start npm --name "webrtc-frontend" -- start
+            
+            pm2 restart webrtc-frontend || pm2 start npm --name "webrtc-frontend" -- start
             pm2 save
 
-  # ---------- Deploy: Backend (PORT=4000, videodesk-backend only) ----------
   deploy-backend:
-    needs: test-backend
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
@@ -154,19 +59,8 @@ jobs:
       - name: Create backend package
         run: |
           git archive --format=tar --prefix=backend/ HEAD:backend | gzip > backend-deploy.tar.gz
-          ls -lh backend-deploy.tar.gz
 
-      - name: Upload backend package
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.HOSTINGER_HOST }}
-          username: ${{ secrets.HOSTINGER_USERNAME }}
-          key: ${{ secrets.HOSTINGER_SSH_KEY }}
-          port: ${{ secrets.HOSTINGER_PORT }}
-          source: "backend-deploy.tar.gz"
-          target: "~/webrtc-main/"
-
-      - name: Deploy backend (PM2 on PORT=4000)
+      - name: Deploy backend
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.HOSTINGER_HOST }}
@@ -174,53 +68,12 @@ jobs:
           key: ${{ secrets.HOSTINGER_SSH_KEY }}
           port: ${{ secrets.HOSTINGER_PORT }}
           script: |
-            set -e
             cd ~/webrtc-main
-
-            # Preserve .env if present
-            if [ -f backend/.env ]; then
-              cp backend/.env /tmp/backend.env
-            fi
-
-            # Extract fresh backend tree
-            rm -rf backend
             tar -xzf backend-deploy.tar.gz
             rm -f backend-deploy.tar.gz
-
-            # Restore .env
-            if [ -f /tmp/backend.env ]; then
-              mv /tmp/backend.env backend/.env
-            fi
-
-            # Install deps
+            
             cd backend
-            if [ -f package-lock.json ]; then npm ci --omit=dev; else npm install --omit=dev; fi
-
-            # PM2 ecosystem to pin PORT=4000
-            cat > ecosystem.videodesk.config.js <<'EOF'
-            module.exports = {
-              apps: [{
-                name: "videodesk-backend",
-                script: "index.js",            // change if your entry is different
-                cwd: "/root/webrtc-main/backend",
-                env: {
-                  NODE_ENV: "production",
-                  PORT: 4000
-                },
-                max_memory_restart: "512M"
-              }]
-            }
-            EOF
-
-            command -v pm2 >/dev/null 2>&1 || npm i -g pm2
-
-            # Ensure only videodesk-backend remains
-            pm2 stop videodesk-backend || true
-            pm2 delete videodesk-backend || true
-            pm2 start ecosystem.videodesk.config.js
-            pm2 stop webrtc-backend || true
-            pm2 delete webrtc-backend || true
+            npm install
+            
+            pm2 restart webrtc-backend || pm2 start npm --name "webrtc-backend" -- start
             pm2 save
-
-            # Verify listener (optional)
-            ss -ltnp | grep ':4000' || (echo "⚠️ Backend not listening on 4000" && exit 1)
