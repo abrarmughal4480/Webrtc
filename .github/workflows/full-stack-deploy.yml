@@ -9,7 +9,6 @@ on:
 jobs:
   test-frontend:
     runs-on: ubuntu-latest
-    if: contains(github.event.head_commit.modified, 'webrtc-share/') || contains(github.event.head_commit.added, 'webrtc-share/') || contains(github.event.head_commit.removed, 'webrtc-share/')
     
     strategy:
       matrix:
@@ -44,7 +43,6 @@ jobs:
 
   test-backend:
     runs-on: ubuntu-latest
-    if: contains(github.event.head_commit.modified, 'backend/') || contains(github.event.head_commit.added, 'backend/') || contains(github.event.head_commit.removed, 'backend/')
     
     strategy:
       matrix:
@@ -78,7 +76,7 @@ jobs:
   deploy-frontend:
     needs: test-frontend
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && (contains(github.event.head_commit.modified, 'webrtc-share/') || contains(github.event.head_commit.added, 'webrtc-share/') || contains(github.event.head_commit.removed, 'webrtc-share/'))
+    if: github.ref == 'refs/heads/main'
     
     steps:
     - uses: actions/checkout@v4
@@ -186,7 +184,7 @@ jobs:
   deploy-backend:
     needs: test-backend
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && (contains(github.event.head_commit.modified, 'backend/') || contains(github.event.head_commit.added, 'backend/') || contains(github.event.head_commit.removed, 'backend/'))
+    if: github.ref == 'refs/heads/main'
     
     steps:
     - uses: actions/checkout@v4
