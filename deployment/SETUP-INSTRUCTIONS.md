@@ -67,7 +67,7 @@ HOSTINGER_PORT=22
 pm2 list
 
 # View logs
-pm2 logs webrtc-backend
+pm2 logs videodesk-backend
 pm2 logs webrtc-frontend
 
 # Restart applications

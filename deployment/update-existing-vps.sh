@@ -39,7 +39,7 @@ cat > ecosystem.config.js << 'EOF'
 module.exports = {
   apps: [
     {
-      name: 'webrtc-backend',
+              name: 'videodesk-backend',
       script: './backend/index.js',
       cwd: './backend',
       instances: 1,

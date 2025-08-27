@@ -134,19 +134,19 @@ if [ -f "~/webrtc-backend/backend-deploy.tar.gz" ]; then
     cd ~/webrtc-backend
     
     # Stop current process
-    if pm2 list | grep -q "webrtc-backend"; then
-        pm2 stop webrtc-backend
-        pm2 delete webrtc-backend
-    fi
+            if pm2 list | grep -q "videodesk-backend"; then
+            pm2 stop videodesk-backend
+            pm2 delete videodesk-backend
+        fi
     
     # Extract and setup
     tar -xzf backend-deploy.tar.gz
     rm backend-deploy.tar.gz
     npm ci --production
     
-    # Start with PM2
-    pm2 start index.js --name "webrtc-backend" --max-memory-restart 512M
-    pm2 save
+            # Start with PM2
+        pm2 start index.js --name "videodesk-backend" --max-memory-restart 512M
+        pm2 save
 fi
 
 # Deploy frontend if package exists
