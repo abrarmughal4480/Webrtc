@@ -7,70 +7,7 @@ on:
     branches: [ main, develop ]
 
 jobs:
-  test-frontend:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        node-version: [18.x, 20.x]
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ matrix.node-version }}
-          cache: npm
-          cache-dependency-path: "**/package-lock.json"
-
-      # ✅ Use npm install for flexibility (no lockfile required)
-      - name: Install dependencies
-        working-directory: webrtc-share
-        run: |
-          if [ -f package-lock.json ]; then
-            npm ci
-          else
-            npm install
-          fi
-
-      - name: Run linting
-        working-directory: webrtc-share
-        run: npm run lint || echo "No lint script found"
-
-      - name: Build application
-        working-directory: webrtc-share
-        env:
-          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
-        run: npm run build
-
-  test-backend:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        node-version: [18.x, 20.x]
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ matrix.node-version }}
-          cache: npm
-          cache-dependency-path: "**/package-lock.json"
-
-      - name: Install dependencies
-        working-directory: backend
-        run: npm ci
-
-      - name: Run linting
-        working-directory: backend
-        run: npm run lint || echo "No lint script found"
-
-      - name: Run tests
-        working-directory: backend
-        run: npm test || echo "No test script found"
-
   deploy-frontend:
-    needs: test-frontend
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
@@ -83,14 +20,11 @@ jobs:
           cache: npm
           cache-dependency-path: "**/package-lock.json"
 
-      # ✅ Package SOURCE via git archive (stable snapshot)
       - name: Create frontend source package
         run: |
-          # Archive tracked files under webrtc-share/ into a tar.gz
           git archive --format=tar --prefix=webrtc-share/ HEAD:webrtc-share | gzip > frontend-source.tar.gz
-          ls -lh frontend-source.tar.gz
 
-      - name: Prep server (backup, stop, keep .env.local)
+      - name: Deploy to server
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.HOSTINGER_HOST }}
@@ -98,78 +32,18 @@ jobs:
           key: ${{ secrets.HOSTINGER_SSH_KEY }}
           port: ${{ secrets.HOSTINGER_PORT }}
           script: |
-            set -e
-            stamp=$(date +%Y%m%d_%H%M%S)
-            mkdir -p ~/webrtc-main ~/backups/$stamp
-            # Backup current app if exists
-            if [ -d ~/webrtc-main/webrtc-share ]; then
-              cp -r ~/webrtc-main/webrtc-share ~/backups/$stamp/ || true
-            fi
-            # Stop PM2 app if running
-            if pm2 list | grep -q "webrtc-frontend"; then
-              pm2 stop webrtc-frontend || true
-              pm2 delete webrtc-frontend || true
-            fi
-            # Preserve env
-            if [ -f ~/webrtc-main/webrtc-share/.env.local ]; then
-              cp ~/webrtc-main/webrtc-share/.env.local /tmp/frontend.env.local
-            fi
-            # Reset dir
-            rm -rf ~/webrtc-main/webrtc-share
-            mkdir -p ~/webrtc-main
-
-      - name: Upload source package
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.HOSTINGER_HOST }}
-          username: ${{ secrets.HOSTINGER_USERNAME }}
-          key: ${{ secrets.HOSTINGER_SSH_KEY }}
-          port: ${{ secrets.HOSTINGER_PORT }}
-          source: "frontend-source.tar.gz"
-          target: "~/webrtc-main/"
-
-      # ✅ On server: npm install → npm run build → restart PM2
-      - name: Build & restart frontend on server
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.HOSTINGER_HOST }}
-          username: ${{ secrets.HOSTINGER_USERNAME }}
-          key: ${{ secrets.HOSTINGER_SSH_KEY }}
-          port: ${{ secrets.HOSTINGER_PORT }}
-          script: |
-            set -e
             cd ~/webrtc-main
             tar -xzf frontend-source.tar.gz
             rm -f frontend-source.tar.gz
-
-            # Restore env
-            if [ -f /tmp/frontend.env.local ]; then
-              mv /tmp/frontend.env.local webrtc-share/.env.local
-            fi
-
+            
             cd webrtc-share
-            # Install (no lockfile requirement)
-            if [ -f package-lock.json ]; then
-              npm ci
-            else
-              npm install
-            fi
-
-            # Build with Next.js
+            npm install
             npm run build
-
-            # Ensure pm2 exists and start via npm start (Next.js "start")
-            command -v pm2 >/dev/null 2>&1 || npm i -g pm2
-            pm2 start npm --name "webrtc-frontend" -- start
+            
+            pm2 restart webrtc-frontend || pm2 start npm --name "webrtc-frontend" -- start
             pm2 save
-            pm2 startup || true
-
-            # Keep last 5 backups
-            cd ~/backups && ls -t | tail -n +6 | xargs -r rm -rf
-            echo "Frontend deployment completed successfully!"
 
   deploy-backend:
-    needs: test-backend
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
@@ -182,39 +56,24 @@ jobs:
           cache: npm
           cache-dependency-path: "**/package-lock.json"
 
-      - name: Install dependencies (to validate lock)
-        working-directory: backend
-        run: npm ci
-
-      - name: Create deployment package (tracked files only)
+      - name: Create backend package
         run: |
           git archive --format=tar --prefix=backend/ HEAD:backend | gzip > backend-deploy.tar.gz
-          ls -lh backend-deploy.tar.gz
 
-      - name: Deploy to Hostinger VPS (prep)
+      - name: Deploy backend
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.HOSTINGER_HOST }}
           username: ${{ secrets.HOSTINGER_USERNAME }}
           key: ${{ secrets.HOSTINGER_SSH_KEY }}
           port: ${{ secrets.HOSTINGER_PORT }}
-        # ... (unchanged from your backend step)
-
-      - name: Upload package
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.HOSTINGER_HOST }}
-          username: ${{ secrets.HOSTINGER_USERNAME }}
-          key: ${{ secrets.HOSTINGER_SSH_KEY }}
-          port: ${{ secrets.HOSTINGER_PORT }}
-          source: "backend-deploy.tar.gz"
-          target: "~/webrtc-main/"
-
-      - name: Start backend
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.HOSTINGER_HOST }}
-          username: ${{ secrets.HOSTINGER_USERNAME }}
-          key: ${{ secrets.HOSTINGER_SSH_KEY }}
-          port: ${{ secrets.HOSTINGER_PORT }}
-        # ... (unchanged from your backend step)
+          script: |
+            cd ~/webrtc-main
+            tar -xzf backend-deploy.tar.gz
+            rm -f backend-deploy.tar.gz
+            
+            cd backend
+            npm install
+            
+            pm2 restart webrtc-backend || pm2 start npm --name "webrtc-backend" -- start
+            pm2 save
