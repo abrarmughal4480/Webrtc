@@ -1,0 +1,236 @@
+@import "tailwindcss";
+
+
+html {
+  scroll-behavior: smooth;
+}
+
+:root {
+  --popover: #ffffff;
+  user-select: none;
+}
+
+@theme {
+  --color-purple: #9452FF
+}
+
+.shape {
+  clip-path: polygon(79% 0, 100% 100%, 100% 100%, 0 100%, 0 14%);
+}
+
+
+.dialog-content button {
+  color: white !important;
+  opacity: 100% !important;
+  border-width: 0;
+  border-color: transparent;
+  outline: none;
+}
+
+/* Disable browser autocomplete and auto-suggestions */
+input[type="email"],
+input[type="password"],
+input[type="text"] {
+  autocomplete: off !important;
+  -webkit-autocomplete: off !important;
+  -moz-autocomplete: off !important;
+  -ms-autocomplete: off !important;
+  -o-autocomplete: off !important;
+}
+
+/* Remove focus outline for mouse clicks while keeping it for keyboard navigation */
+*:focus:not(:focus-visible) {
+  outline: none !important;
+}
+
+/* Remove focus outline from buttons specifically */
+button:focus:not(:focus-visible) {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* Remove focus outline from dropdown triggers */
+[data-radix-popper-content-wrapper] button:focus:not(:focus-visible) {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* More aggressive focus removal for dropdown buttons */
+button[data-state="closed"]:focus,
+button[data-state="open"]:focus,
+[role="button"]:focus,
+[data-radix-trigger]:focus {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* Remove all focus outlines from buttons */
+button:focus {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* Remove focus from dropdown menu items */
+[data-radix-dropdown-menu-item]:focus {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 30px white inset !important;
+  -webkit-text-fill-color: black !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+/* Hide default browser password visibility toggles */
+input[type="password"]::-webkit-textfield-decoration-container,
+input[type="password"]::-webkit-credentials-auto-fill-button,
+input[type="password"]::-webkit-strong-password-auto-fill-button {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+/* WebKit browsers (Chrome, Safari, Edge) */
+input[type="password"]::-webkit-reveal {
+  display: none !important;
+  -webkit-appearance: none !important;
+}
+
+input[type="password"]::-webkit-password-toggle {
+  display: none !important;
+  -webkit-appearance: none !important;
+}
+
+/* Microsoft Edge specific */
+input[type="password"]::-ms-reveal {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+input[type="password"]::-ms-clear {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+/* Firefox */
+input[type="password"]::-moz-reveal {
+  display: none !important;
+}
+
+/* Additional security for all password inputs */
+input[type="password"] {
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  appearance: none !important;
+}
+
+/* Prevent any reveal buttons on mobile devices */
+input[type="password"]::-webkit-textfield-decoration-container:after {
+  display: none !important;
+}
+
+/* iOS Safari specific */
+input[type="password"]::-webkit-textfield-decoration-container {
+  display: none !important;
+}
+
+/* Ensure no reveal functionality on any device */
+input[type="password"] {
+  -webkit-text-security: disc !important;
+}
+
+
+
+video::-webkit-media-controls-fullscreen-button {
+  display: none;
+}
+video::-webkit-media-controls-current-time-display {
+  display: block !important;
+}
+video::-webkit-media-controls-volume-slider,
+video::-webkit-media-controls-mute-button
+ {
+  display: none !important;
+}
+
+/* Hide scrollbar for Chrome, Safari and Opera */
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+/* Hide scrollbar for IE, Edge and Firefox */
+.hide-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;     /* Firefox */
+  -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+  touch-action: pan-y; /* Allow vertical scroll on touch devices */
+}
+
+/* Custom thin scrollbar for the whole website */
+html, body, .custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #b39ddb #f8f8fa; /* thumb, track */
+}
+
+html::-webkit-scrollbar, body::-webkit-scrollbar, .custom-scrollbar::-webkit-scrollbar {
+  width: 5px;
+  background: transparent;
+}
+
+html::-webkit-scrollbar-thumb, body::-webkit-scrollbar-thumb, .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #b39ddb;
+  border-radius: 8px;
+  box-shadow: 0 0 6px 1px #9452ff22;
+}
+
+html::-webkit-scrollbar-thumb:hover, body::-webkit-scrollbar-thumb:hover, .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #9452ff;
+}
+
+html::-webkit-scrollbar-track, body::-webkit-scrollbar-track, .custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Extra thin scrollbar for popups/dialogs */
+.dialog-content, .CustomDialog, .dialog-content .custom-scrollbar {
+  scrollbar-width: thin !important;
+  scrollbar-color: #b39ddb transparent !important;
+  min-width: 0 !important;
+}
+.dialog-content::-webkit-scrollbar, .CustomDialog::-webkit-scrollbar, .dialog-content .custom-scrollbar::-webkit-scrollbar {
+  width: 3px !important;
+  min-width: 3px !important;
+  background: transparent !important;
+}
+.dialog-content::-webkit-scrollbar-thumb, .CustomDialog::-webkit-scrollbar-thumb, .dialog-content .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #b39ddb !important;
+  border-radius: 8px !important;
+}
+.dialog-content::-webkit-scrollbar-track, .CustomDialog::-webkit-scrollbar-track, .dialog-content .custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+
+
+.bg-hero-section-bg {
+  background-image: url('/hero-section-bg.png');
+}
+.bg-slide-2-bg {
+  background-image: url('/slide-2-bg.jpg');
+}
+.bg-slide-3-bg {
+  background-image: url('/slide-3-bg.png');
+}
+
+@media (max-width: 767px) {
+  .bg-slide-2-bg {
+    background-image: url('/mobile_2.jpg') !important;
+  }
+  .bg-slide-3-bg {
+    background-image: url('/mobile_3.jpg') !important;
+  }
+}
