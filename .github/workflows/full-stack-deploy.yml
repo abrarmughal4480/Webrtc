@@ -103,14 +103,14 @@ jobs:
     - name: Create deployment package
       run: |
         cd webrtc-share
-        tar -czf frontend-deploy.tar.gz \
+        tar -czf ../frontend-deploy.tar.gz \
           .next \
           public \
           package.json \
           package-lock.json \
           next.config.mjs \
-          tailwind.config.js \
           postcss.config.mjs
+        cd ..
     
     - name: Deploy to Hostinger VPS
       uses: appleboy/ssh-action@v1.0.3
@@ -204,13 +204,16 @@ jobs:
     - name: Create deployment package
       run: |
         cd backend
-        tar -czf backend-deploy.tar.gz \
+        tar -czf ../backend-deploy.tar.gz \
           --exclude=node_modules \
           --exclude=.git \
           --exclude=*.log \
           --exclude=backups \
           --exclude=temp-backups \
+          --exclude=*.tar.gz \
+          --exclude=package-lock.json \
           .
+        cd ..
     
     - name: Deploy to Hostinger VPS
       uses: appleboy/ssh-action@v1.0.3

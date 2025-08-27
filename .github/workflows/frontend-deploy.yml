@@ -71,14 +71,14 @@ jobs:
     - name: Create deployment package
       run: |
         cd webrtc-share
-        tar -czf frontend-deploy.tar.gz \
+        tar -czf ../frontend-deploy.tar.gz \
           .next \
           public \
           package.json \
           package-lock.json \
           next.config.mjs \
-          tailwind.config.js \
           postcss.config.mjs
+        cd ..
     
     - name: Deploy to Hostinger VPS
       uses: appleboy/ssh-action@v1.0.3
