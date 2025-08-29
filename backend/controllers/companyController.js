@@ -616,27 +616,16 @@ export const checkTemporaryPasswordStatus = async (req, res) => {
 export const getCompanyUsers = async (req, res) => {
     try {
         const userId = req.user._id;
-        const user = await User.findById(userId);
         
-        if (!user) {
-            return sendResponse(res, 404, false, 'User not found');
-        }
-        
-        if (user.role !== 'company-admin') {
-            return sendResponse(res, 403, false, 'Only company admins can access this endpoint');
-        }
-        
-        // Check if user has a company
-        if (!user.company) {
-            return sendResponse(res, 404, false, 'No company assigned to this user');
-        }
-        
-        // Get all users in the same company (excluding current user)
+        // Single optimized query with projection and lean()
         const companyUsers = await User.find({ 
-            company: user.company,
+            company: req.user.company, // Use req.user.company directly
             deleted: { $ne: true },
-            _id: { $ne: userId } // Exclude current user
-        }).select('firstName lastName email role status createdAt lastLoginTime currentLoginTime phone jobTitle');
+            _id: { $ne: userId }
+        })
+        .select('firstName lastName email role status createdAt lastLoginTime currentLoginTime phone jobTitle logo landlordInfo')
+        .lean() // Convert to plain JavaScript objects (faster)
+        .exec(); // Explicit execution for better performance
         
         return sendResponse(res, 200, true, 'Company users retrieved successfully', companyUsers);
     } catch (error) {
@@ -648,37 +637,40 @@ export const getCompanyUsers = async (req, res) => {
 // Get company meetings for company admin
 export const getCompanyMeetings = async (req, res) => {
     try {
-        const userId = req.user._id;
-        const user = await User.findById(userId);
-        
-        if (!user) {
-            return sendResponse(res, 404, false, 'User not found');
-        }
-        
-        if (user.role !== 'company-admin') {
-            return sendResponse(res, 403, false, 'Only company admins can access this endpoint');
-        }
-        
-        // If user doesn't have a company, provide mock data for development
-        if (!user.company) {
-            return sendResponse(res, 404, false, 'No company assigned to this user');
-        }
-        
         // Import Meeting model
         const Meeting = (await import('../models/meetings.js')).default;
         
-        // Get all meetings from users in the same company
-        const companyUsers = await User.find({ 
-            company: user.company,
-            deleted: { $ne: true }
-        }).select('_id');
-        
-        const userIds = companyUsers.map(u => u._id);
-        
-        const companyMeetings = await Meeting.find({
-            userId: { $in: userIds },
-            deleted: { $ne: true }
-        }).select('title meetingId startTime endTime duration status createdAt recordings screenshots');
+        // Single aggregation query instead of multiple queries
+        const companyMeetings = await Meeting.aggregate([
+            {
+                $lookup: {
+                    from: 'users',
+                    localField: 'userId',
+                    foreignField: '_id',
+                    as: 'userInfo'
+                }
+            },
+            {
+                $match: {
+                    'userInfo.company': req.user.company,
+                    'userInfo.deleted': { $ne: true },
+                    deleted: { $ne: true }
+                }
+            },
+            {
+                $project: {
+                    title: 1,
+                    meetingId: 1,
+                    startTime: 1,
+                    endTime: 1,
+                    duration: 1,
+                    status: 1,
+                    createdAt: 1,
+                    recordings: 1,
+                    screenshots: 1
+                }
+            }
+        ]).exec();
         
         return sendResponse(res, 200, true, 'Company meetings retrieved successfully', companyMeetings);
     } catch (error) {
@@ -690,37 +682,38 @@ export const getCompanyMeetings = async (req, res) => {
 // Get company uploads for company admin
 export const getCompanyUploads = async (req, res) => {
     try {
-        const userId = req.user._id;
-        const user = await User.findById(userId);
-        
-        if (!user) {
-            return sendResponse(res, 404, false, 'User not found');
-        }
-        
-        if (user.role !== 'company-admin') {
-            return sendResponse(res, 403, false, 'Only company admins can access this endpoint');
-        }
-        
-        // If user doesn't have a company, provide mock data for development
-        if (!user.company) {
-            return sendResponse(res, 404, false, 'No company assigned to this user');
-        }
-        
         // Import Upload model
         const Upload = (await import('../models/upload.js')).default;
         
-        // Get all uploads from users in the same company
-        const companyUsers = await User.find({ 
-            company: user.company,
-            deleted: { $ne: true }
-        }).select('_id');
-        
-        const userIds = companyUsers.map(u => u._id);
-        
-        const companyUploads = await Upload.find({
-            userId: { $in: userIds },
-            deleted: { $ne: true }
-        }).select('accessCode title description createdAt status images videos');
+        // Single aggregation query instead of multiple queries
+        const companyUploads = await Upload.aggregate([
+            {
+                $lookup: {
+                    from: 'users',
+                    localField: 'userId',
+                    foreignField: '_id',
+                    as: 'userInfo'
+                }
+            },
+            {
+                $match: {
+                    'userInfo.company': req.user.company,
+                    'userInfo.deleted': { $ne: true },
+                    deleted: { $ne: true }
+                }
+            },
+            {
+                $project: {
+                    accessCode: 1,
+                    title: 1,
+                    description: 1,
+                    createdAt: 1,
+                    status: 1,
+                    images: 1,
+                    videos: 1
+                }
+            }
+        ]).exec();
         
         return sendResponse(res, 200, true, 'Company uploads retrieved successfully', companyUploads);
     } catch (error) {

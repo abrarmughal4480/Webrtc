@@ -1,7 +1,6 @@
 import mongoose from 'mongoose';
 
 const analyzerSchema = new mongoose.Schema({
-  // User information
   userEmail: {
     type: String,
     required: true
@@ -9,21 +8,19 @@ const analyzerSchema = new mongoose.Schema({
   userId: {
     type: mongoose.Schema.ObjectId,
     ref: "User",
-    required: false // Optional for guest users
+    required: false
   },
   demoCode: {
     type: String,
-    required: false // Optional demo code for guest access
+    required: false
   },
   
-  // Analysis session information
   sessionId: {
     type: String,
     required: true,
     unique: true
   },
   
-  // Images analyzed
   images: [{
     originalName: String,
     s3Key: String,
@@ -36,7 +33,6 @@ const analyzerSchema = new mongoose.Schema({
     }
   }],
   
-  // AI Analysis results
   analysisResults: [{
     imageIndex: Number,
     summary: String,
@@ -52,10 +48,8 @@ const analyzerSchema = new mongoose.Schema({
     feedbackAt: Date
   }],
   
-  // Notes provided by user
   notes: String,
   
-  // Session metadata
   totalImages: {
     type: Number,
     default: 0
@@ -65,7 +59,6 @@ const analyzerSchema = new mongoose.Schema({
     default: false
   },
   
-  // Access tracking
   accessLogs: [{
     ipAddress: String,
     userAgent: String,
@@ -75,14 +68,12 @@ const analyzerSchema = new mongoose.Schema({
     }
   }],
   
-  // Status tracking
   status: {
     type: String,
     enum: ['pending', 'analyzing', 'completed', 'failed'],
     default: 'pending'
   },
   
-  // Error tracking
   errorLogs: [{
     message: String,
     timestamp: {
@@ -96,7 +87,6 @@ const analyzerSchema = new mongoose.Schema({
   suppressReservedKeysWarning: true 
 });
 
-// Indexes for better query performance
 analyzerSchema.index({ userEmail: 1, createdAt: -1 });
 analyzerSchema.index({ status: 1 });
 

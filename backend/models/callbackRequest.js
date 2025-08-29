@@ -85,7 +85,6 @@ const callbackRequestSchema = new mongoose.Schema({
     timestamps: true
 });
 
-// Index for better query performance
 callbackRequestSchema.index({ status: 1, createdAt: -1 });
 callbackRequestSchema.index({ email: 1 });
 callbackRequestSchema.index({ assignedTo: 1 });

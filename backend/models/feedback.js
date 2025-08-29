@@ -21,7 +21,7 @@ const feedbackSchema = new mongoose.Schema({
     required: true
   },
   imageData: {
-    type: String, // S3 URL or base64 data
+    type: String,
     required: true
   },
   analysisResponse: {

@@ -71,7 +71,6 @@ const supportTicketSchema = new mongoose.Schema({
         uploadedAt: { type: Date, default: Date.now }
     }],
     
-    // Chat conversation messages
     chatMessages: [{
         messageId: { type: String, required: true, unique: true },
         senderId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
@@ -83,7 +82,7 @@ const supportTicketSchema = new mongoose.Schema({
             name: { type: String },
             size: { type: Number },
             mimeType: { type: String },
-            localStorageKey: { type: String } // Key for local storage
+            localStorageKey: { type: String }
         },
         timestamp: { type: Date, default: Date.now },
         isRead: { type: Boolean, default: false },

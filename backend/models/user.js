@@ -3,6 +3,7 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import validator from 'validator';
+
 const userSchema = new mongoose.Schema({
     email: {
         type: String,
@@ -10,28 +11,27 @@ const userSchema = new mongoose.Schema({
         unique: true,
         validation: validator.isEmail
     },
-    // New user fields
     firstName: {
         type: String,
-        required: false, // Not required initially to avoid breaking existing users
+        required: false,
         trim: true,
         default: 'Unknown'
     },
     lastName: {
         type: String,
-        required: false, // Not required initially to avoid breaking existing users
+        required: false,
         trim: true,
         default: 'User'
     },
     phone: {
         type: String,
-        required: false, // Not required initially to avoid breaking existing users
+        required: false,
         trim: true,
         default: 'Not provided'
     },
     jobTitle: {
         type: String,
-        required: false, // Not required initially to avoid breaking existing users
+        required: false,
         trim: true,
         default: 'Not specified'
     },
@@ -85,7 +85,7 @@ const userSchema = new mongoose.Schema({
         officerImage: { type: String, default: undefined },
         useLandlordLogoAsProfile: { type: Boolean, default: false },
         profileShape: { type: String, enum: ['square', 'circle'], default: undefined },
-        redirectUrlDefault: { type: String, default: '' }, // Empty string means use current frontend URL
+        redirectUrlDefault: { type: String, default: '' },
         redirectUrlTailored: { type: String, default: 'www.' }
     },
     messageSettings: {
@@ -98,17 +98,15 @@ const userSchema = new mongoose.Schema({
     paginationSettings: {
         itemsPerPage: { type: Number, default: 10, min: 10, max: 50 }
     },
-    // Folder management for archive organization
     folders: [{
         id: { type: String, required: true },
         name: { type: String, required: true },
         createdAt: { type: Date, default: Date.now },
         trashed: { type: Boolean, default: false }
     }],
-    meetingFolders: { type: Map, of: String, default: {} }, // meetingId -> folderId mapping
+    meetingFolders: { type: Map, of: String, default: {} },
     resetPasswordToken: String,
     resetPasswordExpire: Date,
-    // Trash functionality
     deleted: {
         type: Boolean,
         default: false
@@ -117,7 +115,6 @@ const userSchema = new mongoose.Schema({
         type: Date,
         default: null
     },
-    // Data cleanup tracking
     dataCleaned: {
         type: Boolean,
         default: false
@@ -129,6 +126,15 @@ const userSchema = new mongoose.Schema({
 }, {
     timestamps: true
 });
+
+userSchema.index({ company: 1, deleted: 1 });
+userSchema.index({ company: 1, deleted: 1, _id: 1 });
+userSchema.index({ role: 1 });
+userSchema.index({ status: 1 });
+userSchema.index({ deleted: 1 });
+userSchema.index({ 'landlordInfo.landlordLogo': 1 });
+userSchema.index({ 'landlordInfo.officerImage': 1 });
+userSchema.index({ logo: 1 });
 
 userSchema.pre('save', async function (next) {
     if (!this.isModified('password')) return next();

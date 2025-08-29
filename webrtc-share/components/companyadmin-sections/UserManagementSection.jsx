@@ -3,12 +3,9 @@ import { Search, Users, Eye, Edit, Clock } from "lucide-react"
 import { useState, useMemo } from "react"
 
 const UserRow = ({ user, onView, onEdit, getInitials, formatDate, userMeetings }) => {
-  // Calculate user's storage usage from meetings (recordings and screenshots)
-  // User ID is stored in uploaded_by field within each screenshot/recording
   const userStorageUsage = userMeetings?.reduce((total, meeting) => {
     let meetingSize = 0
 
-    // Add size from recordings array - check uploaded_by field
     if (meeting.recordings && Array.isArray(meeting.recordings)) {
       meetingSize += meeting.recordings.reduce((recTotal, rec) => {
         if (rec.uploaded_by === user._id) {
@@ -18,7 +15,6 @@ const UserRow = ({ user, onView, onEdit, getInitials, formatDate, userMeetings }
       }, 0)
     }
 
-    // Add size from screenshots array - check uploaded_by field
     if (meeting.screenshots && Array.isArray(meeting.screenshots)) {
       meetingSize += meeting.screenshots.reduce((scrTotal, scr) => {
         if (scr.uploaded_by === user._id) {
@@ -34,27 +30,97 @@ const UserRow = ({ user, onView, onEdit, getInitials, formatDate, userMeetings }
   const storageInMB = (userStorageUsage / (1024 * 1024)).toFixed(2)
   const storageInKB = (userStorageUsage / 1024).toFixed(2)
 
-  // Set unlimited storage (1000 MB = 1 GB limit)
-  const storageLimit = 1000 * 1024 * 1024 // 1000 MB in bytes
+  const storageLimit = 1000 * 1024 * 1024
   const storagePercentage = Math.min((userStorageUsage / storageLimit) * 100, 100)
 
-  // Show storage in appropriate unit
   const displayStorage = userStorageUsage > 0
     ? (userStorageUsage > 1024 * 1024 ? `${storageInMB} MB` : `${storageInKB} KB`)
     : '0 KB'
 
-  // Show storage limit
-  const storageLimitDisplay = '1 GB'
+  const formatTime = (date) => {
+    const hours = date.getHours();
+    const minutes = date.getMinutes();
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    const displayHours = hours % 12 || 12;
+
+    if (ampm === 'PM') {
+      const hourStr = displayHours.toString();
+      const paddedHour = hourStr.length === 1 ? ` ${hourStr}` : hourStr;
+      return `${paddedHour}:${String(minutes).padStart(2, '0')} ${ampm}`;
+    } else {
+      return `${String(displayHours).padStart(2, '0')}:${String(minutes).padStart(2, '0')} ${ampm}`;
+    }
+  };
+
+  const formatLoginTime = (dateString) => {
+    if (!dateString) return 'Never';
+    const date = new Date(dateString);
+
+    const timeStr = formatTime(date);
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = String(date.getFullYear()).slice(-2);
+
+    return `${timeStr} ${day}/${month}/${year}`;
+  };
+
+  const getProfileImage = () => {
+    if (user?.landlordInfo?.useLandlordLogoAsProfile && user?.landlordInfo?.landlordLogo) {
+      return user.landlordInfo.landlordLogo;
+    }
+
+    if (user?.landlordInfo?.officerImage) {
+      return user.landlordInfo.officerImage;
+    }
+
+    if (user?.logo) {
+      return user.logo;
+    }
+
+    return null;
+  };
+
+  const getProfileShapeClass = () => {
+    const shape = user?.landlordInfo?.profileShape;
+    if (shape === 'square') {
+      return 'rounded-lg';
+    } else if (shape === 'circle') {
+      return 'rounded-full';
+    }
+    return 'rounded-full';
+  };
+
+  const getImageObjectFitClass = () => {
+    const shape = user?.landlordInfo?.profileShape;
+    if (shape === 'square') {
+      return 'object-contain';
+    } else {
+      return 'object-cover';
+    }
+  };
 
   return (
     <tr className="hover:bg-gray-50 transition-colors duration-150">
       <td className="px-6 py-4 whitespace-nowrap">
         <div className="flex items-center">
           <div className="relative">
-            <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-purple-600 rounded-full flex items-center justify-center shadow-sm">
-              <span className="text-white font-semibold text-sm">
-                {getInitials(`${user.firstName || ''} ${user.lastName || ''}`)}
-              </span>
+            <div className={`w-10 h-10 overflow-hidden border border-gray-200 bg-gray-50 ${getProfileShapeClass()}`}>
+              {getProfileImage() ? (
+                <img
+                  src={getProfileImage()}
+                  alt="Profile"
+                  className={`w-full h-full ${getImageObjectFitClass()}`}
+                  onError={(e) => {
+                    e.target.style.display = 'none';
+                  }}
+                />
+              ) : (
+                <div className="w-full h-full bg-gradient-to-r from-purple-500 to-purple-600 flex items-center justify-center">
+                  <span className="text-white font-semibold text-sm">
+                    {getInitials(`${user.firstName || ''} ${user.lastName || ''}`)}
+                  </span>
+                </div>
+              )}
             </div>
             <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-gray-400 border-2 border-white rounded-full"></div>
           </div>
@@ -75,17 +141,15 @@ const UserRow = ({ user, onView, onEdit, getInitials, formatDate, userMeetings }
         </span>
       </td>
       <td className="px-6 py-4 whitespace-nowrap">
-        <div className="flex items-center">
-          <div className="w-2 h-2 bg-gray-400 rounded-full mr-2"></div>
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 border border-gray-200">
-            {user.status || 'Unknown'}
-          </span>
-        </div>
+        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 border border-gray-200">
+          {user.status || 'Unknown'}
+        </span>
       </td>
       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
         <div className="flex items-center">
-          <Clock className="w-4 h-4 mr-2 text-gray-400" />
-          {formatDate(user.lastLoginTime || user.currentLoginTime)}
+          <span className="font-mono" style={{ whiteSpace: 'pre' }}>
+            {formatLoginTime(user.lastLoginTime || user.currentLoginTime)}
+          </span>
         </div>
       </td>
       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -219,7 +283,6 @@ const UserManagementSection = ({
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage] = useState(10)
 
-  // Filter and sort users
   const filteredAndSortedUsers = useMemo(() => {
     let filtered = companyUsers.filter(user => {
       const matchesSearch = !searchTerm ||
@@ -233,7 +296,6 @@ const UserManagementSection = ({
       return matchesSearch && matchesRole && matchesStatus
     })
 
-    // Sort users
     filtered.sort((a, b) => {
       let aValue, bValue
 
@@ -280,50 +342,30 @@ const UserManagementSection = ({
     currentPage * itemsPerPage
   )
 
-
-
   return (
     <div className="space-y-8 pb-8">
-      {/* Search and Filters */}
-      <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
-        <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
-          <div className="flex-1 max-w-md">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search users..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-              />
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <select
-              value={filterRole}
-              onChange={(e) => setFilterRole(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-            >
-              <option value="all">All Roles</option>
-              <option value="landlord">Landlords</option>
-              <option value="resident">Residents</option>
-            </select>
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-            >
-              <option value="all">All Status</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
       {/* Users Table */}
       <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
+        {/* Header with search and filters integrated */}
+        <div className="flex flex-col sm:flex-row gap-4 items-center justify-between p-6 border-b border-gray-100">
+          <div className="flex-1">
+            <span className="text-sm text-gray-500">
+              {filteredAndSortedUsers.length} of {companyUsers.length} {companyUsers.length === 1 ? 'user' : 'users'}
+              {searchTerm && ` matching "${searchTerm}"`}
+            </span>
+          </div>
+          <div className="relative w-full sm:w-auto">
+            <Search className="absolute left-3 sm:left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+            <input
+              type="text"
+              placeholder="Search users..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full sm:w-64 pl-10 sm:pl-12 pr-4 py-3 sm:py-3 border border-gray-200 rounded-full focus:ring-2 focus:ring-purple-500 focus:border-purple-500 focus:outline-none transition-all duration-200 bg-gray-50 focus:bg-white shadow-sm text-gray-700 text-sm"
+            />
+          </div>
+        </div>
+
         <div className="overflow-x-auto">
           <table className="min-w-full">
             <thead className="bg-gray-50">

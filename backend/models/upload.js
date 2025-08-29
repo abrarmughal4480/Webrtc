@@ -44,5 +44,11 @@ const uploadSchema = new mongoose.Schema({
   total_access_count: { type: Number, default: 0 },
 }, { timestamps: true });
 
+uploadSchema.index({ userId: 1, deleted: 1 });
+uploadSchema.index({ deleted: 1 });
+uploadSchema.index({ createdAt: 1 });
+uploadSchema.index({ deletedAt: 1 });
+uploadSchema.index({ firstAccessedAt: 1 });
+
 const Upload = mongoose.model('Upload', uploadSchema);
 export default Upload; 

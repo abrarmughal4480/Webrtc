@@ -89,7 +89,6 @@ const demoMeetingSchema = new mongoose.Schema({
     timestamps: true
 });
 
-// Index for better query performance
 demoMeetingSchema.index({ status: 1, requestedDate: 1 });
 demoMeetingSchema.index({ email: 1 });
 demoMeetingSchema.index({ assignedTo: 1 });

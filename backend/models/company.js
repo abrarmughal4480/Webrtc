@@ -6,7 +6,6 @@ const companySchema = new mongoose.Schema({
     required: true,
     trim: true
   },
-  // Company address fields
   house_name_number: {
     type: String,
     required: true,
