@@ -53,6 +53,9 @@ const meetingSchema = new mongoose.Schema({
     total_recordings: {type: Number, default: 0},
     total_screenshots: {type: Number, default: 0},
     total_access_count: {type: Number, default: 0},
+    meeting_duration: {type: Number, default: 0}, // Total meeting duration in seconds
+    last_connection_time: {type: Date, default: null}, // Last time user was connected
+    connection_start_time: {type: Date, default: null}, // When meeting connection started
     archived: {
         type: Boolean,
         default: false

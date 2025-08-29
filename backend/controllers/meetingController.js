@@ -353,7 +353,9 @@ export const create = catchAsyncError(async (req, res, next) => {
         city,
         first_name,
         last_name,
-        country
+        country,
+        meeting_duration,
+        connection_start_time
     } = req.body;
     const user_id = req.user._id;
 
@@ -483,7 +485,10 @@ export const create = catchAsyncError(async (req, res, next) => {
             city,
             first_name,
             last_name,
-            country
+            country,
+            meeting_duration: meeting_duration || 0,
+            connection_start_time: connection_start_time ? new Date(connection_start_time) : new Date(),
+            last_connection_time: new Date()
         });
 
         res.status(201).json({
@@ -538,7 +543,9 @@ const updateMeetingWithNewMediaOnly = async (meeting, data, res, next, user_id, 
         city,
         first_name,
         last_name,
-        country
+        country,
+        meeting_duration,
+        connection_start_time
     } = data;
     const totalNewFiles = (recordings?.length || 0) + (screenshots?.length || 0);
 
@@ -559,6 +566,11 @@ const updateMeetingWithNewMediaOnly = async (meeting, data, res, next, user_id, 
         if (first_name !== undefined) meeting.first_name = first_name;
         if (last_name !== undefined) meeting.last_name = last_name;
         if (country !== undefined) meeting.country = country;
+        if (meeting_duration !== undefined) meeting.meeting_duration = meeting_duration;
+        if (connection_start_time !== undefined) meeting.connection_start_time = new Date(connection_start_time);
+        
+        // Update last connection time
+        meeting.last_connection_time = new Date();
 
         if (!meeting.userId) {
             meeting.userId = user_id;

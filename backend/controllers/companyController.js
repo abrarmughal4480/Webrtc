@@ -912,13 +912,13 @@ export const getCompanyDashboardStats = async (req, res) => {
         const totalStorageUsedBytes = uploadStorageBytes + meetingStorageBytes;
         const totalStorageUsed = Math.round((totalStorageUsedBytes / (1024 * 1024)) * 100) / 100; // Convert to MB with 2 decimal places
         
-        // Calculate total meeting minutes
+        // Calculate total meeting minutes from meeting_duration field
         const totalMeetingMinutes = companyMeetings.reduce((total, meeting) => {
-            return total + (meeting.duration || 0);
+            return total + (meeting.meeting_duration || 0);
         }, 0);
         
-        // Calculate average meeting duration
-        const averageMeetingDuration = totalMeetings > 0 ? Math.round(totalMeetingMinutes / totalMeetings) : 0;
+        // Calculate average meeting duration in minutes
+        const averageMeetingDuration = totalMeetings > 0 ? Math.round((totalMeetingMinutes / 60) / totalMeetings) : 0;
         
         // Calculate active users (users with activity in last 30 days)
         const thirtyDaysAgo = new Date();
@@ -958,7 +958,7 @@ export const getCompanyDashboardStats = async (req, res) => {
             totalMeetings,
             totalUploads,
             totalStorageUsed,
-            totalMeetingMinutes,
+            totalMeetingMinutes: Math.round(totalMeetingMinutes / 60), // Convert seconds to minutes
             activeUsers,
             onlineUsersCount,
             averageMeetingDuration,

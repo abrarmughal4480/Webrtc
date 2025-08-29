@@ -20,21 +20,21 @@ const MeetingAnalyticsSection = ({ companyStats, companyMeetings, companyUsers }
   const meetingStats = [
     {
       title: "Total Meetings",
-      value: companyStats.totalMeetings,
+      value: companyStats.totalMeetings || 0,
       icon: Video,
       bgColor: "bg-blue-100",
       textColor: "text-blue-600"
     },
     {
       title: "Total Minutes",
-      value: companyStats.totalMeetingMinutes,
+      value: companyStats.totalMeetingMinutes || 0,
       icon: Clock,
       bgColor: "bg-green-100",
       textColor: "text-green-600"
     },
     {
       title: "Avg Duration (min)",
-      value: companyStats.averageMeetingDuration,
+      value: companyStats.averageMeetingDuration || 0,
       icon: BarChart3,
       bgColor: "bg-purple-100",
       textColor: "text-purple-600"
@@ -97,10 +97,7 @@ const MeetingAnalyticsSection = ({ companyStats, companyMeetings, companyUsers }
                 </div>
                 <div className="text-right">
                   <p className="text-sm font-medium text-gray-900">
-                    {meeting.duration || 'Unknown'} min
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    {meeting.participants?.length || 0} participants
+                    {meeting.meeting_duration ? Math.round(meeting.meeting_duration / 60) : 0} min
                   </p>
                 </div>
               </div>

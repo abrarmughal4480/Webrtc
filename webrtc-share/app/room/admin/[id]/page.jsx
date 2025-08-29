@@ -491,7 +491,7 @@ export default function Page({ params }) {
           timestamp: new Date().toISOString()
         }] : []),
         ...(form.workDetail3?.trim() ? [{
-          detail: form.workDetail3.trim(),
+          detail: form.workDetail2.trim(),
           target_time: form.selectedTTValues['field3'] || "Emergency 24 Hours",
           timestamp: new Date().toISOString()
         }] : []),
@@ -507,7 +507,9 @@ export default function Page({ params }) {
       special_notes: form.specialNotes,
       recordings: recordingsData,
       screenshots: screenshotsData,
-      update_mode: app.existingMeetingData ? 'update' : 'create'
+      update_mode: app.existingMeetingData ? 'update' : 'create',
+      meeting_duration: app.callDuration,
+      connection_start_time: startTimeRef.current ? new Date(startTimeRef.current).toISOString() : new Date().toISOString()
     };
 
 
@@ -1971,6 +1973,27 @@ export default function Page({ params }) {
     };
     fetchStructuredNotes();
   }, [id, ui.isClient, app.existingMeetingData]);
+
+  // Add video health check to pause timer on video issues
+  useEffect(() => {
+    if (!videoRef.current || !isConnected) return;
+
+    const checkVideoHealth = () => {
+      const video = videoRef.current;
+      if (video && (video.readyState === 0 || video.videoWidth === 0 || video.videoHeight === 0)) {
+        // Video stream is broken or blank - PAUSE the timer, don't clear it
+        if (timerRef.current) {
+          clearInterval(timerRef.current);
+          timerRef.current = null;
+          // Keep startTimeRef.current and localStorage - don't clear them
+          // Timer is paused, not reset
+        }
+      }
+    };
+
+    const healthCheck = setInterval(checkVideoHealth, 5000);
+    return () => clearInterval(healthCheck);
+  }, [isConnected, id]);
 
   if (!ui.isClient) {
     return (
