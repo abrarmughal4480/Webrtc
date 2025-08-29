@@ -9,6 +9,9 @@ const useNotifications = (userEmail) => {
   const [notificationData, setNotificationData] = useState(null);
   const socketRef = useRef(null);
   const [readNotifications, setReadNotifications] = useState(new Set());
+  const [isConnected, setIsConnected] = useState(false);
+  const [connectionAttempts, setConnectionAttempts] = useState(0);
+  const maxConnectionAttempts = 3;
 
   // Load read notifications from localStorage on mount
   useEffect(() => {
@@ -46,18 +49,45 @@ const useNotifications = (userEmail) => {
   useEffect(() => {
     if (!userEmail) return;
 
+    // Don't attempt connection if we've exceeded max attempts
+    if (connectionAttempts >= maxConnectionAttempts) {
+      console.log('🔔 Max connection attempts reached, skipping WebSocket connection');
+      return;
+    }
+
     const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4000';
     const socketUrl = backendUrl.replace('/api/v1', '');
 
+    console.log('🔔 Attempting to connect to:', socketUrl);
+
     socketRef.current = io(socketUrl, {
-      reconnectionAttempts: 5,
-      timeout: 10000,
-      transports: ['websocket'],
+      reconnectionAttempts: 2,
+      reconnectionDelay: 2000,
+      timeout: 8000,
+      transports: ['websocket', 'polling'],
+      forceNew: true,
     });
 
     socketRef.current.on('connect', () => {
       console.log('🔔 Connected to notification socket');
+      setIsConnected(true);
+      setConnectionAttempts(0); // Reset attempts on successful connection
       socketRef.current.emit('join-notification-room', userEmail);
+    });
+
+    socketRef.current.on('connect_error', (error) => {
+      console.log('🔔 Connection error:', error.message);
+      setIsConnected(false);
+      setConnectionAttempts(prev => prev + 1);
+      
+      // If this is the last attempt, clean up and don't retry
+      if (connectionAttempts + 1 >= maxConnectionAttempts) {
+        console.log('🔔 Max connection attempts reached, giving up');
+        if (socketRef.current) {
+          socketRef.current.disconnect();
+          socketRef.current = null;
+        }
+      }
     });
 
     socketRef.current.on('new-notification', (notification) => {
@@ -76,8 +106,27 @@ const useNotifications = (userEmail) => {
       });
     });
 
-    socketRef.current.on('disconnect', () => {
-      console.log('🔔 Disconnected from notification socket');
+    socketRef.current.on('disconnect', (reason) => {
+      console.log('🔔 Disconnected from notification socket:', reason);
+      setIsConnected(false);
+      
+      // Only attempt reconnection if it wasn't a manual disconnect
+      if (reason === 'io client disconnect') {
+        setConnectionAttempts(prev => prev + 1);
+      }
+    });
+
+    socketRef.current.on('reconnect', (attemptNumber) => {
+      console.log('🔔 Reconnected to notification socket after', attemptNumber, 'attempts');
+      setIsConnected(true);
+      setConnectionAttempts(0);
+      socketRef.current.emit('join-notification-room', userEmail);
+    });
+
+    socketRef.current.on('reconnect_failed', () => {
+      console.log('🔔 Reconnection failed, giving up');
+      setIsConnected(false);
+      setConnectionAttempts(maxConnectionAttempts);
     });
 
     setSocket(socketRef.current);
@@ -86,9 +135,11 @@ const useNotifications = (userEmail) => {
       if (socketRef.current) {
         socketRef.current.emit('leave-notification-room', userEmail);
         socketRef.current.disconnect();
+        socketRef.current = null;
       }
+      setIsConnected(false);
     };
-  }, [userEmail]);
+  }, [userEmail, connectionAttempts]);
 
   const markAsRead = (notificationId) => {
     setReadNotifications(prev => {
@@ -100,9 +151,30 @@ const useNotifications = (userEmail) => {
       if (notificationData && newReadSet.size >= notificationData.length) {
         setHasNotifications(false);
       }
+      
       return newReadSet;
     });
-    // You can add API call here to mark as read on backend if needed
+  };
+
+  const clearAllNotifications = () => {
+    if (notificationData) {
+      const allIds = notificationData.map(n => n._id);
+      setReadNotifications(prev => {
+        const newReadSet = new Set([...prev, ...allIds]);
+        localStorage.setItem('readNotifications', JSON.stringify([...newReadSet]));
+        return newReadSet;
+      });
+      setHasNotifications(false);
+    }
+  };
+
+  const resetConnection = () => {
+    setConnectionAttempts(0);
+    if (socketRef.current) {
+      socketRef.current.disconnect();
+      socketRef.current = null;
+    }
+    setIsConnected(false);
   };
 
   return {
@@ -110,7 +182,11 @@ const useNotifications = (userEmail) => {
     hasNotifications,
     notificationData,
     markAsRead,
-    readNotifications,
+    clearAllNotifications,
+    isConnected,
+    connectionAttempts,
+    maxConnectionAttempts,
+    resetConnection
   };
 };
 

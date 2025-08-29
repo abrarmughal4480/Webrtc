@@ -18,7 +18,11 @@ export const useOnlineUsers = (userRole, userId, userEmail, userCompany) => {
     // Initialize socket connection
     const socket = io(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000', {
       withCredentials: true,
-      transports: ['websocket', 'polling']
+      transports: ['websocket', 'polling'],
+      timeout: 8000,
+      reconnectionAttempts: 2,
+      reconnectionDelay: 2000,
+      autoConnect: true
     });
 
     socketRef.current = socket;
@@ -42,9 +46,9 @@ export const useOnlineUsers = (userRole, userId, userEmail, userCompany) => {
       }
     });
 
-    socket.on('disconnect', () => {
+    socket.on('disconnect', (reason) => {
       setIsConnected(false);
-      console.log('Socket disconnected from online users tracking');
+      console.log('Socket disconnected from online users tracking:', reason);
     });
 
     // Online users events (only for superadmins)
@@ -78,7 +82,7 @@ export const useOnlineUsers = (userRole, userId, userEmail, userCompany) => {
 
     // Error handling
     socket.on('connect_error', (error) => {
-      console.error('Socket connection error:', error);
+      console.log('Socket connection error:', error.message);
       setIsConnected(false);
     });
 

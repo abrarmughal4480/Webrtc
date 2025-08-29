@@ -126,7 +126,9 @@ const useChatSocket = (ticketId) => {
         withCredentials: true,
         autoConnect: false, // Don't auto-connect, we'll do it manually
         forceNew: false, // Reuse existing connection if possible
-        timeout: 20000,
+        timeout: 8000,
+        reconnectionAttempts: 2,
+        reconnectionDelay: 2000,
         // --- LARGE FILE HANDLING ---
         maxHttpBufferSize: 50 * 1024 * 1024, // 50MB buffer
         maxPayload: 50 * 1024 * 1024, // 50MB max payload
@@ -171,21 +173,31 @@ const useChatSocket = (ticketId) => {
           window.chatSocket = null;
         }
         
-        // Auto-reconnect for certain disconnect reasons
-        if (reason === 'io server disconnect' || reason === 'transport close') {
+        // Only auto-reconnect for certain disconnect reasons and if not manually disconnected
+        if ((reason === 'io server disconnect' || reason === 'transport close') && !isManualDisconnect) {
           console.log('🔄 Attempting to reconnect...');
           setTimeout(() => {
-            if (socketRef.current) {
+            if (socketRef.current && !isManualDisconnect) {
               socketRef.current.connect();
             }
-          }, 1000);
+          }, 2000);
         }
       });
 
       socket.on('connect_error', (error) => {
-        console.error('❌ Chat socket connection error:', error);
+        console.log('❌ Chat socket connection error:', error.message);
         setConnectionError('Failed to connect to chat server');
         setIsConnected(false);
+        
+        // Don't spam reconnection attempts
+        if (socketRef.current && !isManualDisconnect) {
+          setTimeout(() => {
+            if (socketRef.current && !isManualDisconnect) {
+              console.log('🔄 Retrying connection after error...');
+              socketRef.current.connect();
+            }
+          }, 5000);
+        }
       });
 
       socket.on('error', (error) => {

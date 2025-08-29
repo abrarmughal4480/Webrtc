@@ -59,7 +59,7 @@ const UserRow = ({ user, onView, onEdit, getInitials, formatDate, userMeetings }
     const timeStr = formatTime(date);
     const day = String(date.getDate()).padStart(2, '0');
     const month = String(date.getMonth() + 1).padStart(2, '0');
-    const year = String(date.getFullYear()).slice(-2);
+    const year = String(date.getFullYear());
 
     return `${timeStr} ${day}/${month}/${year}`;
   };
@@ -129,9 +129,6 @@ const UserRow = ({ user, onView, onEdit, getInitials, formatDate, userMeetings }
               {user.firstName || 'Unknown'} {user.lastName || 'User'}
             </div>
             <div className="text-sm text-gray-500">{user.email || 'No email'}</div>
-            <div className="flex items-center gap-2 mt-1">
-              <span className="text-xs font-medium text-gray-500">User</span>
-            </div>
           </div>
         </div>
       </td>
@@ -149,6 +146,13 @@ const UserRow = ({ user, onView, onEdit, getInitials, formatDate, userMeetings }
         <div className="flex items-center">
           <span className="font-mono" style={{ whiteSpace: 'pre' }}>
             {formatLoginTime(user.lastLoginTime || user.currentLoginTime)}
+          </span>
+        </div>
+      </td>
+      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+        <div className="flex items-center justify-center">
+          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200">
+            {user.meetingCount || 0}
           </span>
         </div>
       </td>
@@ -383,6 +387,9 @@ const UserManagementSection = ({
                   Last Login
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Number of Meetings
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Storage Usage
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -405,7 +412,7 @@ const UserManagementSection = ({
                 ))
               ) : (
                 <tr>
-                  <td colSpan="6" className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan="7" className="px-6 py-8 text-center text-gray-500">
                     <Users className="w-12 h-12 mx-auto mb-3 text-gray-300" />
                     <p className="text-lg font-medium">No users found</p>
                     <p className="text-sm">No users match your current filters</p>

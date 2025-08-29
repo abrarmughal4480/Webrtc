@@ -612,12 +612,15 @@ export const checkTemporaryPasswordStatus = async (req, res) => {
 
 // Company Admin Dashboard Functions
 
-// Get company users for company admin
+// Get company users for company admin with meeting counts
 export const getCompanyUsers = async (req, res) => {
     try {
         const userId = req.user._id;
         
-        // Single optimized query with projection and lean()
+        // Import Meeting model
+        const Meeting = (await import('../models/meetings.js')).default;
+        
+        // Get company users
         const companyUsers = await User.find({ 
             company: req.user.company, // Use req.user.company directly
             deleted: { $ne: true },
@@ -627,7 +630,60 @@ export const getCompanyUsers = async (req, res) => {
         .lean() // Convert to plain JavaScript objects (faster)
         .exec(); // Explicit execution for better performance
         
-        return sendResponse(res, 200, true, 'Company users retrieved successfully', companyUsers);
+
+        
+        // Get company meetings by user IDs (since meetings don't have company field)
+        const companyUserIds = companyUsers.map(user => user._id);
+        
+        // Fetch meetings for each user individually
+        const usersWithMeetingCounts = await Promise.all(companyUsers.map(async (user) => {
+            // Find meetings where this user is the creator
+            const userCreatedMeetings = await Meeting.find({
+                userId: user._id,
+                deleted: { $ne: true }
+            }).select('_id userId recordings screenshots').lean();
+            
+            // Find meetings where this user is a participant
+            const userParticipantMeetings = await Meeting.find({
+                'participants.userId': user._id,
+                deleted: { $ne: true }
+            }).select('_id userId participants recordings screenshots').lean();
+            
+            // Find meetings where this user is an attendee
+            const userAttendeeMeetings = await Meeting.find({
+                'attendees.userId': user._id,
+                deleted: { $ne: true }
+            }).select('_id userId attendees recordings screenshots').lean();
+            
+            // Find meetings where this user uploaded content
+            const userUploadMeetings = await Meeting.find({
+                $or: [
+                    { 'recordings.uploaded_by': user._id },
+                    { 'screenshots.uploaded_by': user._id }
+                ],
+                deleted: { $ne: true }
+            }).select('_id userId recordings screenshots').lean();
+            
+            // Combine all meetings for this user and remove duplicates
+            const allUserMeetings = [
+                ...userCreatedMeetings,
+                ...userParticipantMeetings,
+                ...userAttendeeMeetings,
+                ...userUploadMeetings
+            ];
+            
+            const uniqueUserMeetings = allUserMeetings.filter((meeting, index, self) => 
+                index === self.findIndex(m => m._id.toString() === meeting._id.toString())
+            );
+            
+            return {
+                ...user,
+                meetingCount: uniqueUserMeetings.length
+            };
+        }));
+        
+        return sendResponse(res, 200, true, 'Company users retrieved successfully', usersWithMeetingCounts);
+        
     } catch (error) {
         console.error('Error fetching company users:', error);
         return sendResponse(res, 500, false, 'Failed to fetch company users', error.message);
