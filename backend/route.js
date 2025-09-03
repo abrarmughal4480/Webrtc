@@ -11,13 +11,16 @@ import { getUserRoomInfo } from './controllers/userRoomInfoController.js';
 import Upload from './models/upload.js';
 
 // Company controller import
-import { createCompany, getAllCompanies, getCompanyById, updateCompany, deleteCompany, getCompanyStats, changeTemporaryPassword, checkTemporaryPasswordStatus, testCompanyController, migrateExistingUsers, getCompanyUsers, getCompanyMeetings, getCompanyUploads, getCompanyDashboardStats, getCompanyProfile } from './controllers/companyController.js';
+import { createCompany, getAllCompanies, getCompanyById, updateCompany, deleteCompany, getCompanyStats, changeTemporaryPassword, checkTemporaryPasswordStatus, testCompanyController, migrateExistingUsers, getCompanyUsers, getCompanyMeetings, getCompanyUploads, getCompanyDashboardStats, getCompanyProfile, addCompanyUser } from './controllers/companyController.js';
 
 // Support Ticket controller import
 import { createSupportTicket, getUserTickets, getTicketById, updateTicket, deleteTicket, getAllTickets, adminUpdateTicket, adminUpdateTicketComprehensive, getSuperAdminAllTickets, getDashboardStats, getTicketStats, bulkUpdateTickets, searchTickets, exportTickets, deleteAttachment } from './controllers/supportTicketController.js';
 
 // Analyzer controller import
 import { createSession, uploadImages, saveResults, updateFeedback, getSession, getUserSessions, deleteSession, getStats, getAllSessions } from './controllers/analyzerController.js';
+
+// Observer controller import
+import { enableObserverMode, disableObserverMode, addObserver, removeObserver, getMeetingObservers, joinAsObserver, leaveAsObserver, getObservableMeetings } from './controllers/observerController.js';
 
 // Chat controller import
 import { getChatHistory, saveChatMessage, saveMediaMessage, getChatStats } from './controllers/chatController.js';
@@ -420,6 +423,17 @@ router.get('/company-admin/dashboard/company', isAuthenticate, (req, res, next) 
     }
 }, getCompanyProfile);
 
+router.post('/company-admin/users/add', isAuthenticate, (req, res, next) => {
+    if (req.user.role === 'company-admin') {
+        next();
+    } else {
+        res.status(401).json({
+            success: false,
+            message: 'Only company-admin can add users to their company'
+        });
+    }
+}, addCompanyUser);
+
 // Support Ticket Routes
 // User routes (authenticated users)
 router.post('/support-tickets/create', isAuthenticate, createSupportTicket);
@@ -676,5 +690,15 @@ router.post('/request-callback', createCallbackRequest);
 router.post('/book-demo-meeting', createDemoMeetingRequest);
 router.post('/send-feedback', saveFeedback);
 router.post('/raise-support-ticket', createSupportTicket);
+
+// Observer routes
+router.route('/meeting/:meetingId/observer/enable').post(isAuthenticate, enableObserverMode);
+router.route('/meeting/:meetingId/observer/disable').post(isAuthenticate, disableObserverMode);
+router.route('/meeting/:meetingId/observer/add').post(isAuthenticate, addObserver);
+router.route('/meeting/:meetingId/observer/:observerId/remove').delete(isAuthenticate, removeObserver);
+router.route('/meeting/:meetingId/observers').get(isAuthenticate, getMeetingObservers);
+router.route('/meeting/:meetingId/observer/join').post(isAuthenticate, joinAsObserver);
+router.route('/meeting/:meetingId/observer/leave').post(isAuthenticate, leaveAsObserver);
+router.route('/meetings/observable').get(isAuthenticate, getObservableMeetings);
 
 export default router;

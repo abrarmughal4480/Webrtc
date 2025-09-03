@@ -718,7 +718,7 @@ const handleLogout = async () => {
 
         {/* Mobile Navigation Menu */}
         {mobileMenuOpen && (
-          <div className="mobile-menu md:hidden bg-white border-t shadow-lg max-h-[70vh] overflow-y-auto" ref={mobileMenuRef}>
+          <div className="mobile-menu md:hidden bg-white border-t shadow-lg max-h-[70vh] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100" ref={mobileMenuRef}>
             <div className="px-3 py-2 space-y-1">
               <a href="#about" className="block py-1.5 text-sm text-gray-700 hover:text-amber-500 transition-colors" onClick={(e) => { 
                 e.preventDefault();
@@ -906,7 +906,7 @@ const handleLogout = async () => {
 
 
       <CustomDialog open={signUpOpen} setOpen={setSignUpOpen} isCloseable={true} heading={"Sign up today for free, in 3 easy steps"}>
-        <div className="p-4 flex flex-col items-center max-h-[80vh] overflow-y-auto">          <form className='w-full relative py-4 space-y-5 mt-8' onSubmit={handleRegister}>
+        <div className="p-4 flex flex-col items-center max-h-[80vh] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">          <form className='w-full relative py-4 space-y-5 mt-8' onSubmit={handleRegister}>
             <input
               type="email"
               placeholder="Enter your work email address"

@@ -717,13 +717,22 @@ export const getCompanyMeetings = async (req, res) => {
                 $project: {
                     title: 1,
                     meetingId: 1,
+                    meeting_id: 1,
                     startTime: 1,
                     endTime: 1,
                     duration: 1,
                     status: 1,
                     createdAt: 1,
                     recordings: 1,
-                    screenshots: 1
+                    screenshots: 1,
+                    userId: 1,
+                    created_by: 1,
+                    owner: 1,
+                    user_email: 1,
+                    email: 1,
+                    landlord_email: 1,
+                    participants: 1,
+                    userInfo: 1
                 }
             }
         ]).exec();
@@ -978,3 +987,151 @@ export const getCompanyDashboardStats = async (req, res) => {
          return sendResponse(res, 500, false, 'Failed to fetch company dashboard stats', error.message);
      }
  };
+
+// Add new landlord user to company (for company admin)
+export const addCompanyUser = async (req, res) => {
+    try {
+        const { users } = req.body;
+        const companyAdminId = req.user._id;
+        
+        // Check if user is company admin
+        if (req.user.role !== 'company-admin') {
+            return sendResponse(res, 403, false, 'Only company admins can add users to their company');
+        }
+        
+        // Check if company admin has a company
+        if (!req.user.company) {
+            return sendResponse(res, 404, false, 'No company assigned to this user');
+        }
+        
+        if (!users || !Array.isArray(users) || users.length === 0) {
+            return sendResponse(res, 400, false, 'Users array is required and must not be empty');
+        }
+        
+        // Get company details
+        const company = await Company.findById(req.user.company);
+        if (!company) {
+            return sendResponse(res, 404, false, 'Company not found');
+        }
+        
+        let createdUsers = 0;
+        let updatedUsers = 0;
+        const emailErrors = [];
+        const createdUserIds = [];
+        
+        // Process each user
+        for (const userData of users) {
+            const { firstName, lastName, email, phone, jobTitle } = userData;
+            console.log('Processing user for company:', { firstName, lastName, email, phone, jobTitle });
+            
+            // Validate required fields
+            if (!firstName || !lastName || !email || !phone || !jobTitle) {
+                console.log('Skipping invalid user:', userData);
+                continue; // Skip invalid users
+            }
+            
+            // Check if user already exists
+            let existingUser = await User.findOne({ email: email.toLowerCase() });
+            
+            if (existingUser) {
+                console.log('Updating existing user:', existingUser._id);
+                
+                // Update existing user's information and assign to company
+                existingUser.firstName = firstName;
+                existingUser.lastName = lastName;
+                existingUser.phone = phone;
+                existingUser.jobTitle = jobTitle;
+                existingUser.role = 'landlord'; // Always set as landlord
+                existingUser.company = company._id;
+                await existingUser.save();
+                
+                // Add user to company landlords array if not already there
+                if (!company.landlords.includes(existingUser._id)) {
+                    company.landlords.push(existingUser._id);
+                }
+                
+                // Send role update email
+                try {
+                    await sendExistingUserRoleUpdateEmail(email, `${firstName} ${lastName}`, company.name, 'landlord');
+                    updatedUsers++;
+                    console.log('Role update email sent to:', email);
+                } catch (emailError) {
+                    console.error(`Failed to send role update email to ${email}:`, emailError);
+                    emailErrors.push({ email, error: emailError.message });
+                }
+            } else {
+                console.log('Creating new landlord user');
+                
+                // Create new user with temporary password
+                const temporaryPassword = generateTemporaryPassword();
+                
+                try {
+                    const newUser = await User.create({
+                        firstName,
+                        lastName,
+                        email: email.toLowerCase(),
+                        phone,
+                        jobTitle,
+                        password: temporaryPassword,
+                        isTemporaryPassword: true,
+                        role: 'landlord', // Always create as landlord
+                        company: company._id
+                    });
+                    
+                    console.log('New landlord user created:', newUser._id);
+                    createdUserIds.push(newUser._id);
+                    
+                    // Add user to company landlords array
+                    company.landlords.push(newUser._id);
+                    
+                    // Send temporary password email
+                    try {
+                        await sendTemporaryPasswordEmail(email, `${firstName} ${lastName}`, temporaryPassword, company.name, 'landlord');
+                        createdUsers++;
+                        console.log('Temporary password email sent to:', email);
+                    } catch (emailError) {
+                        console.error(`Failed to send temporary password email to ${email}:`, emailError);
+                        emailErrors.push({ email, error: emailError.message });
+                    }
+                } catch (userCreationError) {
+                    console.error('Error creating user:', userCreationError);
+                    console.error('User creation error details:', {
+                        message: userCreationError.message,
+                        name: userCreationError.name,
+                        stack: userCreationError.stack,
+                        validationErrors: userCreationError.errors
+                    });
+                    throw new Error(`Failed to create user ${email}: ${userCreationError.message}`);
+                }
+            }
+        }
+        
+        // Update company user count and save
+        await company.updateUserCount();
+        console.log('Company user count updated');
+        
+        // Prepare response
+        const response = {
+            company: company,
+            createdUsers: createdUsers,
+            updatedUsers: updatedUsers,
+            emailErrors: emailErrors.length > 0 ? emailErrors : undefined
+        };
+        
+        if (emailErrors.length > 0) {
+            console.warn('Some emails failed to send:', emailErrors);
+        }
+        
+        console.log('Company user addition completed successfully');
+        return sendResponse(res, 201, true, 'Users added to company successfully', response);
+        
+    } catch (error) {
+        console.error('Error adding users to company:', error);
+        console.error('Error details:', {
+            message: error.message,
+            stack: error.stack,
+            name: error.name
+        });
+        return sendResponse(res, 500, false, 'Failed to add users to company', error.message);
+    }
+};

@@ -1,8 +1,9 @@
 "use client"
-import { Search, Users, Eye, Edit, Clock } from "lucide-react"
+import { Search, Users, Eye, Edit, Clock, Trash2, Monitor } from "lucide-react"
 import { useState, useMemo } from "react"
+import AddUserDialog from "../dialogs/AddUserDialog"
 
-const UserRow = ({ user, onView, onEdit, getInitials, formatDate, userMeetings }) => {
+const UserRow = ({ user, onView, onEdit, onDelete, getInitials, formatDate, userMeetings, onObserveUser }) => {
   const userStorageUsage = userMeetings?.reduce((total, meeting) => {
     let meetingSize = 0
 
@@ -185,11 +186,25 @@ const UserRow = ({ user, onView, onEdit, getInitials, formatDate, userMeetings }
             <Eye className="w-4 h-4" />
           </button>
           <button
+            onClick={() => onObserveUser(user)}
+            className="p-2 rounded-lg text-green-600 hover:bg-green-50 hover:text-green-700 transition-colors duration-150"
+            title="Observe User Meeting"
+          >
+            <Monitor className="w-4 h-4" />
+          </button>
+          <button
             onClick={() => onEdit(user)}
             className="p-2 rounded-lg text-blue-600 hover:bg-blue-50 hover:text-blue-700 transition-colors duration-150"
             title="Edit User"
           >
             <Edit className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => onDelete(user)}
+            className="p-2 rounded-lg text-red-600 hover:bg-red-50 hover:text-red-700 transition-colors duration-150"
+            title="Delete User"
+          >
+            <Trash2 className="w-4 h-4" />
           </button>
         </div>
       </td>
@@ -276,6 +291,10 @@ const UserManagementSection = ({
   companyMeetings,
   onViewUser,
   onEditUser,
+  onDeleteUser,
+  onAddUser,
+  onViewTrashUsers,
+  onObserveUser,
   getInitials,
   formatDate
 }) => {
@@ -286,6 +305,11 @@ const UserManagementSection = ({
   const [sortOrder, setSortOrder] = useState('desc')
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage] = useState(10)
+  
+  // Dialog state management
+  const [isAddUserDialogOpen, setIsAddUserDialogOpen] = useState(false)
+  const [isAddUserLoading, setIsAddUserLoading] = useState(false)
+  const [addUserApiError, setAddUserApiError] = useState(null)
 
   const filteredAndSortedUsers = useMemo(() => {
     let filtered = companyUsers.filter(user => {
@@ -339,6 +363,43 @@ const UserManagementSection = ({
     return filtered
   }, [companyUsers, searchTerm, filterRole, filterStatus, sortBy, sortOrder])
 
+  // Dialog handlers
+  const handleAddUserClick = () => {
+    setIsAddUserDialogOpen(true)
+    setAddUserApiError(null)
+  }
+
+  const handleAddUserClose = () => {
+    setIsAddUserDialogOpen(false)
+    setAddUserApiError(null)
+  }
+
+  const handleAddUserSubmit = async (userData) => {
+    setIsAddUserLoading(true)
+    setAddUserApiError(null)
+    
+    try {
+      // Handle multiple users - submit each user individually
+      if (userData.users && userData.users.length > 0) {
+        for (const user of userData.users) {
+          await onAddUser(user)
+        }
+      } else {
+        // Fallback for single user (backward compatibility)
+        await onAddUser(userData)
+      }
+      setIsAddUserDialogOpen(false)
+    } catch (error) {
+      setAddUserApiError(error.message || 'Failed to add user')
+    } finally {
+      setIsAddUserLoading(false)
+    }
+  }
+
+  const handleClearAddUserError = () => {
+    setAddUserApiError(null)
+  }
+
   // Pagination
   const totalPages = Math.ceil(filteredAndSortedUsers.length / itemsPerPage)
   const currentUsers = filteredAndSortedUsers.slice(
@@ -358,15 +419,32 @@ const UserManagementSection = ({
               {searchTerm && ` matching "${searchTerm}"`}
             </span>
           </div>
-          <div className="relative w-full sm:w-auto">
-            <Search className="absolute left-3 sm:left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-            <input
-              type="text"
-              placeholder="Search users..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full sm:w-64 pl-10 sm:pl-12 pr-4 py-3 sm:py-3 border border-gray-200 rounded-full focus:ring-2 focus:ring-purple-500 focus:border-purple-500 focus:outline-none transition-all duration-200 bg-gray-50 focus:bg-white shadow-sm text-gray-700 text-sm"
-            />
+          <div className="flex items-center gap-3">
+            <button
+              onClick={onViewTrashUsers}
+              className="inline-flex items-center px-4 py-3 bg-red-500 hover:bg-red-600 text-white text-sm font-medium rounded-full transition-colors duration-200 shadow-sm hover:shadow-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+              title="View Trash Users"
+            >
+              <img src="/icons/trash-red.svg" className="w-4 h-4 mr-2 filter brightness-0 invert" />
+              View Trash
+            </button>
+            <button
+              onClick={handleAddUserClick}
+              className="inline-flex items-center px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium rounded-full transition-colors duration-200 shadow-sm hover:shadow-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2"
+              title="Add New User"
+            >
+              Add User
+            </button>
+            <div className="relative w-full sm:w-auto">
+              <Search className="absolute left-3 sm:left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <input
+                type="text"
+                placeholder="Search users..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full sm:w-64 pl-10 sm:pl-12 pr-4 py-3 sm:py-3 border border-gray-200 rounded-full focus:ring-2 focus:ring-purple-500 focus:border-purple-500 focus:outline-none transition-all duration-200 bg-gray-50 focus:bg-white shadow-sm text-gray-700 text-sm"
+              />
+            </div>
           </div>
         </div>
 
@@ -405,6 +483,8 @@ const UserManagementSection = ({
                     user={user}
                     onView={onViewUser}
                     onEdit={onEditUser}
+                    onDelete={onDeleteUser}
+                    onObserveUser={onObserveUser}
                     getInitials={getInitials}
                     formatDate={formatDate}
                     userMeetings={companyMeetings}
@@ -434,6 +514,17 @@ const UserManagementSection = ({
           />
         )}
       </div>
+
+      {/* Add User Dialog */}
+      <AddUserDialog
+        isOpen={isAddUserDialogOpen}
+        onClose={handleAddUserClose}
+        onSubmit={handleAddUserSubmit}
+        isLoading={isAddUserLoading}
+        apiError={addUserApiError}
+        onClearApiError={handleClearAddUserError}
+        mode="add"
+      />
     </div>
   )
 }

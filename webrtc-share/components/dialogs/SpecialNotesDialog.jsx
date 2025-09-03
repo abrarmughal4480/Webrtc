@@ -397,7 +397,7 @@ export default function SpecialNotesDialog({ open, onClose, initialData, onSave 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.10)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}>
       <div
-        className="bg-white rounded-2xl border border-purple-200 shadow-2xl min-w-[320px] min-h-[220px] relative max-h-[90vh] overflow-y-auto"
+        className="bg-white rounded-2xl border border-purple-200 shadow-2xl min-w-[320px] min-h-[220px] relative max-h-[90vh] overflow-hidden"
         style={{
           width: '100%',
           maxWidth: 680,
@@ -422,7 +422,7 @@ export default function SpecialNotesDialog({ open, onClose, initialData, onSave 
           </button>
         </div>
         {/* Content */}
-        <div className="p-6 sm:p-8 bg-transparent rounded-b-xl max-h-[calc(90vh-4rem)] overflow-y-auto">
+        <div className="p-6 sm:p-8 bg-transparent rounded-b-xl max-h-[calc(90vh-4rem)] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
           {sections.map((section, idx) => (
             <div key={section.key} className="mb-8 last:mb-0">
               <Section

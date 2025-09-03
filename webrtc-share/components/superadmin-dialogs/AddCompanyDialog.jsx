@@ -253,7 +253,8 @@ export default function AddCompanyDialog({
             </button>
           </div>
           
-          <div className="w-full bg-white rounded-b-2xl shadow-2xl border border-gray-200 p-3 sm:p-6 flex flex-col pointer-events-auto max-h-[85vh] sm:max-h-[80vh] overflow-y-auto">
+          <div className="w-full bg-white rounded-b-2xl shadow-2xl border border-gray-200 overflow-hidden">
+            <div className="p-3 sm:p-6 flex flex-col pointer-events-auto max-h-[85vh] sm:max-h-[80vh] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
             <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
               {/* Company Basic Info */}
               <div className="space-y-3 sm:space-y-4">
@@ -571,6 +572,7 @@ export default function AddCompanyDialog({
               <p className="text-xs text-gray-500">
                 <span className="text-red-500">*</span>required
               </p>
+            </div>
             </div>
           </div>
         </div>

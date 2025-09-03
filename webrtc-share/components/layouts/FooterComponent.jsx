@@ -367,7 +367,7 @@ export function Footer() {
           </div>
         }
       >
-        <div className="max-h-[73vh] overflow-y-auto pb-3">
+        <div className="max-h-[73vh] overflow-y-auto pb-3 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
           <form className="space-y-6 max-w-lg mx-auto" onSubmit={handleCallbackSubmit}>
             <div className="flex items-start flex-col gap-3">
               <label className="text-gray-800 font-semibold text-sm">Best time to call</label>
@@ -535,7 +535,7 @@ export function Footer() {
           </div>
         }
       >
-        <div className="max-h-[73vh] overflow-y-auto pb-3">
+        <div className="max-h-[73vh] overflow-y-auto pb-3 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
           <form className="space-y-6 max-w-lg mx-auto" onSubmit={handleMeetingSubmit}>
             <div className="flex items-start flex-col gap-3">
               <label className="text-gray-800 font-semibold text-sm">Your Name *</label>

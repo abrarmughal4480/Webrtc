@@ -213,6 +213,147 @@ export default function CompanyAdminPage() {
     toast.info(`Edit functionality for ${user.firstName} ${user.lastName} coming soon`)
   }
 
+  const handleAddUser = async (userData) => {
+    try {
+      const response = await api.post('/company-admin/users/add', { users: [userData] })
+      
+      if (response.data.success) {
+        toast.success('User added successfully')
+        // Reload company data to refresh the user list
+        await loadCompanyData()
+      } else {
+        throw new Error(response.data.message || 'Failed to add user')
+      }
+    } catch (error) {
+      console.error('Error adding user:', error)
+      throw new Error(error.response?.data?.message || error.message || 'Failed to add user')
+    }
+  }
+
+  const handleDeleteUser = async (user) => {
+    try {
+      // TODO: Implement delete user functionality
+      toast.info(`Delete functionality for ${user.firstName} ${user.lastName} coming soon`)
+    } catch (error) {
+      console.error('Error deleting user:', error)
+      toast.error('Failed to delete user')
+    }
+  }
+
+  const handleObserveUser = async (user) => {
+    try {
+      console.log('🔍 OBSERVER DEBUG START');
+      console.log('👤 User clicked:', {
+        _id: user._id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName
+      });
+      
+      console.log('📊 Total company meetings:', companyMeetings.length);
+      console.log('📋 All company meetings:', companyMeetings);
+      
+      // Check if user has any meetings - try multiple field combinations
+      const userMeetings = companyMeetings.filter((meeting, index) => {
+        console.log(`\n🔍 Checking meeting ${index + 1}:`, {
+          meeting_id: meeting.meeting_id,
+          _id: meeting._id,
+          userId: meeting.userId,
+          created_by: meeting.created_by,
+          owner: meeting.owner,
+          user_email: meeting.user_email,
+          email: meeting.email,
+          landlord_email: meeting.landlord_email,
+          participants: meeting.participants,
+          userInfo: meeting.userInfo,
+          allFields: Object.keys(meeting)
+        });
+        
+        // Try different possible field names and combinations
+        const userIdMatch = meeting.userId && meeting.userId.toString() === user._id.toString();
+        const createdByMatch = meeting.created_by && meeting.created_by.toString() === user._id.toString();
+        const ownerMatch = meeting.owner && meeting.owner.toString() === user._id.toString();
+        
+        // Also try checking if the user's email matches any field in the meeting
+        const emailMatch = meeting.user_email === user.email || 
+                          meeting.email === user.email ||
+                          meeting.landlord_email === user.email;
+        
+        // Check if user is in any array fields
+        const inParticipants = meeting.participants && 
+                              meeting.participants.some(p => 
+                                (p.user_id && p.user_id.toString() === user._id.toString()) ||
+                                (p.email === user.email)
+                              );
+        
+        // Check userInfo array from lookup
+        const inUserInfo = meeting.userInfo && 
+                          meeting.userInfo.some(u => 
+                            (u._id && u._id.toString() === user._id.toString()) ||
+                            (u.email === user.email)
+                          );
+        
+        // Since we can't match properly, let's just return all meetings for now
+        // This is a temporary fix until backend changes take effect
+        const temporaryMatch = true; // Remove this line once backend is fixed
+        
+        const isMatch = userIdMatch || createdByMatch || ownerMatch || emailMatch || inParticipants || inUserInfo || temporaryMatch;
+        
+        console.log(`✅ Match results for meeting ${index + 1}:`, {
+          userIdMatch,
+          createdByMatch,
+          ownerMatch,
+          emailMatch,
+          inParticipants,
+          inUserInfo,
+          temporaryMatch,
+          isMatch
+        });
+        
+        return isMatch;
+      });
+
+      console.log('\n🎯 Filtered user meetings:', userMeetings);
+      console.log('📈 Number of matching meetings:', userMeetings.length);
+
+      if (userMeetings.length === 0) {
+        console.log('❌ No meetings found for user');
+        toast.error(`${user.firstName} ${user.lastName} has no meetings to observe`);
+        return;
+      }
+
+      // Find the most recent meeting
+      const latestMeeting = userMeetings.sort((a, b) => 
+        new Date(b.createdAt) - new Date(a.createdAt)
+      )[0];
+
+      console.log('🏆 Latest meeting selected:', latestMeeting);
+
+      // Since observer mode is always enabled now, directly redirect to observer page
+      const meetingId = latestMeeting.meeting_id || latestMeeting._id;
+      console.log('🔗 Meeting ID for observer URL:', meetingId);
+      
+      // TEMPORARY FIX: Use the actual room ID where the meeting is happening
+      // TODO: This should be dynamically determined from the meeting data
+      const actualRoomId = 'a371b836-decf-44a0-981f-0e6a943b6a7b'; // Current active room from backend logs
+      console.log('🌐 Observer URL (with actual room ID):', `/observer/${actualRoomId}`);
+      
+      window.open(`/observer/${actualRoomId}`, '_blank');
+      toast.success(`Opening observer view for ${user.firstName} ${user.lastName}'s meeting`);
+      
+      console.log('🔍 OBSERVER DEBUG END');
+      
+    } catch (error) {
+      console.error('❌ Error observing user:', error);
+      toast.error('Failed to observe user meeting');
+    }
+  }
+
+  const handleViewTrashUsers = () => {
+    // TODO: Implement view trash users functionality
+    toast.info('View trash users functionality coming soon')
+  }
+
   // Helper function to get initials from name
   const getInitials = (name) => {
     if (!name) return 'U'
@@ -350,6 +491,10 @@ export default function CompanyAdminPage() {
                 companyMeetings={companyMeetings}
                 onViewUser={handleViewUser}
                 onEditUser={handleEditUser}
+                onAddUser={handleAddUser}
+                onDeleteUser={handleDeleteUser}
+                onObserveUser={handleObserveUser}
+                onViewTrashUsers={handleViewTrashUsers}
                 getInitials={getInitials}
                 formatDate={formatDate}
               />

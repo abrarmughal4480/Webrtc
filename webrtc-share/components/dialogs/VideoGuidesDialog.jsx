@@ -273,7 +273,7 @@ const VideoGuidesDialog = ({ open, setOpen }) => {
           </div>
           
           {/* Enhanced Content */}
-          <div className="max-h-[calc(95vh-120px)] overflow-y-auto">
+          <div className="max-h-[calc(95vh-120px)] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-0">
               {/* Enhanced Video Player - Right Side */}
               <div className="lg:col-span-2 p-6 bg-gray-50">

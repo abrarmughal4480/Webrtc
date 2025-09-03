@@ -217,6 +217,87 @@ export const setupSocketListeners = () => {
       }
     });
 
+    // Observer events
+    socket.on('observer-join-room', (roomId, observerData) => {
+      socket.join(`observer-${roomId}`);
+      socket.to(`admin-${roomId}`).emit('observer-joined', observerData);
+      logger.info(`Observer ${observerData.observer_email} joined room: ${roomId}`);
+    });
+
+    socket.on('observer-leave-room', (roomId, observerData) => {
+      socket.leave(`observer-${roomId}`);
+      socket.to(`admin-${roomId}`).emit('observer-left', observerData);
+      logger.info(`Observer ${observerData.observer_email} left room: ${roomId}`);
+    });
+
+    socket.on('observer-request-screen', (roomId, observerData) => {
+      socket.to(`admin-${roomId}`).emit('observer-requested-screen', observerData);
+      logger.info(`Observer ${observerData.observer_email} requested screen for room: ${roomId}`);
+    });
+
+    socket.on('observer-screen-share', (roomId, screenData) => {
+      socket.to(`observer-${roomId}`).emit('observer-screen-data', screenData);
+    });
+
+    // Observer WebRTC events
+    socket.on('observer-offer', (offer, roomId) => {
+      socket.to(`observer-${roomId}`).emit('observer-offer', offer);
+      logger.info(`Observer offer sent to room: ${roomId}`);
+    });
+
+    socket.on('observer-answer', (answer, roomId) => {
+      socket.to(`admin-${roomId}`).emit('observer-answer', answer);
+      logger.info(`Observer answer sent to admin room: ${roomId}`);
+    });
+
+    socket.on('observer-ice-candidate', (candidate, roomId) => {
+      // Send ICE candidate to both admin and observer rooms
+      // This ensures both parties receive ICE candidates regardless of who sent them
+      socket.to(`admin-${roomId}`).emit('observer-ice-candidate', candidate);
+      socket.to(`observer-${roomId}`).emit('observer-ice-candidate', candidate);
+      logger.info(`ICE candidate broadcasted to both rooms: ${roomId}`);
+    });
+
+    // Observer screen share stopped
+    socket.on('observer-screen-share-stopped', (roomId) => {
+      socket.to(`observer-${roomId}`).emit('observer-screen-share-stopped');
+      logger.info(`Observer screen share stopped for room: ${roomId}`);
+    });
+
+    // Observer room joining
+    socket.on('join-observer-room', (roomId) => {
+      socket.join(`observer-${roomId}`);
+      logger.info(`Observer joined observer room: ${roomId}`);
+    });
+
+    // Admin room joining
+    socket.on('join-admin-room', (roomId) => {
+      socket.join(`admin-${roomId}`);
+      logger.info(`Admin joined admin room: ${roomId}`);
+    });
+
+    // Observer requesting current offer
+    socket.on('observer-request-offer', (roomId) => {
+      socket.to(`admin-${roomId}`).emit('observer-requested-offer', roomId);
+      logger.info(`Observer requested current offer for room: ${roomId}`);
+    });
+
+    // Observer joined event (for direct notification)
+    socket.on('observer-joined', (observerData) => {
+      // Get the room ID from the socket's joined rooms
+      const rooms = Array.from(socket.rooms);
+      const observerRoom = rooms.find(room => room.startsWith('observer-'));
+      
+      if (observerRoom) {
+        const roomId = observerRoom.replace('observer-', '');
+        socket.to(`admin-${roomId}`).emit('observer-joined', observerData);
+        logger.info(`Observer ${observerData.observer_email} joined and notified admin for room: ${roomId}`);
+      } else {
+        logger.warn(`Observer ${observerData.observer_email} joined but no observer room found`);
+      }
+    });
+
+
     // NEW: Dedicated camera control room events for better reliability
     socket.on('join-camera-room', (data) => {
       const { roomId, isAdmin } = data;

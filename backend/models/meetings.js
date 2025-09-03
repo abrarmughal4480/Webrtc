@@ -80,6 +80,24 @@ const meetingSchema = new mongoose.Schema({
     trashed: {
         type: Boolean,
         default: false
+    },
+    // Observer functionality
+    observers: [{
+        observer_id: {type: mongoose.Schema.ObjectId, ref: "User", required: true},
+        observer_email: {type: String, required: true},
+        observer_name: {type: String, required: true},
+        joined_at: {type: Date, default: Date.now},
+        left_at: {type: Date, default: null},
+        is_active: {type: Boolean, default: true}
+    }],
+    observer_enabled: {
+        type: Boolean,
+        default: true
+    },
+    observer_permissions: {
+        can_view_screen: {type: Boolean, default: true},
+        can_control_camera: {type: Boolean, default: false},
+        can_take_screenshots: {type: Boolean, default: false}
     }
 }, {timestamps: true});
 
